@@ -1,0 +1,489 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum SystemRole {
+  SUPER_ADMIN
+}
+
+enum StaffRole {
+  OWNER
+  MANAGER
+  CASHIER
+  STOCK_CLERK
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  EXPIRED
+  SUSPENDED
+}
+
+enum SubscriptionPlan {
+  FREE_TRIAL
+  BASIC
+  STANDARD
+  PREMIUM
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  MOBILE_MONEY
+  SPLIT
+  OTHER
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  VOIDED
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+}
+
+enum AdjustmentType {
+  PURCHASE
+  SALE
+  RETURN
+  DAMAGE
+  CORRECTION
+  TRANSFER
+}
+
+// ─────────────────────────────────────────────
+// AUTH & USERS
+// ─────────────────────────────────────────────
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  systemRole    SystemRole @default(SUPER_ADMIN)
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+
+  @@map("app_users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─────────────────────────────────────────────
+// MULTI-TENANT: MERCHANT / STORE
+// ─────────────────────────────────────────────
+
+model Merchant {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  accessCode   String   @unique
+  phone        String?
+  address      String?
+  logo         String?
+  currency     String   @default("SYP")
+  timezone     String   @default("Asia/Damascus")
+  taxRate      Float    @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subscription Subscription?
+  licenseKeys  LicenseKey[]
+  staff        Staff[]
+  categories   Category[]
+  products     Product[]
+  customers    Customer[]
+  orders       Order[]
+  suppliers    Supplier[]
+  purchaseOrders PurchaseOrder[]
+  inventoryAdjustments InventoryAdjustment[]
+  shifts       Shift[]
+  activityLogs ActivityLog[]
+
+  @@map("merchants")
+}
+
+// ─────────────────────────────────────────────
+// SUBSCRIPTION & LICENSE
+// ─────────────────────────────────────────────
+
+model Subscription {
+  id         String             @id @default(cuid())
+  merchantId String             @unique
+  plan       SubscriptionPlan   @default(FREE_TRIAL)
+  status     SubscriptionStatus @default(TRIAL)
+  startsAt   DateTime           @default(now())
+  expiresAt  DateTime
+  graceEndsAt DateTime?
+  paidAmount Float?
+  paidAt     DateTime?
+  paymentRef String?
+  notes      String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model LicenseKey {
+  id          String   @id @default(cuid())
+  merchantId  String
+  token       String   @unique @db.Text
+  expiresAt   DateTime
+  isRevoked   Boolean  @default(false)
+  activatedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@map("license_keys")
+}
+
+// ─────────────────────────────────────────────
+// STAFF (CASHIERS, MANAGERS, etc.)
+// ─────────────────────────────────────────────
+
+model Staff {
+  id         String    @id @default(cuid())
+  merchantId String
+  name       String
+  pin        String
+  role       StaffRole @default(CASHIER)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  orders   Order[]
+  shifts   Shift[]
+
+  @@unique([merchantId, pin])
+  @@index([merchantId])
+  @@map("staff")
+}
+
+// ─────────────────────────────────────────────
+// PRODUCTS & INVENTORY
+// ─────────────────────────────────────────────
+
+model Category {
+  id         String   @id @default(cuid())
+  merchantId String
+  name       String
+  color      String?
+  sortOrder  Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([merchantId, name])
+  @@index([merchantId])
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  merchantId  String
+  categoryId  String?
+  name        String
+  sku         String?
+  barcode     String?
+  price       Float
+  costPrice   Float    @default(0)
+  stock       Int      @default(0)
+  lowStockAt  Int      @default(5)
+  unit        String   @default("piece")
+  image       String?
+  isActive    Boolean  @default(true)
+  trackStock  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  merchant   Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  category   Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  orderItems OrderItem[]
+  inventoryAdjustments InventoryAdjustment[]
+  purchaseOrderItems   PurchaseOrderItem[]
+
+  @@unique([merchantId, sku])
+  @@unique([merchantId, barcode])
+  @@index([merchantId])
+  @@index([categoryId])
+  @@map("products")
+}
+
+// ─────────────────────────────────────────────
+// CUSTOMERS
+// ─────────────────────────────────────────────
+
+model Customer {
+  id         String   @id @default(cuid())
+  merchantId String
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  notes      String?
+  totalSpent Float    @default(0)
+  visitCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  orders   Order[]
+
+  @@index([merchantId])
+  @@map("customers")
+}
+
+// ─────────────────────────────────────────────
+// ORDERS & SALES
+// ─────────────────────────────────────────────
+
+model Order {
+  id             String        @id @default(cuid())
+  merchantId     String
+  staffId        String?
+  customerId     String?
+  orderNumber    String
+  status         OrderStatus   @default(COMPLETED)
+  subtotal       Float
+  taxAmount      Float         @default(0)
+  discountAmount Float         @default(0)
+  total          Float
+  paidAmount     Float         @default(0)
+  changeAmount   Float         @default(0)
+  paymentMethod  PaymentMethod @default(CASH)
+  notes          String?
+  syncStatus     SyncStatus    @default(PENDING)
+  localId        String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  merchant  Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  staff     Staff?      @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  customer  Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items     OrderItem[]
+
+  @@unique([merchantId, orderNumber])
+  @@index([merchantId])
+  @@index([merchantId, createdAt])
+  @@index([syncStatus])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String @id @default(cuid())
+  orderId    String
+  productId  String?
+  name       String
+  sku        String?
+  price      Float
+  costPrice  Float  @default(0)
+  quantity   Int
+  discount   Float  @default(0)
+  total      Float
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ─────────────────────────────────────────────
+// SUPPLIERS & PURCHASES
+// ─────────────────────────────────────────────
+
+model Supplier {
+  id         String   @id @default(cuid())
+  merchantId String
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  merchant       Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+
+  @@index([merchantId])
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  merchantId  String
+  supplierId  String
+  orderNumber String
+  totalAmount Float    @default(0)
+  status      String   @default("pending")
+  notes       String?
+  receivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  merchant Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  supplier Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  items    PurchaseOrderItem[]
+
+  @@unique([merchantId, orderNumber])
+  @@index([merchantId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String @id @default(cuid())
+  purchaseOrderId String
+  productId       String
+  quantity        Int
+  costPrice       Float
+  total           Float
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_items")
+}
+
+// ─────────────────────────────────────────────
+// INVENTORY ADJUSTMENTS
+// ─────────────────────────────────────────────
+
+model InventoryAdjustment {
+  id         String         @id @default(cuid())
+  merchantId String
+  productId  String
+  type       AdjustmentType
+  quantity   Int
+  reason     String?
+  reference  String?
+  createdAt  DateTime       @default(now())
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@index([productId])
+  @@map("inventory_adjustments")
+}
+
+// ─────────────────────────────────────────────
+// SHIFTS
+// ─────────────────────────────────────────────
+
+model Shift {
+  id              String    @id @default(cuid())
+  merchantId      String
+  staffId         String
+  openingCash     Float     @default(0)
+  closingCash     Float?
+  totalSales      Float     @default(0)
+  totalOrders     Int       @default(0)
+  totalRefunds    Float     @default(0)
+  notes           String?
+  openedAt        DateTime  @default(now())
+  closedAt        DateTime?
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  staff    Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@index([staffId])
+  @@map("shifts")
+}
+
+// ─────────────────────────────────────────────
+// ACTIVITY LOGS / AUDIT TRAIL
+// ─────────────────────────────────────────────
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  merchantId String?
+  userId     String?
+  staffId    String?
+  action     String
+  entity     String
+  entityId   String?
+  details    String?  @db.Text
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  merchant Merchant? @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}

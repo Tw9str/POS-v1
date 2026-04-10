@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="receipt" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  <rect width="180" height="180" rx="32" fill="url(#bg)"/>
+  <path d="M36,22 H144 Q158,22 158,36 V151.0 L33.3,151.0 L44.7,158.0 L56.0,151.0 L67.3,158.0 L78.7,151.0 L90.0,158.0 L101.3,151.0 L112.7,158.0 L124.0,151.0 L135.3,158.0 L146.7,151.0 L158.0,158.0  V36 Q22,22 36,22 Z" fill="url(#receipt)" filter="url(#shadow)"/>
+  <line x1="46.480000000000004" y1="46.480000000000004" x2="96.80000000000001" y2="46.480000000000004" stroke="#cbd5e1" stroke-width="2.16" stroke-linecap="round"/>
+  <line x1="117.19999999999999" y1="46.480000000000004" x2="133.51999999999998" y2="46.480000000000004" stroke="#cbd5e1" stroke-width="2.16" stroke-linecap="round"/>
+  <line x1="46.480000000000004" y1="60.080000000000005" x2="80.48" y2="60.080000000000005" stroke="#e2e8f0" stroke-width="2.16" stroke-linecap="round"/>
+  <line x1="122.63999999999999" y1="60.080000000000005" x2="133.51999999999998" y2="60.080000000000005" stroke="#e2e8f0" stroke-width="2.16" stroke-linecap="round"/>
+  <text x="90" y="99.00000000000001" text-anchor="middle" dominant-baseline="central" font-family="system-ui,-apple-system,sans-serif" font-size="58" font-weight="800" fill="#1e40af">S</text>
+  <line x1="46.480000000000004" y1="119.92" x2="133.51999999999998" y2="119.92" stroke="#cbd5e1" stroke-width="1.7280000000000002" stroke-linecap="round" stroke-dasharray="3 2"/>
+  <line x1="94.08" y1="130.8" x2="133.51999999999998" y2="130.8" stroke="#1e40af" stroke-width="3.024" stroke-linecap="round"/>
+</svg>

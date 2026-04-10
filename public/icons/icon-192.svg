@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="receipt" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  <rect width="192" height="192" rx="35" fill="url(#bg)"/>
+  <path d="M38,23 H154 Q169,23 169,38 V161.0 L35.2,161.0 L47.3,169.0 L59.5,161.0 L71.7,169.0 L83.8,161.0 L96.0,169.0 L108.2,161.0 L120.3,169.0 L132.5,161.0 L144.7,169.0 L156.8,161.0 L169.0,169.0  V38 Q23,23 38,23 Z" fill="url(#receipt)" filter="url(#shadow)"/>
+  <line x1="49.28" y1="49.28" x2="103.30000000000001" y2="49.28" stroke="#cbd5e1" stroke-width="2.3040000000000003" stroke-linecap="round"/>
+  <line x1="125.2" y1="49.28" x2="142.72" y2="49.28" stroke="#cbd5e1" stroke-width="2.3040000000000003" stroke-linecap="round"/>
+  <line x1="49.28" y1="63.88" x2="85.78" y2="63.88" stroke="#e2e8f0" stroke-width="2.3040000000000003" stroke-linecap="round"/>
+  <line x1="131.04" y1="63.88" x2="142.72" y2="63.88" stroke="#e2e8f0" stroke-width="2.3040000000000003" stroke-linecap="round"/>
+  <text x="96" y="105.60000000000001" text-anchor="middle" dominant-baseline="central" font-family="system-ui,-apple-system,sans-serif" font-size="61" font-weight="800" fill="#1e40af">S</text>
+  <line x1="49.28" y1="128.12" x2="142.72" y2="128.12" stroke="#cbd5e1" stroke-width="1.8432000000000004" stroke-linecap="round" stroke-dasharray="3 2"/>
+  <line x1="100.38" y1="139.8" x2="142.72" y2="139.8" stroke="#1e40af" stroke-width="3.2256" stroke-linecap="round"/>
+</svg>
