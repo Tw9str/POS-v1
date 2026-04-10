@@ -16,44 +16,53 @@ export function InventoryContent({ merchantId }: { merchantId: string }) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
-        <p className="text-gray-500 mt-1">Track and manage stock levels</p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          Inventory
+        </h1>
+        <p className="text-slate-500 mt-1">Track and manage stock levels</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Stock Levels</h2>
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+            Stock Levels
+          </h2>
         </div>
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
+          <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-6 py-3 text-left font-medium">Product</th>
-              <th className="px-6 py-3 text-left font-medium">SKU</th>
-              <th className="px-6 py-3 text-left font-medium">Stock</th>
-              <th className="px-6 py-3 text-left font-medium">Status</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Product</th>
+              <th className="px-5 py-3.5 text-left font-semibold">SKU</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Stock</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-50">
             {tracked.length === 0 ? (
               <tr>
                 <td
                   colSpan={4}
-                  className="px-6 py-12 text-center text-gray-400"
+                  className="px-5 py-12 text-center text-slate-400"
                 >
                   No tracked products
                 </td>
               </tr>
             ) : (
               tracked.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">
+                <tr
+                  key={p.id}
+                  className="hover:bg-slate-50/50 transition-colors"
+                >
+                  <td className="px-5 py-4 font-semibold text-slate-800">
                     {p.name}
                   </td>
-                  <td className="px-6 py-4 text-gray-500 font-mono text-xs">
+                  <td className="px-5 py-4 text-slate-500 font-mono text-xs">
                     {p.sku || "—"}
                   </td>
-                  <td className="px-6 py-4 font-semibold">{p.stock}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-5 py-4 font-bold tabular-nums">
+                    {p.stock}
+                  </td>
+                  <td className="px-5 py-4">
                     <Badge
                       variant={
                         p.stock <= 0

@@ -10,9 +10,9 @@ export function Card({ children, className, padding = true }: CardProps) {
   return (
     <div
       className={cn(
-        "bg-white rounded-xl border border-gray-200 shadow-sm",
+        "bg-white rounded-2xl border border-slate-200/80 shadow-sm",
         padding && "p-6",
-        className
+        className,
       )}
     >
       {children}
@@ -28,27 +28,52 @@ interface StatCardProps {
   trend?: { value: number; positive: boolean };
 }
 
-export function StatCard({ title, value, subtitle, icon, trend }: StatCardProps) {
+export function StatCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  trend,
+}: StatCardProps) {
   return (
     <Card>
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-gray-500">{title}</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
-          {subtitle && <p className="mt-1 text-sm text-gray-400">{subtitle}</p>}
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-slate-500">{title}</p>
+          <p className="text-2xl font-bold tracking-tight text-slate-900">
+            {value}
+          </p>
+          {subtitle && <p className="text-sm text-slate-400">{subtitle}</p>}
           {trend && (
-            <p
+            <div
               className={cn(
-                "mt-1 text-sm font-medium",
-                trend.positive ? "text-green-600" : "text-red-600"
+                "inline-flex items-center gap-1 text-sm font-semibold px-2 py-0.5 rounded-md",
+                trend.positive
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-red-50 text-red-700",
               )}
             >
-              {trend.positive ? "+" : ""}{trend.value}%
-            </p>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={trend.positive ? "" : "rotate-180"}
+              >
+                <path d="m18 15-6-6-6 6" />
+              </svg>
+              {Math.abs(trend.value)}%
+            </div>
           )}
         </div>
         {icon && (
-          <div className="p-3 bg-blue-50 rounded-lg text-blue-600">{icon}</div>
+          <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+            {icon}
+          </div>
         )}
       </div>
     </Card>

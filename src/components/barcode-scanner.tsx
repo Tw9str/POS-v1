@@ -89,7 +89,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
               if (scannerRef.current) safeStop(scannerRef.current);
               onClose();
             }}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
           >
             &times;
           </button>
@@ -97,7 +97,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
 
         <div className="p-4">
           {cameraAvailable && starting && (
-            <p className="text-sm text-gray-500 text-center mb-2">
+            <p className="text-sm text-slate-500 text-center mb-2">
               Starting camera...
             </p>
           )}
@@ -108,7 +108,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
                 ref={containerRef}
                 className="w-full"
               />
-              <p className="text-xs text-gray-400 text-center mt-3">
+              <p className="text-xs text-slate-400 text-center mt-3">
                 Point your camera at a barcode
               </p>
             </>
@@ -116,7 +116,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
 
           {!cameraAvailable && (
             <div className="text-center py-4">
-              <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
+              <div className="w-12 h-12 mx-auto mb-3 bg-slate-100 rounded-full flex items-center justify-center">
                 <svg
                   width="24"
                   height="24"
@@ -126,17 +126,17 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="text-gray-400"
+                  className="text-slate-400"
                 >
                   <rect x="2" y="4" width="20" height="16" rx="2" />
                   <line x1="2" y1="12" x2="22" y2="12" />
                   <line x1="12" y1="4" x2="12" y2="20" />
                 </svg>
               </div>
-              <p className="text-sm text-gray-600 mb-1 font-medium">
+              <p className="text-sm text-slate-600 mb-1 font-semibold">
                 No camera detected
               </p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-slate-400">
                 Type or scan barcode with a USB/Bluetooth scanner
               </p>
             </div>
@@ -153,7 +153,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
                 if (e.key === "Enter") handleManualSubmit();
               }}
               placeholder="Enter barcode manually..."
-              className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="flex-1 text-sm border-2 border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
               autoFocus={!cameraAvailable}
             />
             <button

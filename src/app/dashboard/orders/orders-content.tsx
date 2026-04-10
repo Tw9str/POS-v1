@@ -36,30 +36,32 @@ export function OrdersContent({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-        <p className="text-gray-500 mt-1">{orders.length} orders</p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          Orders
+        </h1>
+        <p className="text-slate-500 mt-1">{orders.length} orders</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
+          <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-6 py-3 text-left font-medium">Order #</th>
-              <th className="px-6 py-3 text-left font-medium">Cashier</th>
-              <th className="px-6 py-3 text-left font-medium">Customer</th>
-              <th className="px-6 py-3 text-left font-medium">Items</th>
-              <th className="px-6 py-3 text-left font-medium">Total</th>
-              <th className="px-6 py-3 text-left font-medium">Payment</th>
-              <th className="px-6 py-3 text-left font-medium">Status</th>
-              <th className="px-6 py-3 text-left font-medium">Date</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Order #</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Cashier</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Customer</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Items</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Total</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Payment</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Status</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Date</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-50">
             {orders.length === 0 ? (
               <tr>
                 <td
                   colSpan={8}
-                  className="px-6 py-12 text-center text-gray-400"
+                  className="px-5 py-12 text-center text-slate-400"
                 >
                   No orders yet
                 </td>
@@ -68,29 +70,32 @@ export function OrdersContent({
               orders.map((o) => {
                 const status = displayStatus(o);
                 return (
-                  <tr key={o.localId} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">
+                  <tr
+                    key={o.localId}
+                    className="hover:bg-slate-50/50 transition-colors"
+                  >
+                    <td className="px-5 py-4 font-semibold text-slate-800">
                       {o.orderNumber}
                     </td>
-                    <td className="px-6 py-4 text-gray-500">
+                    <td className="px-5 py-4 text-slate-500">
                       {o.staffName || "—"}
                     </td>
-                    <td className="px-6 py-4 text-gray-500">
+                    <td className="px-5 py-4 text-slate-500">
                       {o.customerName || "Walk-in"}
                     </td>
-                    <td className="px-6 py-4 text-gray-500">
+                    <td className="px-5 py-4 text-slate-500 tabular-nums">
                       {o.items.length}
                     </td>
-                    <td className="px-6 py-4 font-semibold">
+                    <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
                       {formatCurrency(o.total, currency)}
                     </td>
-                    <td className="px-6 py-4 text-gray-500">
+                    <td className="px-5 py-4 text-slate-500">
                       {o.paymentMethod}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-4">
                       <Badge variant={statusVariant(status)}>{status}</Badge>
                     </td>
-                    <td className="px-6 py-4 text-gray-500">
+                    <td className="px-5 py-4 text-slate-500">
                       {formatDateTime(new Date(o.createdAt))}
                     </td>
                   </tr>

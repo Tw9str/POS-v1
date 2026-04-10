@@ -171,7 +171,7 @@ export function ProductActions({
                   type="button"
                   onClick={() => generateSku(form.categoryId || undefined)}
                   disabled={skuLoading}
-                  className="mt-6 p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                  className="mt-6 p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors disabled:opacity-50"
                   title="Auto-generate SKU"
                 >
                   <IconBarcode size={18} />
@@ -193,7 +193,7 @@ export function ProductActions({
                 <button
                   type="button"
                   onClick={() => setScannerOpen(true)}
-                  className="mt-6 p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  className="mt-6 p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
                   title="Scan barcode with camera"
                 >
                   <IconCamera size={18} />
@@ -252,9 +252,12 @@ export function ProductActions({
                 onChange={(e) =>
                   setForm({ ...form, trackStock: e.target.checked })
                 }
-                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <label htmlFor="trackStock" className="text-sm text-gray-700">
+              <label
+                htmlFor="trackStock"
+                className="text-sm text-slate-700 font-medium"
+              >
                 Track stock
               </label>
             </div>

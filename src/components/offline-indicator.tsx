@@ -33,10 +33,10 @@ export function OfflineIndicator({
 
   return (
     <div
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium ${
+      className={`flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs font-semibold transition-colors ${
         isOnline
-          ? "bg-amber-50 text-amber-700 border border-amber-200"
-          : "bg-red-50 text-red-700 border border-red-200"
+          ? "bg-amber-50 text-amber-700 border-2 border-amber-200/80"
+          : "bg-red-50 text-red-700 border-2 border-red-200/80"
       }`}
     >
       {/* Status dot */}
@@ -45,7 +45,7 @@ export function OfflineIndicator({
           isOnline
             ? isSyncing
               ? "bg-amber-400 animate-pulse"
-              : "bg-green-500"
+              : "bg-emerald-500"
             : "bg-red-500"
         }`}
       />
@@ -64,7 +64,10 @@ export function OfflineIndicator({
       )}
 
       {isOnline && !isSyncing && pendingCount > 0 && (
-        <button onClick={onSync} className="underline hover:no-underline">
+        <button
+          onClick={onSync}
+          className="underline hover:no-underline active:scale-95 transition-transform"
+        >
           Sync now
         </button>
       )}
@@ -72,7 +75,7 @@ export function OfflineIndicator({
       {isSyncing && <span>Syncing...</span>}
 
       {lastSyncedAt && (
-        <span className="ml-auto text-gray-400 font-normal">
+        <span className="ml-auto text-slate-400 font-normal">
           Synced {formatTimeAgo(lastSyncedAt)}
         </span>
       )}

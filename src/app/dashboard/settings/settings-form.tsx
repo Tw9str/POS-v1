@@ -75,8 +75,8 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
   return (
     <div className="max-w-2xl">
       {/* Store Information */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-5">
           Store Information
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">

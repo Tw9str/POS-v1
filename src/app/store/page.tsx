@@ -46,10 +46,10 @@ export default function StorePage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <Card className="w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/20">
             <svg
               width="32"
               height="32"
@@ -64,14 +64,14 @@ export default function StorePage() {
               <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Store Access</h1>
-          <p className="text-gray-500 mt-2">
+          <h1 className="text-2xl font-bold text-slate-900">Store Access</h1>
+          <p className="text-slate-500 mt-2">
             Enter the access code provided by your administrator
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 flex items-start gap-3">
+          <div className="mb-6 p-4 rounded-xl bg-red-50 border-2 border-red-200 flex items-start gap-3">
             <svg
               className="w-5 h-5 text-red-500 mt-0.5 shrink-0"
               fill="none"
@@ -91,7 +91,7 @@ export default function StorePage() {
           <div>
             <label
               htmlFor="access-code"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-sm font-semibold text-slate-700 mb-2"
             >
               Access Code
             </label>

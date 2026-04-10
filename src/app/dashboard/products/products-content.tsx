@@ -19,8 +19,10 @@ export function ProductsContent({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500 mt-1">{products.length} products</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Products
+          </h1>
+          <p className="text-slate-500 mt-1">{products.length} products</p>
         </div>
         <ProductActions
           categories={categories}
@@ -29,49 +31,54 @@ export function ProductsContent({
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
+          <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-6 py-3 text-left font-medium">Name</th>
-              <th className="px-6 py-3 text-left font-medium">Category</th>
-              <th className="px-6 py-3 text-left font-medium">SKU</th>
-              <th className="px-6 py-3 text-left font-medium">Price</th>
-              <th className="px-6 py-3 text-left font-medium">Cost</th>
-              <th className="px-6 py-3 text-left font-medium">Stock</th>
-              <th className="px-6 py-3 text-left font-medium">Status</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Name</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Category</th>
+              <th className="px-5 py-3.5 text-left font-semibold">SKU</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Price</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Cost</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Stock</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-50">
             {products.length === 0 ? (
               <tr>
                 <td
                   colSpan={7}
-                  className="px-6 py-12 text-center text-gray-400"
+                  className="px-5 py-12 text-center text-slate-400"
                 >
                   No products yet
                 </td>
               </tr>
             ) : (
               products.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">
+                <tr
+                  key={p.id}
+                  className="hover:bg-slate-50/50 transition-colors"
+                >
+                  <td className="px-5 py-4 font-semibold text-slate-800">
                     {p.name}
                   </td>
-                  <td className="px-6 py-4 text-gray-500">
+                  <td className="px-5 py-4 text-slate-500">
                     {p.categoryName || "—"}
                   </td>
-                  <td className="px-6 py-4 text-gray-500 font-mono text-xs">
+                  <td className="px-5 py-4 text-slate-500 font-mono text-xs">
                     {p.sku || "—"}
                   </td>
-                  <td className="px-6 py-4 font-semibold">
+                  <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
                     {formatCurrency(p.price, currency)}
                   </td>
-                  <td className="px-6 py-4 text-gray-500">
+                  <td className="px-5 py-4 text-slate-500 tabular-nums">
                     {formatCurrency(p.costPrice, currency)}
                   </td>
-                  <td className="px-6 py-4">{p.trackStock ? p.stock : "∞"}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-5 py-4 tabular-nums">
+                    {p.trackStock ? p.stock : "∞"}
+                  </td>
+                  <td className="px-5 py-4">
                     <Badge variant={p.stock > 0 ? "success" : "danger"}>
                       {p.stock > 0 ? "In stock" : "Out"}
                     </Badge>

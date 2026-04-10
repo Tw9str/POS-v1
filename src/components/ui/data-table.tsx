@@ -23,21 +23,30 @@ export function DataTable<T extends Record<string, unknown>>({
   onRowClick,
 }: DataTableProps<T>) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white">
       <table className="w-full text-sm text-left">
-        <thead className="bg-gray-50 text-gray-600 uppercase text-xs tracking-wider">
+        <thead className="bg-slate-50/80">
           <tr>
             {columns.map((col) => (
-              <th key={col.key} className={cn("px-4 py-3 font-medium", col.className)}>
+              <th
+                key={col.key}
+                className={cn(
+                  "px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider",
+                  col.className,
+                )}
+              >
                 {col.label}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-slate-100">
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-12 text-center text-gray-400">
+              <td
+                colSpan={columns.length}
+                className="px-5 py-16 text-center text-slate-400"
+              >
                 {emptyMessage}
               </td>
             </tr>
@@ -47,13 +56,18 @@ export function DataTable<T extends Record<string, unknown>>({
                 key={String(item[keyField])}
                 onClick={() => onRowClick?.(item)}
                 className={cn(
-                  "hover:bg-gray-50 transition-colors",
-                  onRowClick && "cursor-pointer"
+                  "hover:bg-slate-50/80 transition-colors",
+                  onRowClick && "cursor-pointer active:bg-slate-100",
                 )}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className={cn("px-4 py-3 text-gray-900", col.className)}>
-                    {col.render ? col.render(item) : String(item[col.key] ?? "")}
+                  <td
+                    key={col.key}
+                    className={cn("px-5 py-4 text-slate-900", col.className)}
+                  >
+                    {col.render
+                      ? col.render(item)
+                      : String(item[col.key] ?? "")}
                   </td>
                 ))}
               </tr>

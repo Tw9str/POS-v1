@@ -145,17 +145,17 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
   const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-slate-900 via-indigo-950 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto mb-4 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/30">
+          <div className="w-16 h-16 mx-auto mb-4 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/30">
             <span className="text-2xl font-bold text-white">S</span>
           </div>
           <h1 className="text-xl font-bold text-white">
             {merchantName || "Shampay POS"}
           </h1>
-          <p className="text-sm text-blue-200/70 mt-1">
+          <p className="text-sm text-indigo-200/70 mt-1">
             Enter your PIN to start
           </p>
         </div>
@@ -167,7 +167,7 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
               key={i}
               className={`w-4 h-4 rounded-full transition-all duration-150 ${
                 i < pin.length
-                  ? "bg-blue-400 shadow-lg shadow-blue-400/50 scale-110"
+                  ? "bg-indigo-400 shadow-lg shadow-indigo-400/50 scale-110"
                   : "bg-white/10 border border-white/20"
               }`}
             />
@@ -236,7 +236,7 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
         <button
           onClick={handleSubmit}
           disabled={loading || pin.length < 4}
-          className="w-full h-14 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-blue-600/30"
+          className="w-full h-14 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/30"
         >
           {loading ? (
             <span className="flex items-center justify-center gap-2">

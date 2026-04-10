@@ -383,17 +383,20 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
   // ─────────────────────────────────────────────
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col lg:flex-row gap-0 -m-6">
+    <div
+      className="h-[calc(100dvh-var(--bottom-nav)-1rem)] lg:h-[calc(100dvh-3rem)] flex flex-col lg:flex-row gap-0 -mx-4 -mt-4 lg:-m-6"
+      style={{ marginBottom: "calc(var(--bottom-nav) * -1)" }}
+    >
       {/* ─── Left: Product Grid ─── */}
-      <div className="flex-1 flex flex-col min-w-0 bg-gray-50">
+      <div className="flex-1 flex flex-col min-w-0 bg-slate-50">
         {/* Search & Offline Status */}
-        <div className="p-4 bg-white border-b border-gray-200 space-y-3">
+        <div className="p-4 bg-white border-b border-slate-200/80 space-y-3">
           {/* Search */}
           <div className="flex gap-2">
             <div className="relative flex-1">
               <IconSearch
                 size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
               />
               <input
                 ref={searchRef}
@@ -402,12 +405,12 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                className="w-full pl-10 pr-10 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full pl-11 pr-11 py-3 rounded-xl border-2 border-slate-200 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
               />
               {search && (
                 <button
                   onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                 >
                   <IconX size={16} />
                 </button>
@@ -416,21 +419,21 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
             <button
               type="button"
               onClick={() => setScannerOpen(true)}
-              className="shrink-0 p-2.5 rounded-lg border border-gray-300 text-gray-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+              className="shrink-0 p-3 rounded-xl border-2 border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 active:scale-95 transition-all"
               title="Scan barcode with camera"
             >
-              <IconCamera size={18} />
+              <IconCamera size={20} />
             </button>
           </div>
 
           {/* Categories */}
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             <button
               onClick={() => setActiveCategory(null)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+              className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all select-none active:scale-95 ${
                 activeCategory === null
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
               All
@@ -441,18 +444,18 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                 onClick={() =>
                   setActiveCategory(activeCategory === cat.id ? null : cat.id)
                 }
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all select-none active:scale-95 ${
                   activeCategory === cat.id
-                    ? "text-white"
-                    : "text-gray-600 hover:bg-gray-200"
+                    ? "text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-200"
                 }`}
                 style={
                   activeCategory === cat.id
-                    ? { backgroundColor: cat.color || "#2563eb" }
+                    ? { backgroundColor: cat.color || "#4f46e5" }
                     : {
                         backgroundColor: cat.color
-                          ? `${cat.color}20`
-                          : "#f3f4f6",
+                          ? `${cat.color}15`
+                          : "#f1f5f9",
                       }
                 }
               >
@@ -465,10 +468,10 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
         {/* Product Grid */}
         <div className="flex-1 overflow-y-auto p-4">
           {filteredProducts.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-400">
+            <div className="flex items-center justify-center h-full text-slate-400">
               <div className="text-center">
-                <IconBarcode size={48} className="mx-auto mb-3 opacity-50" />
-                <p className="text-sm">No products found</p>
+                <IconBarcode size={48} className="mx-auto mb-3 opacity-40" />
+                <p className="text-sm font-medium">No products found</p>
               </div>
             </div>
           ) : (
@@ -482,51 +485,51 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                     key={product.id}
                     onClick={() => !outOfStock && addToCart(product)}
                     disabled={outOfStock}
-                    className={`relative bg-white rounded-xl border p-3 text-left transition-all ${
+                    className={`relative bg-white rounded-2xl border-2 p-3.5 text-left transition-all select-none ${
                       outOfStock
-                        ? "opacity-50 cursor-not-allowed border-gray-200"
-                        : "border-gray-200 hover:border-blue-300 hover:shadow-md active:scale-95"
-                    } ${inCart ? "ring-2 ring-blue-500 border-blue-300" : ""}`}
+                        ? "opacity-40 cursor-not-allowed border-slate-200"
+                        : "border-slate-200/80 hover:border-indigo-300 hover:shadow-md active:scale-[0.97]"
+                    } ${inCart ? "ring-2 ring-indigo-500 border-indigo-300 shadow-sm shadow-indigo-500/10" : ""}`}
                   >
                     {/* Category dot */}
                     {product.categoryColor && (
                       <div
-                        className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full"
+                        className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: product.categoryColor }}
                       />
                     )}
 
                     {/* Cart badge */}
                     {inCart && (
-                      <div className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
+                      <div className="absolute -top-2 -left-2 w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center shadow-sm">
                         {inCart.quantity}
                       </div>
                     )}
 
                     {/* Product info */}
-                    <div className="mb-2">
-                      <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">
+                    <div className="mb-2.5">
+                      <p className="text-sm font-semibold text-slate-800 line-clamp-2 leading-tight">
                         {product.name}
                       </p>
                       {product.sku && (
-                        <p className="text-[10px] text-gray-400 mt-0.5 font-mono">
+                        <p className="text-[10px] text-slate-400 mt-1 font-mono">
                           {product.sku}
                         </p>
                       )}
                     </div>
 
                     <div className="flex items-end justify-between">
-                      <span className="text-sm font-bold text-blue-600">
+                      <span className="text-sm font-bold text-indigo-600 tabular-nums">
                         {formatMoney(product.price, merchant.currency)}
                       </span>
                       {product.trackStock && (
                         <span
-                          className={`text-[10px] font-medium ${
+                          className={`text-[10px] font-semibold ${
                             product.stock <= 0
                               ? "text-red-500"
                               : product.stock <= 5
-                                ? "text-yellow-500"
-                                : "text-gray-400"
+                                ? "text-amber-500"
+                                : "text-slate-400"
                           }`}
                         >
                           {product.stock <= 0 ? "Out" : `${product.stock}`}
@@ -542,11 +545,11 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
       </div>
 
       {/* ─── Right: Cart Panel ─── */}
-      <div className="w-full lg:w-96 xl:w-[420px] flex flex-col bg-white border-l border-gray-200 shrink-0">
+      <div className="w-full lg:w-96 xl:w-[420px] flex flex-col bg-white border-l border-slate-200/80 shrink-0">
         {/* Cart header */}
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900">Cart</h2>
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-bold text-slate-900">Cart</h2>
             {cart.length > 0 && (
               <Badge variant="info">
                 {cart.reduce((s, i) => s + i.quantity, 0)}
@@ -556,7 +559,7 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
           {cart.length > 0 && (
             <button
               onClick={clearCart}
-              className="text-xs text-red-500 hover:text-red-700 font-medium"
+              className="text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
             >
               Clear All
             </button>
@@ -564,9 +567,9 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
         </div>
 
         {/* Staff & Customer Selection */}
-        <div className="px-4 py-2 border-b border-gray-100 flex gap-2 items-center">
+        <div className="px-5 py-2.5 border-b border-slate-100 flex gap-2 items-center">
           <div className="flex-1 flex items-center gap-2 text-xs">
-            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1.5 rounded-lg font-medium">
+            <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl font-semibold">
               <svg
                 width="14"
                 height="14"
@@ -589,7 +592,7 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
               const found = customers.find((cu) => cu.id === e.target.value);
               setSelectedCustomer(found || null);
             }}
-            className="flex-1 text-xs rounded-lg border border-gray-200 px-2 py-1.5 text-gray-600 focus:ring-1 focus:ring-blue-500 outline-none"
+            className="flex-1 text-xs rounded-xl border-2 border-slate-200 px-3 py-2 font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
           >
             <option value="">Walk-in Customer</option>
             {customers.map((c) => (
@@ -603,22 +606,24 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
         {/* Cart items */}
         <div className="flex-1 overflow-y-auto">
           {cart.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-400">
+            <div className="flex items-center justify-center h-full text-slate-400">
               <div className="text-center">
-                <IconMoney size={40} className="mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Cart is empty</p>
-                <p className="text-xs mt-1">Add products to start</p>
+                <IconMoney size={40} className="mx-auto mb-2 opacity-40" />
+                <p className="text-sm font-medium">Cart is empty</p>
+                <p className="text-xs mt-1 text-slate-300">
+                  Add products to start
+                </p>
               </div>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-slate-50">
               {cart.map((item) => (
-                <div key={item.product.id} className="px-4 py-3 flex gap-3">
+                <div key={item.product.id} className="px-5 py-3.5 flex gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-semibold text-slate-800 truncate">
                       {item.product.name}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-xs text-slate-400 mt-0.5">
                       {formatMoney(item.product.price, merchant.currency)} each
                     </p>
                   </div>
@@ -627,16 +632,16 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => updateQuantity(item.product.id, -1)}
-                      className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+                      className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors active:scale-95"
                     >
                       <IconMinus size={14} />
                     </button>
-                    <span className="w-8 text-center text-sm font-semibold text-gray-900">
+                    <span className="w-8 text-center text-sm font-bold text-slate-900 tabular-nums">
                       {item.quantity}
                     </span>
                     <button
                       onClick={() => updateQuantity(item.product.id, 1)}
-                      className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+                      className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors active:scale-95"
                       disabled={
                         item.product.trackStock &&
                         item.quantity >= item.product.stock
@@ -648,7 +653,7 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
 
                   {/* Line total & remove */}
                   <div className="flex flex-col items-end gap-1">
-                    <span className="text-sm font-semibold text-gray-900">
+                    <span className="text-sm font-bold text-slate-900 tabular-nums">
                       {formatMoney(
                         item.product.price * item.quantity,
                         merchant.currency,
@@ -656,7 +661,7 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                     </span>
                     <button
                       onClick={() => removeFromCart(item.product.id)}
-                      className="text-red-400 hover:text-red-600 transition-colors"
+                      className="text-red-400 hover:text-red-600 p-0.5 transition-colors active:scale-90"
                     >
                       <IconTrash size={14} />
                     </button>
@@ -668,21 +673,27 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
         </div>
 
         {/* Cart totals & checkout */}
-        <div className="border-t border-gray-200 p-4 space-y-3">
+        <div className="border-t border-slate-200/80 p-5 space-y-3">
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between text-gray-500">
+            <div className="flex justify-between text-slate-500">
               <span>Subtotal</span>
-              <span>{formatMoney(subtotal, merchant.currency)}</span>
+              <span className="tabular-nums">
+                {formatMoney(subtotal, merchant.currency)}
+              </span>
             </div>
             {merchant.taxRate > 0 && (
-              <div className="flex justify-between text-gray-500">
+              <div className="flex justify-between text-slate-500">
                 <span>Tax ({merchant.taxRate}%)</span>
-                <span>{formatMoney(taxAmount, merchant.currency)}</span>
+                <span className="tabular-nums">
+                  {formatMoney(taxAmount, merchant.currency)}
+                </span>
               </div>
             )}
-            <div className="flex justify-between text-lg font-bold text-gray-900 pt-1 border-t border-gray-200">
+            <div className="flex justify-between text-lg font-bold text-slate-900 pt-2 border-t border-slate-100">
               <span>Total</span>
-              <span>{formatMoney(total, merchant.currency)}</span>
+              <span className="tabular-nums">
+                {formatMoney(total, merchant.currency)}
+              </span>
             </div>
           </div>
 
@@ -692,10 +703,10 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
               <button
                 key={method}
                 onClick={() => setPaymentMethod(method)}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all select-none active:scale-95 ${
                   paymentMethod === method
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {method === "CASH"
@@ -727,38 +738,42 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
         title="Complete Sale"
         size="md"
       >
-        <div className="space-y-4">
+        <div className="space-y-5">
           {/* Order summary */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+          <div className="bg-slate-50 rounded-2xl p-5 space-y-2.5 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">Items</span>
-              <span className="font-medium">
+              <span className="text-slate-500">Items</span>
+              <span className="font-semibold text-slate-800 tabular-nums">
                 {cart.reduce((s, i) => s + i.quantity, 0)}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Subtotal</span>
-              <span className="font-medium">
+              <span className="text-slate-500">Subtotal</span>
+              <span className="font-semibold text-slate-800 tabular-nums">
                 {formatMoney(subtotal, merchant.currency)}
               </span>
             </div>
             {merchant.taxRate > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-500">Tax ({merchant.taxRate}%)</span>
-                <span className="font-medium">
+                <span className="text-slate-500">
+                  Tax ({merchant.taxRate}%)
+                </span>
+                <span className="font-semibold text-slate-800 tabular-nums">
                   {formatMoney(taxAmount, merchant.currency)}
                 </span>
               </div>
             )}
-            <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-2">
-              <span>Total</span>
-              <span>{formatMoney(total, merchant.currency)}</span>
+            <div className="flex justify-between text-lg font-bold border-t border-slate-200 pt-2.5">
+              <span className="text-slate-900">Total</span>
+              <span className="text-slate-900 tabular-nums">
+                {formatMoney(total, merchant.currency)}
+              </span>
             </div>
           </div>
 
           {/* Payment */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
               Payment Method
             </label>
             <div className="flex gap-2">
@@ -767,10 +782,10 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                   <button
                     key={method}
                     onClick={() => setPaymentMethod(method)}
-                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all select-none active:scale-95 ${
                       paymentMethod === method
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
                     {method.replace("_", " ")}
@@ -782,7 +797,7 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
 
           {paymentMethod === "CASH" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Amount Received
               </label>
               <input
@@ -792,11 +807,11 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                 placeholder={total.toString()}
                 min="0"
                 step="any"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-lg font-semibold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-lg font-bold text-slate-900 tabular-nums focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
               />
               {parseFloat(paidAmount) > 0 &&
                 parseFloat(paidAmount) >= total && (
-                  <p className="text-sm text-green-600 mt-1 font-medium">
+                  <p className="text-sm text-emerald-600 mt-1.5 font-semibold">
                     Change:{" "}
                     {formatMoney(
                       parseFloat(paidAmount) - total,
@@ -805,7 +820,7 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                   </p>
                 )}
               {parseFloat(paidAmount) > 0 && parseFloat(paidAmount) < total && (
-                <p className="text-sm text-red-600 mt-1 font-medium">
+                <p className="text-sm text-red-600 mt-1.5 font-semibold">
                   Insufficient:{" "}
                   {formatMoney(
                     total - parseFloat(paidAmount),
@@ -815,7 +830,7 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                 </p>
               )}
               {/* Quick amount buttons */}
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-2 mt-2.5">
                 {[
                   total,
                   Math.ceil(total / 1000) * 1000,
@@ -824,7 +839,7 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                   <button
                     key={i}
                     onClick={() => setPaidAmount(amount.toString())}
-                    className="flex-1 py-1.5 rounded-lg bg-gray-100 text-xs font-medium text-gray-600 hover:bg-gray-200"
+                    className="flex-1 py-2 rounded-xl bg-slate-100 text-xs font-semibold text-slate-600 hover:bg-slate-200 active:scale-95 transition-all tabular-nums"
                   >
                     {formatMoney(amount, merchant.currency)}
                   </button>
@@ -835,31 +850,31 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
               Notes (optional)
             </label>
             <textarea
               value={orderNotes}
               onChange={(e) => setOrderNotes(e.target.value)}
               rows={2}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+              className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm text-slate-900 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none transition-all"
             />
           </div>
 
           {/* Customer & Staff info */}
-          <div className="flex gap-4 text-sm text-gray-500">
+          <div className="flex gap-4 text-sm text-slate-500">
             <div>
-              <span className="font-medium">Cashier:</span>{" "}
+              <span className="font-semibold">Cashier:</span>{" "}
               {selectedStaff?.name || "Not assigned"}
             </div>
             <div>
-              <span className="font-medium">Customer:</span>{" "}
+              <span className="font-semibold">Customer:</span>{" "}
               {selectedCustomer?.name || "Walk-in"}
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-1">
             <Button
               variant="secondary"
               className="flex-1"
@@ -895,12 +910,12 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
         size="sm"
       >
         {lastOrder && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {/* Success indicator */}
             <div className="text-center">
-              <div className="w-16 h-16 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-3">
+              <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 flex items-center justify-center mb-3">
                 <svg
-                  className="w-8 h-8 text-green-600"
+                  className="w-8 h-8 text-emerald-600"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -913,15 +928,17 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                   />
                 </svg>
               </div>
-              <p className="text-lg font-bold text-gray-900">
+              <p className="text-xl font-bold text-slate-900 tabular-nums">
                 {formatMoney(lastOrder.total, merchant.currency)}
               </p>
-              <p className="text-sm text-gray-500">{lastOrder.orderNumber}</p>
+              <p className="text-sm text-slate-500 mt-0.5">
+                {lastOrder.orderNumber}
+              </p>
             </div>
 
             {lastOrder.paymentMethod === "CASH" && lastOrder.change > 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-center">
-                <p className="text-sm text-yellow-800 font-medium">
+              <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-3 text-center">
+                <p className="text-sm text-amber-800 font-bold tabular-nums">
                   Change: {formatMoney(lastOrder.change, merchant.currency)}
                 </p>
               </div>
@@ -930,7 +947,7 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
             {/* Receipt preview (printable) */}
             <div
               id="receipt"
-              className="print-receipt bg-white border border-gray-200 rounded-lg p-4 text-xs font-mono"
+              className="print-receipt bg-white border-2 border-slate-100 rounded-2xl p-5 text-xs font-mono"
             >
               <div className="text-center mb-3">
                 <p className="font-bold text-sm">{merchant.name}</p>
@@ -950,7 +967,7 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
                   <span className="truncate mr-2">
                     {item.quantity}x {item.product.name}
                   </span>
-                  <span className="whitespace-nowrap">
+                  <span className="whitespace-nowrap tabular-nums">
                     {formatMoney(
                       item.product.price * item.quantity,
                       merchant.currency,
@@ -962,28 +979,34 @@ export function POSTerminal({ currentStaffId, merchant }: POSTerminalProps) {
               <p className="mt-1">─────────────────</p>
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span>
+                <span className="tabular-nums">
                   {formatMoney(lastOrder.subtotal, merchant.currency)}
                 </span>
               </div>
               {lastOrder.tax > 0 && (
                 <div className="flex justify-between">
                   <span>Tax</span>
-                  <span>{formatMoney(lastOrder.tax, merchant.currency)}</span>
+                  <span className="tabular-nums">
+                    {formatMoney(lastOrder.tax, merchant.currency)}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-sm mt-1">
                 <span>TOTAL</span>
-                <span>{formatMoney(lastOrder.total, merchant.currency)}</span>
+                <span className="tabular-nums">
+                  {formatMoney(lastOrder.total, merchant.currency)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Paid ({lastOrder.paymentMethod})</span>
-                <span>{formatMoney(lastOrder.paid, merchant.currency)}</span>
+                <span className="tabular-nums">
+                  {formatMoney(lastOrder.paid, merchant.currency)}
+                </span>
               </div>
               {lastOrder.change > 0 && (
                 <div className="flex justify-between">
                   <span>Change</span>
-                  <span>
+                  <span className="tabular-nums">
                     {formatMoney(lastOrder.change, merchant.currency)}
                   </span>
                 </div>

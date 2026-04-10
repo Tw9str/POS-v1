@@ -119,11 +119,13 @@ export function ReportsContent({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <p className="text-gray-500 mt-1">Sales overview and analytics</p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          Reports
+        </h1>
+        <p className="text-slate-500 mt-1">Sales overview and analytics</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Today"
           value={formatCurrency(stats.todaySales, currency)}
@@ -152,30 +154,32 @@ export function ReportsContent({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Daily Sales */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
               Daily Sales (Last 7 Days)
             </h2>
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-slate-50">
             {stats.dailySales.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-400">
+              <div className="px-6 py-10 text-center text-slate-400 text-sm">
                 No sales data yet
               </div>
             ) : (
               stats.dailySales.map((day) => (
                 <div
                   key={day.date}
-                  className="px-6 py-3 flex items-center justify-between"
+                  className="px-6 py-3.5 flex items-center justify-between"
                 >
                   <div>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-semibold text-slate-800">
                       {formatDate(day.date)}
                     </p>
-                    <p className="text-xs text-gray-400">{day.count} orders</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {day.count} orders
+                    </p>
                   </div>
-                  <span className="text-sm font-semibold text-gray-900">
+                  <span className="text-sm font-bold text-slate-900 tabular-nums">
                     {formatCurrency(day.total, currency)}
                   </span>
                 </div>
@@ -185,37 +189,37 @@ export function ReportsContent({
         </div>
 
         {/* Top Selling Products */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
               Top Selling Products
             </h2>
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-slate-50">
             {stats.topProducts.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-400">
+              <div className="px-6 py-10 text-center text-slate-400 text-sm">
                 No sales data yet
               </div>
             ) : (
               stats.topProducts.map((product, i) => (
                 <div
                   key={product.id}
-                  className="px-6 py-3 flex items-center justify-between"
+                  className="px-6 py-3.5 flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">
+                    <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold flex items-center justify-center">
                       {i + 1}
                     </span>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-semibold text-slate-800">
                         {product.name}
                       </p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-slate-400 mt-0.5">
                         {product.quantity} units sold
                       </p>
                     </div>
                   </div>
-                  <span className="text-sm font-semibold text-gray-900">
+                  <span className="text-sm font-bold text-slate-900 tabular-nums">
                     {formatCurrency(product.total, currency)}
                   </span>
                 </div>
@@ -226,32 +230,32 @@ export function ReportsContent({
       </div>
 
       {/* Quick Stats */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-5">
           Store Overview
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
           <div>
-            <p className="text-sm text-gray-500">Active Products</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-slate-500">Active Products</p>
+            <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
               {products.length}
             </p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Total Customers</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-slate-500">Total Customers</p>
+            <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
               {customers.length}
             </p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Avg Order Value</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-slate-500">Avg Order Value</p>
+            <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
               {formatCurrency(stats.avgOrder, currency)}
             </p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Avg Daily Orders</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
+            <p className="text-sm text-slate-500">Avg Daily Orders</p>
+            <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
               {stats.avgDailyOrders}
             </p>
           </div>
