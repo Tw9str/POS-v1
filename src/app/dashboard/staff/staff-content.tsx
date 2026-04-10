@@ -3,21 +3,26 @@
 import { useLocalStaff } from "@/hooks/use-local-data";
 import { StaffActions } from "./staff-actions";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/layout/page-header";
+import { formatNumber, type NumberFormat } from "@/lib/utils";
 
-export function StaffContent({ merchantId }: { merchantId: string }) {
+export function StaffContent({
+  merchantId,
+  numberFormat = "western",
+}: {
+  merchantId: string;
+  numberFormat?: NumberFormat;
+}) {
   const staff = useLocalStaff(merchantId);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Staff
-          </h1>
-          <p className="text-slate-500 mt-1">{staff.length} team members</p>
-        </div>
+      <PageHeader
+        title="Staff"
+        subtitle={`${formatNumber(staff.length, numberFormat)} team members`}
+      >
         <StaffActions merchantId={merchantId} />
-      </div>
+      </PageHeader>
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
@@ -45,7 +50,7 @@ export function StaffContent({ merchantId }: { merchantId: string }) {
                   key={s.id}
                   className="hover:bg-slate-50/50 transition-colors"
                 >
-                  <td className="px-5 py-4 font-semibold text-slate-800">
+                  <td className="px-5 py-4 font-semibold text-slate-800 capitalize">
                     {s.name}
                   </td>
                   <td className="px-5 py-4 text-slate-500">{s.role}</td>

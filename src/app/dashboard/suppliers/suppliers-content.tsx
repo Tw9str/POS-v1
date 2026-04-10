@@ -2,21 +2,26 @@
 
 import { useLocalSuppliers } from "@/hooks/use-local-data";
 import { SupplierActions } from "./supplier-actions";
+import { PageHeader } from "@/components/layout/page-header";
+import { formatNumber, type NumberFormat } from "@/lib/utils";
 
-export function SuppliersContent({ merchantId }: { merchantId: string }) {
+export function SuppliersContent({
+  merchantId,
+  numberFormat = "western",
+}: {
+  merchantId: string;
+  numberFormat?: NumberFormat;
+}) {
   const suppliers = useLocalSuppliers(merchantId);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Suppliers
-          </h1>
-          <p className="text-slate-500 mt-1">{suppliers.length} suppliers</p>
-        </div>
+      <PageHeader
+        title="Suppliers"
+        subtitle={`${formatNumber(suppliers.length, numberFormat)} suppliers`}
+      >
         <SupplierActions merchantId={merchantId} />
-      </div>
+      </PageHeader>
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
@@ -44,7 +49,7 @@ export function SuppliersContent({ merchantId }: { merchantId: string }) {
                   key={s.id}
                   className="hover:bg-slate-50/50 transition-colors"
                 >
-                  <td className="px-5 py-4 font-semibold text-slate-800">
+                  <td className="px-5 py-4 font-semibold text-slate-800 capitalize">
                     {s.name}
                   </td>
                   <td className="px-5 py-4 text-slate-500">{s.phone || "—"}</td>

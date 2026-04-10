@@ -3,8 +3,16 @@
 import { useLocalProducts } from "@/hooks/use-local-data";
 import { Badge } from "@/components/ui/badge";
 import { useMemo } from "react";
+import { PageHeader } from "@/components/layout/page-header";
+import { formatNumber, type NumberFormat } from "@/lib/utils";
 
-export function InventoryContent({ merchantId }: { merchantId: string }) {
+export function InventoryContent({
+  merchantId,
+  numberFormat = "western",
+}: {
+  merchantId: string;
+  numberFormat?: NumberFormat;
+}) {
   const products = useLocalProducts(merchantId);
 
   const tracked = useMemo(
@@ -15,12 +23,7 @@ export function InventoryContent({ merchantId }: { merchantId: string }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Inventory
-        </h1>
-        <p className="text-slate-500 mt-1">Track and manage stock levels</p>
-      </div>
+      <PageHeader title="Inventory" subtitle="Track and manage stock levels" />
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
         <div className="px-6 py-4 border-b border-slate-100">
@@ -53,14 +56,14 @@ export function InventoryContent({ merchantId }: { merchantId: string }) {
                   key={p.id}
                   className="hover:bg-slate-50/50 transition-colors"
                 >
-                  <td className="px-5 py-4 font-semibold text-slate-800">
+                  <td className="px-5 py-4 font-semibold text-slate-800 capitalize">
                     {p.name}
                   </td>
                   <td className="px-5 py-4 text-slate-500 font-mono text-xs">
                     {p.sku || "—"}
                   </td>
                   <td className="px-5 py-4 font-bold tabular-nums">
-                    {p.stock}
+                    {formatNumber(p.stock, numberFormat)}
                   </td>
                   <td className="px-5 py-4">
                     <Badge

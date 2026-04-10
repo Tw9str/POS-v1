@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
+import { normalizeDateFormat } from "@/lib/utils";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -9,6 +10,11 @@ const settingsSchema = z.object({
   phone: z.string().max(30).optional().default(""),
   address: z.string().max(500).optional().default(""),
   currency: z.string().min(3).max(3),
+  numberFormat: z.enum(["western", "eastern"]).optional().default("western"),
+  dateFormat: z
+    .enum(["long", "numeric", "arabic", "gregorian", "hijri"])
+    .optional()
+    .default("long"),
   taxRate: z.number().min(0).max(100),
 });
 
@@ -38,6 +44,8 @@ export async function PUT(req: Request) {
         phone: parsed.data.phone || null,
         address: parsed.data.address || null,
         currency: parsed.data.currency,
+        numberFormat: parsed.data.numberFormat,
+        dateFormat: normalizeDateFormat(parsed.data.dateFormat),
         taxRate: parsed.data.taxRate,
       },
     });

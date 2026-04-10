@@ -2,7 +2,13 @@
 
 import { useLocalOrders } from "@/hooks/use-local-data";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatDateTime,
+  formatNumber,
+  type DateFormat,
+  type NumberFormat,
+} from "@/lib/utils";
 
 const statusVariant = (status: string) => {
   switch (status) {
@@ -24,23 +30,27 @@ const displayStatus = (order: { status?: string; syncStatus: string }) => {
   return order.status ?? "COMPLETED";
 };
 
+import { PageHeader } from "@/components/layout/page-header";
+
 export function OrdersContent({
   merchantId,
   currency,
+  numberFormat = "western",
+  dateFormat = "long",
 }: {
   merchantId: string;
   currency: string;
+  numberFormat?: NumberFormat;
+  dateFormat?: DateFormat;
 }) {
   const orders = useLocalOrders(merchantId);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Orders
-        </h1>
-        <p className="text-slate-500 mt-1">{orders.length} orders</p>
-      </div>
+      <PageHeader
+        title="Orders"
+        subtitle={`${formatNumber(orders.length, numberFormat)} orders`}
+      />
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
@@ -77,17 +87,17 @@ export function OrdersContent({
                     <td className="px-5 py-4 font-semibold text-slate-800">
                       {o.orderNumber}
                     </td>
-                    <td className="px-5 py-4 text-slate-500">
+                    <td className="px-5 py-4 text-slate-500 uppercase">
                       {o.staffName || "—"}
                     </td>
-                    <td className="px-5 py-4 text-slate-500">
+                    <td className="px-5 py-4 text-slate-500 capitalize">
                       {o.customerName || "Walk-in"}
                     </td>
                     <td className="px-5 py-4 text-slate-500 tabular-nums">
-                      {o.items.length}
+                      {formatNumber(o.items.length, numberFormat)}
                     </td>
                     <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
-                      {formatCurrency(o.total, currency)}
+                      {formatCurrency(o.total, currency, numberFormat)}
                     </td>
                     <td className="px-5 py-4 text-slate-500">
                       {o.paymentMethod}
@@ -96,7 +106,11 @@ export function OrdersContent({
                       <Badge variant={statusVariant(status)}>{status}</Badge>
                     </td>
                     <td className="px-5 py-4 text-slate-500">
-                      {formatDateTime(new Date(o.createdAt))}
+                      {formatDateTime(
+                        new Date(o.createdAt),
+                        dateFormat,
+                        numberFormat,
+                      )}
                     </td>
                   </tr>
                 );

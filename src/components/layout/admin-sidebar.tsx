@@ -19,7 +19,11 @@ import { useState } from "react";
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: IconDashboard },
   { href: "/admin/merchants", label: "Merchants", icon: IconMerchants },
-  { href: "/admin/subscriptions", label: "Subscriptions", icon: IconSubscription },
+  {
+    href: "/admin/subscriptions",
+    label: "Subscriptions",
+    icon: IconSubscription,
+  },
   { href: "/admin/activity", label: "Activity", icon: IconActivity },
   { href: "/admin/settings", label: "Settings", icon: IconSettings },
 ];
@@ -55,7 +59,7 @@ export function AdminSidebar() {
               "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
               isActive(item.href)
                 ? "bg-blue-50 text-blue-700"
-                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
             )}
           >
             <item.icon size={20} />
@@ -67,7 +71,7 @@ export function AdminSidebar() {
       <div className="px-3 pb-4">
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors w-full"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors w-full cursor-pointer"
         >
           <IconLogout size={20} />
           Sign Out
@@ -98,7 +102,7 @@ export function AdminSidebar() {
       <aside
         className={cn(
           "fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 flex flex-col transition-transform lg:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {nav}

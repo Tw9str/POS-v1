@@ -347,14 +347,35 @@ export async function syncOrders(merchantId: string): Promise<SyncResult> {
 /** Pull fresh data from server into local DB */
 export async function pullData(merchantId: string): Promise<boolean> {
   try {
-    const [productsRes, customersRes, staffRes, suppliersRes, ordersRes] =
-      await Promise.all([
-        fetch("/api/merchant/products"),
-        fetch("/api/merchant/customers"),
-        fetch("/api/merchant/staff"),
-        fetch("/api/merchant/suppliers"),
-        fetch("/api/merchant/orders"),
-      ]);
+    const [
+      productsRes,
+      categoriesRes,
+      customersRes,
+      staffRes,
+      suppliersRes,
+      ordersRes,
+    ] = await Promise.all([
+      fetch("/api/merchant/products"),
+      fetch("/api/merchant/categories"),
+      fetch("/api/merchant/customers"),
+      fetch("/api/merchant/staff"),
+      fetch("/api/merchant/suppliers"),
+      fetch("/api/merchant/orders"),
+    ]);
+
+    if (categoriesRes.ok) {
+      const categories = await categoriesRes.json();
+      await hydrateCategories(
+        merchantId,
+        categories.map((c: Record<string, unknown>) => ({
+          id: c.id as string,
+          merchantId,
+          name: (c.name as string) ?? "",
+          color: (c.color as string) ?? null,
+          sortOrder: Number(c.sortOrder ?? 0),
+        })),
+      );
+    }
 
     if (productsRes.ok) {
       const products = await productsRes.json();
@@ -369,6 +390,8 @@ export async function pullData(merchantId: string): Promise<boolean> {
           price: p.price,
           costPrice: p.costPrice,
           stock: p.stock,
+          lowStockAt: p.lowStockAt ?? 5,
+          unit: (p.unit as string) ?? "piece",
           trackStock: p.trackStock,
           image: p.image ?? null,
           categoryId: p.categoryId ?? null,
@@ -376,23 +399,6 @@ export async function pullData(merchantId: string): Promise<boolean> {
           categoryColor: (p.category as Record<string, unknown>)?.color ?? null,
         })),
       );
-      // Extract unique categories from products
-      const categoryMap = new Map<string, LocalCategory>();
-      for (const p of products) {
-        const cat = p.category as Record<string, unknown> | null;
-        if (cat && typeof cat.id === "string") {
-          categoryMap.set(cat.id as string, {
-            id: cat.id as string,
-            merchantId,
-            name: (cat.name as string) ?? "",
-            color: (cat.color as string) ?? null,
-            sortOrder: 0,
-          });
-        }
-      }
-      if (categoryMap.size > 0) {
-        await hydrateCategories(merchantId, Array.from(categoryMap.values()));
-      }
     }
 
     if (customersRes.ok) {

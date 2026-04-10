@@ -7,6 +7,20 @@ export default async function OrdersPage() {
   await requireStaffForPage("/dashboard/orders");
 
   return (
-    <OrdersContent merchantId={merchant.id} currency={merchant.currency} />
+    <OrdersContent
+      merchantId={merchant.id}
+      currency={merchant.currency}
+      numberFormat={
+        (merchant.numberFormat ?? "western") as "western" | "eastern"
+      }
+      dateFormat={
+        (merchant.dateFormat ?? "long") as
+          | "long"
+          | "numeric"
+          | "arabic"
+          | "gregorian"
+          | "hijri"
+      }
+    />
   );
 }

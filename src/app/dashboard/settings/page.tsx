@@ -1,6 +1,7 @@
 import { requireMerchant } from "@/lib/merchant";
 import { requireStaffForPage } from "@/lib/staff";
 import { SettingsForm } from "./settings-form";
+import { PageHeader } from "@/components/layout/page-header";
 
 export default async function SettingsPage() {
   const merchant = await requireMerchant();
@@ -8,12 +9,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Settings
-        </h1>
-        <p className="text-slate-500 mt-1">Manage your store settings</p>
-      </div>
+      <PageHeader title="Settings" subtitle="Manage your store settings" />
 
       <SettingsForm
         merchant={{
@@ -22,6 +18,8 @@ export default async function SettingsPage() {
           phone: merchant.phone || "",
           address: merchant.address || "",
           currency: merchant.currency,
+          numberFormat: merchant.numberFormat ?? "western",
+          dateFormat: merchant.dateFormat ?? "long",
           taxRate: merchant.taxRate,
         }}
       />

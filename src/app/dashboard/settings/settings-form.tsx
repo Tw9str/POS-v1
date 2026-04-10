@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { offlineFetch } from "@/lib/offline-fetch";
+import { normalizeDateFormat } from "@/lib/utils";
 
 interface SettingsFormProps {
   merchant: {
@@ -14,6 +15,8 @@ interface SettingsFormProps {
     phone: string;
     address: string;
     currency: string;
+    numberFormat: string;
+    dateFormat: string;
     taxRate: number;
   };
 }
@@ -37,6 +40,8 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
     phone: merchant.phone,
     address: merchant.address,
     currency: merchant.currency,
+    numberFormat: merchant.numberFormat,
+    dateFormat: normalizeDateFormat(merchant.dateFormat),
     taxRate: merchant.taxRate.toString(),
   });
 
@@ -105,6 +110,32 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
             value={form.currency}
             onChange={(e) => setForm({ ...form, currency: e.target.value })}
             options={currencies}
+          />
+          <Select
+            id="numberFormat"
+            label="Number Format"
+            value={form.numberFormat}
+            onChange={(e) => setForm({ ...form, numberFormat: e.target.value })}
+            options={[
+              { value: "western", label: "Western (0, 1, 2, 3)" },
+              { value: "eastern", label: "Eastern Arabic (٠, ١, ٢, ٣)" },
+            ]}
+          />
+          <Select
+            id="dateFormat"
+            label="Date Display"
+            value={form.dateFormat}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                dateFormat: e.target.value as "long" | "numeric" | "arabic",
+              })
+            }
+            options={[
+              { value: "long", label: "English (Apr 10, 2026)" },
+              { value: "numeric", label: "Numeric (10/4/2026)" },
+              { value: "arabic", label: "Arabic (١٠ نيسان ٢٠٢٦)" },
+            ]}
           />
           <Input
             id="taxRate"

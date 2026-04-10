@@ -46,6 +46,8 @@ export async function getMerchantFromSession() {
       currency: cached.currency,
       timezone: "Asia/Damascus",
       taxRate: cached.taxRate,
+      numberFormat: "western",
+      dateFormat: "long",
       isActive: true,
       subscription: null,
       createdAt: new Date(),

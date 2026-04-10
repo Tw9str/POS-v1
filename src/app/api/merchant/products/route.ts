@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
+import { requireStaffForApi } from "@/lib/staff";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -16,6 +17,14 @@ const productSchema = z.object({
   trackStock: z.boolean().default(true),
 });
 
+const productUpdateSchema = productSchema.extend({
+  id: z.string().min(1),
+});
+
+const deleteSchema = z.object({
+  id: z.string().min(1),
+});
+
 export async function GET() {
   try {
     const merchant = await getMerchantFromSession();
@@ -23,9 +32,9 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const products = await prisma.product.findMany({
-      where: { merchantId: merchant.id },
+      where: { merchantId: merchant.id, isActive: true },
       orderBy: { createdAt: "desc" },
-      include: { category: { select: { id: true, name: true } } },
+      include: { category: { select: { id: true, name: true, color: true } } },
     });
 
     return NextResponse.json(products);
@@ -43,6 +52,9 @@ export async function POST(req: Request) {
     const merchant = await getMerchantFromSession();
     if (!merchant)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { error } = await requireStaffForApi("/api/merchant/products");
+    if (error) return error;
 
     const body = await req.json();
     const parsed = productSchema.safeParse(body);
@@ -132,6 +144,136 @@ export async function POST(req: Request) {
     return NextResponse.json(product, { status: 201 });
   } catch (err) {
     console.error("POST /api/merchant/products error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const merchant = await getMerchantFromSession();
+    if (!merchant) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { error } = await requireStaffForApi("/api/merchant/products");
+    if (error) return error;
+
+    const body = await req.json();
+    const parsed = productUpdateSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid input" },
+        { status: 400 },
+      );
+    }
+
+    const existing = await prisma.product.findFirst({
+      where: { id: parsed.data.id, merchantId: merchant.id, isActive: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+
+    if (parsed.data.sku) {
+      const skuExists = await prisma.product.findFirst({
+        where: {
+          merchantId: merchant.id,
+          sku: parsed.data.sku,
+          isActive: true,
+          NOT: { id: parsed.data.id },
+        },
+      });
+      if (skuExists) {
+        return NextResponse.json(
+          { error: "SKU already exists" },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (parsed.data.barcode) {
+      const barcodeExists = await prisma.product.findFirst({
+        where: {
+          merchantId: merchant.id,
+          barcode: parsed.data.barcode,
+          isActive: true,
+          NOT: { id: parsed.data.id },
+        },
+      });
+      if (barcodeExists) {
+        return NextResponse.json(
+          { error: "Barcode already exists" },
+          { status: 400 },
+        );
+      }
+    }
+
+    const updated = await prisma.product.update({
+      where: { id: parsed.data.id },
+      data: {
+        name: parsed.data.name,
+        sku: parsed.data.sku || null,
+        barcode: parsed.data.barcode || null,
+        categoryId: parsed.data.categoryId || null,
+        price: parsed.data.price,
+        costPrice: parsed.data.costPrice,
+        stock: parsed.data.stock,
+        lowStockAt: parsed.data.lowStockAt,
+        unit: parsed.data.unit,
+        trackStock: parsed.data.trackStock,
+      },
+      include: { category: { select: { id: true, name: true, color: true } } },
+    });
+
+    return NextResponse.json(updated);
+  } catch (err) {
+    console.error("PUT /api/merchant/products error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const merchant = await getMerchantFromSession();
+    if (!merchant) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { error } = await requireStaffForApi("/api/merchant/products");
+    if (error) return error;
+
+    const parsed = deleteSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid input" },
+        { status: 400 },
+      );
+    }
+
+    const existing = await prisma.product.findFirst({
+      where: { id: parsed.data.id, merchantId: merchant.id, isActive: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+
+    await prisma.product.update({
+      where: { id: parsed.data.id },
+      data: { isActive: false },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /api/merchant/products error:", err);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

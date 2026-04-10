@@ -7,6 +7,12 @@ export default async function ProductsPage() {
   await requireStaffForPage("/dashboard/products");
 
   return (
-    <ProductsContent merchantId={merchant.id} currency={merchant.currency} />
+    <ProductsContent
+      merchantId={merchant.id}
+      currency={merchant.currency}
+      numberFormat={
+        (merchant.numberFormat ?? "western") as "western" | "eastern"
+      }
+    />
   );
 }

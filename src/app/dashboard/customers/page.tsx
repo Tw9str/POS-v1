@@ -7,6 +7,12 @@ export default async function CustomersPage() {
   await requireStaffForPage("/dashboard/customers");
 
   return (
-    <CustomersContent merchantId={merchant.id} currency={merchant.currency} />
+    <CustomersContent
+      merchantId={merchant.id}
+      currency={merchant.currency}
+      numberFormat={
+        (merchant.numberFormat ?? "western") as "western" | "eastern"
+      }
+    />
   );
 }

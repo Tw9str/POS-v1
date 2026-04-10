@@ -6,5 +6,12 @@ export default async function SuppliersPage() {
   const merchant = await requireMerchant();
   await requireStaffForPage("/dashboard/suppliers");
 
-  return <SuppliersContent merchantId={merchant.id} />;
+  return (
+    <SuppliersContent
+      merchantId={merchant.id}
+      numberFormat={
+        (merchant.numberFormat ?? "western") as "western" | "eastern"
+      }
+    />
+  );
 }

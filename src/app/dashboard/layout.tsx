@@ -43,15 +43,15 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-slate-50">
+    <div className="h-dvh overflow-hidden bg-slate-50">
       <MerchantSidebar
         merchantName={merchant.name}
         staffName={staffName}
         staffRole={role}
         allowedPages={allowedPages}
       />
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-4 pb-[var(--bottom-nav)] lg:p-6 max-w-[1600px]">
+      <main className="h-full overflow-y-auto">
+        <div className="max-w-400 mx-auto p-4 pb-[calc(var(--bottom-nav)+1rem)] lg:p-6">
           <DashboardHydrator merchantId={merchant.id} />
           {children}
         </div>

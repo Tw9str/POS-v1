@@ -7,6 +7,20 @@ export default async function ReportsPage() {
   await requireStaffForPage("/dashboard/reports");
 
   return (
-    <ReportsContent merchantId={merchant.id} currency={merchant.currency} />
+    <ReportsContent
+      merchantId={merchant.id}
+      currency={merchant.currency}
+      numberFormat={
+        (merchant.numberFormat ?? "western") as "western" | "eastern"
+      }
+      dateFormat={
+        (merchant.dateFormat ?? "long") as
+          | "long"
+          | "numeric"
+          | "arabic"
+          | "gregorian"
+          | "hijri"
+      }
+    />
   );
 }

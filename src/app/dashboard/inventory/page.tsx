@@ -6,5 +6,12 @@ export default async function InventoryPage() {
   const merchant = await requireMerchant();
   await requireStaffForPage("/dashboard/inventory");
 
-  return <InventoryContent merchantId={merchant.id} />;
+  return (
+    <InventoryContent
+      merchantId={merchant.id}
+      numberFormat={
+        (merchant.numberFormat ?? "western") as "western" | "eastern"
+      }
+    />
+  );
 }

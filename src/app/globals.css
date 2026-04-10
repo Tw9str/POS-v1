@@ -11,8 +11,6 @@
   --color-primary-700: #4338ca;
   --color-primary-800: #3730a3;
   --color-primary-900: #312e81;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 * {
@@ -21,7 +19,7 @@
 
 /* Bottom nav offset — used by layout + POS for padding/height */
 :root {
-  --bottom-nav: calc(4rem + env(safe-area-inset-bottom, 0px));
+  --bottom-nav: calc(4.5rem + env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 1024px) {
   :root {

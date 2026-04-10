@@ -13,14 +13,25 @@ import {
   IconCustomers,
   IconProducts,
 } from "@/components/icons";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
+import {
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  type DateFormat,
+  type NumberFormat,
+} from "@/lib/utils";
 
 export function ReportsContent({
   merchantId,
   currency,
+  numberFormat = "western",
+  dateFormat = "long",
 }: {
   merchantId: string;
   currency: string;
+  numberFormat?: NumberFormat;
+  dateFormat?: DateFormat;
 }) {
   const products = useLocalProducts(merchantId);
   const customers = useLocalCustomers(merchantId);
@@ -118,36 +129,31 @@ export function ReportsContent({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Reports
-        </h1>
-        <p className="text-slate-500 mt-1">Sales overview and analytics</p>
-      </div>
+      <PageHeader title="Reports" subtitle="Sales overview and analytics" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Today"
-          value={formatCurrency(stats.todaySales, currency)}
-          subtitle={`${stats.todayCount} orders`}
+          value={formatCurrency(stats.todaySales, currency, numberFormat)}
+          subtitle={`${formatNumber(stats.todayCount, numberFormat)} orders`}
           icon={<IconMoney size={24} />}
         />
         <StatCard
           title="This Week"
-          value={formatCurrency(stats.weekSales, currency)}
-          subtitle={`${stats.weekCount} orders`}
+          value={formatCurrency(stats.weekSales, currency, numberFormat)}
+          subtitle={`${formatNumber(stats.weekCount, numberFormat)} orders`}
           icon={<IconOrders size={24} />}
         />
         <StatCard
           title="This Month"
-          value={formatCurrency(stats.monthSales, currency)}
-          subtitle={`${stats.monthCount} orders`}
+          value={formatCurrency(stats.monthSales, currency, numberFormat)}
+          subtitle={`${formatNumber(stats.monthCount, numberFormat)} orders`}
           icon={<IconCustomers size={24} />}
         />
         <StatCard
           title="All Time"
-          value={formatCurrency(stats.allTimeSales, currency)}
-          subtitle={`${stats.totalOrders} total orders`}
+          value={formatCurrency(stats.allTimeSales, currency, numberFormat)}
+          subtitle={`${formatNumber(stats.totalOrders, numberFormat)} total orders`}
           icon={<IconProducts size={24} />}
         />
       </div>
@@ -173,14 +179,14 @@ export function ReportsContent({
                 >
                   <div>
                     <p className="text-sm font-semibold text-slate-800">
-                      {formatDate(day.date)}
+                      {formatDate(day.date, dateFormat, numberFormat)}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {day.count} orders
+                      {formatNumber(day.count, numberFormat)} orders
                     </p>
                   </div>
                   <span className="text-sm font-bold text-slate-900 tabular-nums">
-                    {formatCurrency(day.total, currency)}
+                    {formatCurrency(day.total, currency, numberFormat)}
                   </span>
                 </div>
               ))
@@ -208,19 +214,20 @@ export function ReportsContent({
                 >
                   <div className="flex items-center gap-3">
                     <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold flex items-center justify-center">
-                      {i + 1}
+                      {formatNumber(i + 1, numberFormat)}
                     </span>
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">
+                      <p className="text-sm font-semibold text-slate-800 capitalize">
                         {product.name}
                       </p>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        {product.quantity} units sold
+                        {formatNumber(product.quantity, numberFormat)} units
+                        sold
                       </p>
                     </div>
                   </div>
                   <span className="text-sm font-bold text-slate-900 tabular-nums">
-                    {formatCurrency(product.total, currency)}
+                    {formatCurrency(product.total, currency, numberFormat)}
                   </span>
                 </div>
               ))
@@ -238,25 +245,25 @@ export function ReportsContent({
           <div>
             <p className="text-sm text-slate-500">Active Products</p>
             <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-              {products.length}
+              {formatNumber(products.length, numberFormat)}
             </p>
           </div>
           <div>
             <p className="text-sm text-slate-500">Total Customers</p>
             <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-              {customers.length}
+              {formatNumber(customers.length, numberFormat)}
             </p>
           </div>
           <div>
             <p className="text-sm text-slate-500">Avg Order Value</p>
             <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-              {formatCurrency(stats.avgOrder, currency)}
+              {formatCurrency(stats.avgOrder, currency, numberFormat)}
             </p>
           </div>
           <div>
             <p className="text-sm text-slate-500">Avg Daily Orders</p>
             <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-              {stats.avgDailyOrders}
+              {formatNumber(stats.avgDailyOrders, numberFormat)}
             </p>
           </div>
         </div>

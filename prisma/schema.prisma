@@ -143,6 +143,8 @@ model Merchant {
   address      String?
   logo         String?
   currency     String   @default("SYP")
+  numberFormat String   @default("western") @map("number_format")
+  dateFormat   String   @default("long") @map("date_format")
   timezone     String   @default("Asia/Damascus")
   taxRate      Float    @default(0)
   isActive     Boolean  @default(true)

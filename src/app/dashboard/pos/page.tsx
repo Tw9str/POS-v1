@@ -12,10 +12,20 @@ export default async function POSPage() {
   return (
     <POSTerminal
       currentStaffId={staffSession?.staffId || null}
+      staffRole={staffSession?.role || "CASHIER"}
       merchant={{
         id: merchant.id,
         name: merchant.name,
         currency: merchant.currency,
+        numberFormat: (merchant.numberFormat ?? "western") as
+          | "western"
+          | "eastern",
+        dateFormat: (merchant.dateFormat ?? "long") as
+          | "long"
+          | "numeric"
+          | "arabic"
+          | "gregorian"
+          | "hijri",
         taxRate: merchant.taxRate,
         phone: merchant.phone ?? null,
         address: merchant.address ?? null,

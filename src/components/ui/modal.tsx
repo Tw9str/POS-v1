@@ -64,7 +64,7 @@ export function Modal({
             <h2 className="text-lg font-bold text-slate-900">{title}</h2>
             <button
               onClick={onClose}
-              className="p-2 -mr-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 active:scale-95 transition-all"
+              className="p-2 -mr-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
             >
               <IconX size={20} />
             </button>

@@ -66,7 +66,7 @@ export function OfflineIndicator({
       {isOnline && !isSyncing && pendingCount > 0 && (
         <button
           onClick={onSync}
-          className="underline hover:no-underline active:scale-95 transition-transform"
+          className="underline hover:no-underline active:scale-95 transition-transform cursor-pointer"
         >
           Sync now
         </button>

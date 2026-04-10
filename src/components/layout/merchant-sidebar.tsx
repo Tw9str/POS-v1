@@ -146,130 +146,73 @@ export function MerchantSidebar({
     router.push("/store");
   };
 
+  // If only 1 or fewer visible items, don't show bottom nav (e.g. cashier with only POS)
+  const showBottomNav = visibleItems.length > 1;
+
   return (
     <>
-      {/* ─── Desktop Sidebar (lg+) ─── */}
-      <aside className="hidden lg:flex w-[280px] bg-white border-r border-slate-200/80 flex-col shrink-0">
-        {/* Brand */}
-        <div className="px-5 py-6">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <span className="text-lg font-bold text-white">
-                {merchantName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-[15px] font-bold text-slate-900 truncate">
-                {merchantName}
-              </h1>
-              <p className="text-xs text-slate-400 truncate mt-0.5">
-                {staffName} · {ROLE_LABELS[staffRole] || staffRole}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-          {visibleItems.map((item) => {
-            const active = isActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-semibold transition-all duration-200",
-                  active
-                    ? "bg-indigo-50 text-indigo-700 shadow-sm"
-                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-800 active:scale-[0.98]",
-                )}
-              >
-                <item.icon size={20} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Footer */}
-        <div className="px-3 pb-5 pt-2 space-y-0.5 border-t border-slate-100 mt-2">
-          <button
-            onClick={handleLock}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-semibold text-amber-600 hover:bg-amber-50 active:scale-[0.98] transition-all w-full"
-          >
-            <IconKey size={20} />
-            Switch User
-          </button>
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800 active:scale-[0.98] transition-all w-full"
-          >
-            <IconLogout size={20} />
-            Sign Out
-          </button>
-        </div>
-      </aside>
-
       {/* ─── Mobile Bottom Tab Bar (<lg) ─── */}
-      <nav
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/80 backdrop-blur-xl border-t border-slate-200/80"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-      >
-        <div className="flex items-center justify-around h-16">
-          {tabItems.map((item) => {
-            const active = isActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
+      {showBottomNav && (
+        <nav
+          className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/80 backdrop-blur-xl border-t border-slate-200/80"
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        >
+          <div className="flex items-center justify-around h-16">
+            {tabItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-0.5 min-w-[60px] py-1.5 rounded-xl transition-colors",
+                    active
+                      ? "text-indigo-600"
+                      : "text-slate-400 active:text-slate-600",
+                  )}
+                >
+                  <item.icon size={22} />
+                  <span className="text-[10px] font-semibold leading-none mt-0.5">
+                    {item.short}
+                  </span>
+                </Link>
+              );
+            })}
+
+            {/* More button */}
+            {moreItems.length > 0 && (
+              <button
+                onClick={() => setMoreOpen(true)}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 min-w-[60px] py-1.5 rounded-xl transition-colors",
-                  active
+                  "flex flex-col items-center justify-center gap-0.5 min-w-15 py-1.5 rounded-xl transition-colors",
+                  isMoreActive || moreOpen
                     ? "text-indigo-600"
                     : "text-slate-400 active:text-slate-600",
                 )}
               >
-                <item.icon size={22} />
+                {/* Grid/More icon */}
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="1" />
+                  <circle cx="19" cy="12" r="1" />
+                  <circle cx="5" cy="12" r="1" />
+                </svg>
                 <span className="text-[10px] font-semibold leading-none mt-0.5">
-                  {item.short}
+                  More
                 </span>
-              </Link>
-            );
-          })}
-
-          {/* More button */}
-          {moreItems.length > 0 && (
-            <button
-              onClick={() => setMoreOpen(true)}
-              className={cn(
-                "flex flex-col items-center justify-center gap-0.5 min-w-[60px] py-1.5 rounded-xl transition-colors",
-                isMoreActive || moreOpen
-                  ? "text-indigo-600"
-                  : "text-slate-400 active:text-slate-600",
-              )}
-            >
-              {/* Grid/More icon */}
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="19" cy="12" r="1" />
-                <circle cx="5" cy="12" r="1" />
-              </svg>
-              <span className="text-[10px] font-semibold leading-none mt-0.5">
-                More
-              </span>
-            </button>
-          )}
-        </div>
-      </nav>
+              </button>
+            )}
+          </div>
+        </nav>
+      )}
 
       {/* ─── More Bottom Sheet ─── */}
       {moreOpen && (
@@ -292,8 +235,10 @@ export function MerchantSidebar({
 
             {/* Store info */}
             <div className="px-6 pb-4 border-b border-slate-100">
-              <p className="font-bold text-slate-900 text-sm">{merchantName}</p>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="font-bold text-slate-900 text-sm capitalize">
+                {merchantName}
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5 capitalize">
                 {staffName} · {ROLE_LABELS[staffRole] || staffRole}
               </p>
             </div>
@@ -327,14 +272,14 @@ export function MerchantSidebar({
             <div className="px-4 pb-4 pt-2 border-t border-slate-100 space-y-1">
               <button
                 onClick={handleLock}
-                className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold text-amber-600 hover:bg-amber-50 active:scale-[0.98] transition-all w-full"
+                className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold text-amber-600 hover:bg-amber-50 active:scale-[0.98] transition-all w-full cursor-pointer"
               >
                 <IconKey size={20} />
                 Switch User
               </button>
               <button
                 onClick={handleSignOut}
-                className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 active:scale-[0.98] transition-all w-full"
+                className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 active:scale-[0.98] transition-all w-full cursor-pointer"
               >
                 <IconLogout size={20} />
                 Sign Out

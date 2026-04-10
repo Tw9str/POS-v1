@@ -190,7 +190,7 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
               key={digit}
               onClick={() => handleDigit(digit)}
               disabled={loading || pin.length >= maxLength}
-              className="h-16 rounded-xl bg-white/5 border border-white/10 text-white text-2xl font-semibold hover:bg-white/10 active:bg-white/15 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-16 rounded-xl bg-white/5 border border-white/10 text-white text-2xl font-semibold hover:bg-white/10 active:bg-white/15 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {digit}
             </button>
@@ -199,21 +199,21 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
           <button
             onClick={handleClear}
             disabled={loading}
-            className="h-16 rounded-xl bg-white/5 border border-white/10 text-red-400 text-sm font-semibold hover:bg-red-500/10 active:scale-95 transition-all disabled:opacity-50"
+            className="h-16 rounded-xl bg-white/5 border border-white/10 text-red-400 text-sm font-semibold hover:bg-red-500/10 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
             Clear
           </button>
           <button
             onClick={() => handleDigit("0")}
             disabled={loading || pin.length >= maxLength}
-            className="h-16 rounded-xl bg-white/5 border border-white/10 text-white text-2xl font-semibold hover:bg-white/10 active:bg-white/15 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-16 rounded-xl bg-white/5 border border-white/10 text-white text-2xl font-semibold hover:bg-white/10 active:bg-white/15 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             0
           </button>
           <button
             onClick={handleBackspace}
             disabled={loading || pin.length === 0}
-            className="h-16 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
+            className="h-16 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 active:scale-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center"
           >
             <svg
               width="24"
@@ -236,7 +236,7 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
         <button
           onClick={handleSubmit}
           disabled={loading || pin.length < 4}
-          className="w-full h-14 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/30"
+          className="w-full h-14 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-lg transition-all cursor-pointer active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/30"
         >
           {loading ? (
             <span className="flex items-center justify-center gap-2">

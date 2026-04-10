@@ -3,33 +3,33 @@
 import { useLocalProducts, useLocalCategories } from "@/hooks/use-local-data";
 import { ProductActions } from "./product-actions";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatNumber, type NumberFormat } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 
 export function ProductsContent({
   merchantId,
   currency,
+  numberFormat = "western",
 }: {
   merchantId: string;
   currency: string;
+  numberFormat?: NumberFormat;
 }) {
   const products = useLocalProducts(merchantId);
   const categories = useLocalCategories(merchantId);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Products
-          </h1>
-          <p className="text-slate-500 mt-1">{products.length} products</p>
-        </div>
+      <PageHeader
+        title="Products"
+        subtitle={`${formatNumber(products.length, numberFormat)} products`}
+      >
         <ProductActions
           categories={categories}
           currency={currency}
           merchantId={merchantId}
         />
-      </div>
+      </PageHeader>
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
@@ -60,23 +60,23 @@ export function ProductsContent({
                   key={p.id}
                   className="hover:bg-slate-50/50 transition-colors"
                 >
-                  <td className="px-5 py-4 font-semibold text-slate-800">
+                  <td className="px-5 py-4 font-semibold text-slate-800 capitalize">
                     {p.name}
                   </td>
-                  <td className="px-5 py-4 text-slate-500">
+                  <td className="px-5 py-4 text-slate-500 capitalize">
                     {p.categoryName || "—"}
                   </td>
                   <td className="px-5 py-4 text-slate-500 font-mono text-xs">
                     {p.sku || "—"}
                   </td>
                   <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
-                    {formatCurrency(p.price, currency)}
+                    {formatCurrency(p.price, currency, numberFormat)}
                   </td>
                   <td className="px-5 py-4 text-slate-500 tabular-nums">
-                    {formatCurrency(p.costPrice, currency)}
+                    {formatCurrency(p.costPrice, currency, numberFormat)}
                   </td>
                   <td className="px-5 py-4 tabular-nums">
-                    {p.trackStock ? p.stock : "∞"}
+                    {p.trackStock ? formatNumber(p.stock, numberFormat) : "∞"}
                   </td>
                   <td className="px-5 py-4">
                     <Badge variant={p.stock > 0 ? "success" : "danger"}>

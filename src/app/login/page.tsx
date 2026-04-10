@@ -107,7 +107,7 @@ function LoginContent() {
           </p>
           <button
             onClick={() => setSent(false)}
-            className="mt-6 text-sm text-blue-600 hover:text-blue-700"
+            className="mt-6 text-sm text-blue-600 hover:text-blue-700 cursor-pointer"
           >
             Use a different email
           </button>

@@ -13,6 +13,8 @@ export interface LocalProduct {
   price: number;
   costPrice: number;
   stock: number;
+  lowStockAt: number;
+  unit: string;
   trackStock: boolean;
   image: string | null;
   categoryId: string | null;
@@ -106,7 +108,13 @@ export interface PendingMutation {
   url: string;
   method: string;
   body: string;
-  entity: "product" | "staff" | "customer" | "supplier" | "settings";
+  entity:
+    | "product"
+    | "category"
+    | "staff"
+    | "customer"
+    | "supplier"
+    | "settings";
   localEntityId: string | null;
   createdAt: number;
   syncStatus: "pending" | "synced" | "failed";
