@@ -8,22 +8,51 @@ import { IconPlus } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { offlineFetch } from "@/lib/offline-fetch";
 
-interface CustomerActionsProps {
-  merchantId: string;
+interface EditableCustomer {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  notes?: string | null;
 }
 
-export function CustomerActions({ merchantId }: CustomerActionsProps) {
+interface CustomerActionsProps {
+  merchantId: string;
+  customer?: EditableCustomer;
+}
+
+export function CustomerActions({
+  merchantId,
+  customer,
+}: CustomerActionsProps) {
   const router = useRouter();
+  const isEdit = Boolean(customer);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    address: "",
-    notes: "",
-  });
+
+  const emptyForm = {
+    name: customer?.name ?? "",
+    phone: customer?.phone ?? "",
+    email: customer?.email ?? "",
+    address: customer?.address ?? "",
+    notes: customer?.notes ?? "",
+  };
+
+  const [form, setForm] = useState(emptyForm);
+
+  function openModal() {
+    setError("");
+    setForm({
+      name: customer?.name ?? "",
+      phone: customer?.phone ?? "",
+      email: customer?.email ?? "",
+      address: customer?.address ?? "",
+      notes: customer?.notes ?? "",
+    });
+    setOpen(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,14 +62,16 @@ export function CustomerActions({ merchantId }: CustomerActionsProps) {
     try {
       const result = await offlineFetch({
         url: "/api/merchant/customers",
-        method: "POST",
-        body: form,
+        method: isEdit ? "PUT" : "POST",
+        body: isEdit ? { id: customer?.id, ...form } : form,
         entity: "customer",
         merchantId,
       });
 
       if (!result.ok) {
-        setError(result.error || "Failed to add customer");
+        setError(
+          result.error || `Failed to ${isEdit ? "update" : "add"} customer`,
+        );
         return;
       }
 
@@ -56,12 +87,20 @@ export function CustomerActions({ merchantId }: CustomerActionsProps) {
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
-        <IconPlus size={18} />
-        Add Customer
+      <Button
+        onClick={openModal}
+        variant={isEdit ? "ghost" : "primary"}
+        size={isEdit ? "sm" : "md"}
+      >
+        {!isEdit && <IconPlus size={18} />}
+        {isEdit ? "Edit" : "Add Customer"}
       </Button>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Add Customer">
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={isEdit ? "Edit Customer" : "Add Customer"}
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             id="name"
@@ -89,6 +128,12 @@ export function CustomerActions({ merchantId }: CustomerActionsProps) {
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
           />
+          <Input
+            id="notes"
+            label="Notes"
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          />
 
           {error && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
@@ -105,7 +150,7 @@ export function CustomerActions({ merchantId }: CustomerActionsProps) {
               Cancel
             </Button>
             <Button type="submit" loading={loading}>
-              Add Customer
+              {isEdit ? "Save Changes" : "Add Customer"}
             </Button>
           </div>
         </form>

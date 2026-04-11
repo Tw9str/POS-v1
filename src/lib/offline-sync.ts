@@ -197,36 +197,49 @@ export interface CreateOfflineOrderInput {
   notes: string | null;
 }
 
-export async function createOfflineOrder(
-  input: CreateOfflineOrderInput,
+interface SaveLocalOrderInput extends CreateOfflineOrderInput {
+  orderNumber: string;
+  localId?: string;
+  customerName?: string | null;
+  staffName?: string | null;
+  status?: string;
+  createdAt?: number;
+  syncStatus?: "pending" | "synced" | "failed";
+  syncError?: string | null;
+  retryCount?: number;
+}
+
+export async function saveOrderLocally(
+  input: SaveLocalOrderInput,
 ): Promise<LocalOrder> {
-  const localId = generateLocalId();
-  const orderNumber = generateOrderNumber();
+  const localId = input.localId ?? generateLocalId();
   const changeAmount = Math.max(0, input.paidAmount - input.total);
 
   const order: LocalOrder = {
     localId,
     merchantId: input.merchantId,
-    orderNumber,
+    orderNumber: input.orderNumber,
     items: input.items,
     customerId: input.customerId,
+    customerName: input.customerName ?? null,
     staffId: input.staffId,
+    staffName: input.staffName ?? null,
     paymentMethod: input.paymentMethod,
     subtotal: input.subtotal,
     taxAmount: input.taxAmount,
     total: input.total,
     paidAmount: input.paidAmount,
     changeAmount,
+    status: input.status ?? "COMPLETED",
     notes: input.notes,
-    createdAt: Date.now(),
-    syncStatus: "pending",
-    syncError: null,
-    retryCount: 0,
+    createdAt: input.createdAt ?? Date.now(),
+    syncStatus: input.syncStatus ?? "synced",
+    syncError: input.syncError ?? null,
+    retryCount: input.retryCount ?? 0,
   };
 
   await db.orders.put(order);
 
-  // Decrement local stock
   await db.transaction("rw", db.products, async () => {
     for (const item of input.items) {
       const product = await db.products.get(item.productId);
@@ -239,6 +252,20 @@ export async function createOfflineOrder(
   });
 
   return order;
+}
+
+export async function createOfflineOrder(
+  input: CreateOfflineOrderInput,
+): Promise<LocalOrder> {
+  return saveOrderLocally({
+    ...input,
+    localId: generateLocalId(),
+    orderNumber: generateOrderNumber(),
+    status: "COMPLETED",
+    syncStatus: "pending",
+    syncError: null,
+    retryCount: 0,
+  });
 }
 
 export async function getPendingOrders(
@@ -385,6 +412,7 @@ export async function pullData(merchantId: string): Promise<boolean> {
           id: p.id,
           merchantId,
           name: p.name,
+          variantName: (p.variantName as string) ?? null,
           sku: p.sku ?? null,
           barcode: p.barcode ?? null,
           price: p.price,

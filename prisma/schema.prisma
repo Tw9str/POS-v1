@@ -256,6 +256,7 @@ model Product {
   merchantId  String
   categoryId  String?
   name        String
+  variantName String?
   sku         String?
   barcode     String?
   price       Float

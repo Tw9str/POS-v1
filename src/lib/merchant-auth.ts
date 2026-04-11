@@ -11,6 +11,8 @@ export interface MerchantCacheData {
   taxRate: number;
   phone: string | null;
   address: string | null;
+  numberFormat: string;
+  dateFormat: string;
 }
 
 function getSecret(): string {
@@ -114,6 +116,8 @@ function migrateOldCookie(token: string): MerchantCacheData | null {
     taxRate: 0,
     phone: null,
     address: null,
+    numberFormat: "western",
+    dateFormat: "long",
   };
 }
 

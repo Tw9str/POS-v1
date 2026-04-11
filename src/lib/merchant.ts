@@ -20,7 +20,9 @@ export async function getMerchantFromSession() {
       merchant.currency !== cached.currency ||
       merchant.taxRate !== cached.taxRate ||
       merchant.phone !== cached.phone ||
-      merchant.address !== cached.address
+      merchant.address !== cached.address ||
+      (merchant.numberFormat ?? "western") !== cached.numberFormat ||
+      (merchant.dateFormat ?? "long") !== cached.dateFormat
     ) {
       await setMerchantSession({
         id: merchant.id,
@@ -29,6 +31,8 @@ export async function getMerchantFromSession() {
         taxRate: merchant.taxRate,
         phone: merchant.phone,
         address: merchant.address,
+        numberFormat: merchant.numberFormat ?? "western",
+        dateFormat: merchant.dateFormat ?? "long",
       });
     }
 
@@ -46,8 +50,8 @@ export async function getMerchantFromSession() {
       currency: cached.currency,
       timezone: "Asia/Damascus",
       taxRate: cached.taxRate,
-      numberFormat: "western",
-      dateFormat: "long",
+      numberFormat: cached.numberFormat ?? "western",
+      dateFormat: cached.dateFormat ?? "long",
       isActive: true,
       subscription: null,
       createdAt: new Date(),

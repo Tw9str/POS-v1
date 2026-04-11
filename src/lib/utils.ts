@@ -144,6 +144,49 @@ export function generateOrderNumber(): string {
   return `ORD-${date}-${rand}`;
 }
 
+export const SUPPORTED_PAYMENT_METHODS = [
+  "CASH",
+  "MOBILE_MONEY",
+  "CARD",
+] as const;
+
+export type SupportedPaymentMethod = (typeof SUPPORTED_PAYMENT_METHODS)[number];
+
+export function getPaymentMethodLabel(method?: string | null): string {
+  switch (method) {
+    case "CASH":
+      return "Cash";
+    case "CARD":
+      return "Card";
+    case "MOBILE_MONEY":
+    case "SHAMCASH":
+      return "ShamCash";
+    case "TRANSFER":
+      return "Transfer";
+    case "SPLIT":
+      return "Split";
+    case "OTHER":
+      return "Other";
+    default:
+      return method
+        ? method
+            .toLowerCase()
+            .replaceAll("_", " ")
+            .replace(/\b\w/g, (char) => char.toUpperCase())
+        : "Unknown";
+  }
+}
+
+export function getProductDisplayName(
+  name: string,
+  variantName?: string | null,
+): string {
+  const baseName = name.trim();
+  const variant = variantName?.trim();
+
+  return variant ? `${baseName} — ${variant}` : baseName;
+}
+
 export function cn(
   ...classes: (string | boolean | undefined | null)[]
 ): string {

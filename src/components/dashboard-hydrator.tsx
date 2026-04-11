@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { pullData } from "@/lib/offline-sync";
 import { useOffline } from "@/hooks/use-offline";
 import { OfflineIndicator } from "@/components/offline-indicator";
@@ -15,15 +15,35 @@ export function DashboardHydrator({ merchantId }: { merchantId: string }) {
   const hydrated = useRef(false);
   const offline = useOffline(merchantId);
 
+  const syncLatestData = useCallback(() => {
+    if (!navigator.onLine) return;
+    pullData(merchantId).catch(() => {});
+  }, [merchantId]);
+
   // Pull all data into IndexedDB on first mount (when online)
   useEffect(() => {
     if (hydrated.current) return;
     hydrated.current = true;
+    syncLatestData();
+  }, [syncLatestData]);
 
-    if (navigator.onLine) {
-      pullData(merchantId).catch(() => {});
-    }
-  }, [merchantId]);
+  // Refresh cached dashboard data when the tab becomes active again.
+  useEffect(() => {
+    const handleFocus = () => syncLatestData();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        syncLatestData();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [syncLatestData]);
 
   return (
     <div className="mb-4">

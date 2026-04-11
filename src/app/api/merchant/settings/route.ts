@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { setMerchantSession } from "@/lib/merchant-auth";
 import { getMerchantFromSession } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
 import { normalizeDateFormat } from "@/lib/utils";
@@ -48,6 +49,17 @@ export async function PUT(req: Request) {
         dateFormat: normalizeDateFormat(parsed.data.dateFormat),
         taxRate: parsed.data.taxRate,
       },
+    });
+
+    await setMerchantSession({
+      id: updated.id,
+      name: updated.name,
+      currency: updated.currency,
+      taxRate: updated.taxRate,
+      phone: updated.phone,
+      address: updated.address,
+      numberFormat: updated.numberFormat ?? "western",
+      dateFormat: updated.dateFormat ?? "long",
     });
 
     await prisma.activityLog

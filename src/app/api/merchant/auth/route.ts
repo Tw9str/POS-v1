@@ -31,6 +31,8 @@ export async function POST(req: Request) {
         taxRate: true,
         phone: true,
         address: true,
+        numberFormat: true,
+        dateFormat: true,
       },
     });
 
@@ -57,6 +59,8 @@ export async function POST(req: Request) {
       taxRate: merchant.taxRate,
       phone: merchant.phone,
       address: merchant.address,
+      numberFormat: merchant.numberFormat ?? "western",
+      dateFormat: merchant.dateFormat ?? "long",
     });
 
     return NextResponse.json({

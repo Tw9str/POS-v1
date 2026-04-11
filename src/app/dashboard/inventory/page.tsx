@@ -9,6 +9,7 @@ export default async function InventoryPage() {
   return (
     <InventoryContent
       merchantId={merchant.id}
+      currency={merchant.currency}
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }

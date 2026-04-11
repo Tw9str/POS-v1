@@ -102,9 +102,9 @@ export async function PUT(req: Request) {
     const { error } = await requireStaffForApi("/api/merchant/products");
     if (error) return error;
 
-    const parsed = categorySchema.extend({ id: z.string().min(1) }).safeParse(
-      await req.json(),
-    );
+    const parsed = categorySchema
+      .extend({ id: z.string().min(1) })
+      .safeParse(await req.json());
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.issues[0]?.message ?? "Invalid input" },
@@ -116,7 +116,10 @@ export async function PUT(req: Request) {
       where: { id: parsed.data.id, merchantId: merchant.id, isActive: true },
     });
     if (!category) {
-      return NextResponse.json({ error: "Category not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Category not found" },
+        { status: 404 },
+      );
     }
 
     const duplicate = await prisma.category.findFirst({
@@ -175,7 +178,10 @@ export async function DELETE(req: Request) {
       where: { id: parsed.data.id, merchantId: merchant.id, isActive: true },
     });
     if (!category) {
-      return NextResponse.json({ error: "Category not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Category not found" },
+        { status: 404 },
+      );
     }
 
     await prisma.category.update({

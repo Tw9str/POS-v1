@@ -13,6 +13,9 @@ import {
   IconPrinter,
   IconBarcode,
   IconMoney,
+  IconCashBanknote,
+  IconCardPayment,
+  IconWallet,
   IconCamera,
   IconKey,
 } from "@/components/icons";
@@ -20,13 +23,16 @@ import { BackButton } from "@/components/layout/page-header";
 import { useRouter } from "next/navigation";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { useOffline } from "@/hooks/use-offline";
-import { createOfflineOrder } from "@/lib/offline-sync";
+import { createOfflineOrder, saveOrderLocally } from "@/lib/offline-sync";
 import {
   formatCurrency,
   formatDateTime,
   formatNumber,
+  getPaymentMethodLabel,
+  getProductDisplayName,
   type DateFormat,
   type NumberFormat,
+  type SupportedPaymentMethod,
 } from "@/lib/utils";
 import {
   useLocalProducts,
@@ -42,6 +48,7 @@ import {
 interface POSProduct {
   id: string;
   name: string;
+  variantName: string | null;
   sku: string | null;
   barcode: string | null;
   price: number;
@@ -105,6 +112,40 @@ function formatMoney(
   return formatCurrency(amount, currency, numberFormat);
 }
 
+const PAYMENT_METHOD_OPTIONS: Array<{
+  value: SupportedPaymentMethod;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  activeRing: string;
+  activeBg: string;
+  idleIconBg: string;
+}> = [
+  {
+    value: "CASH",
+    label: "Cash",
+    icon: IconCashBanknote,
+    activeRing: "ring-emerald-500",
+    activeBg: "bg-emerald-50",
+    idleIconBg: "bg-slate-100 text-slate-500",
+  },
+  {
+    value: "MOBILE_MONEY",
+    label: "ShamCash",
+    icon: IconWallet,
+    activeRing: "ring-indigo-500",
+    activeBg: "bg-indigo-50",
+    idleIconBg: "bg-slate-100 text-slate-500",
+  },
+  {
+    value: "CARD",
+    label: "Card",
+    icon: IconCardPayment,
+    activeRing: "ring-sky-500",
+    activeBg: "bg-sky-50",
+    idleIconBg: "bg-slate-100 text-slate-500",
+  },
+];
+
 // ─────────────────────────────────────────────
 // POS Terminal Component
 // ─────────────────────────────────────────────
@@ -138,7 +179,8 @@ export function POSTerminal({
     () => staff.find((s) => s.id === currentStaffId) ?? null,
     [staff, currentStaffId],
   );
-  const [paymentMethod, setPaymentMethod] = useState<string>("CASH");
+  const [paymentMethod, setPaymentMethod] =
+    useState<SupportedPaymentMethod>("CASH");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [paidAmount, setPaidAmount] = useState("");
@@ -191,6 +233,7 @@ export function POSTerminal({
       list = list.filter(
         (p) =>
           p.name.toLowerCase().includes(searchQuery) ||
+          p.variantName?.toLowerCase().includes(searchQuery) ||
           p.sku?.toLowerCase().includes(searchQuery) ||
           p.barcode?.toLowerCase().includes(searchQuery),
       );
@@ -291,7 +334,7 @@ export function POSTerminal({
 
     const orderItems = cart.map((item) => ({
       productId: item.product.id,
-      name: item.product.name,
+      name: getProductDisplayName(item.product.name, item.product.variantName),
       sku: item.product.sku,
       price: item.product.price,
       costPrice: item.product.costPrice,
@@ -341,8 +384,32 @@ export function POSTerminal({
         });
 
         if (res.ok) {
-          const order = await res.json();
+          const order = (await res.json()) as {
+            id?: string;
+            orderNumber: string;
+          };
+
+          await saveOrderLocally({
+            merchantId: merchant.id,
+            localId: order.id,
+            orderNumber: order.orderNumber,
+            items: orderItems,
+            customerId: selectedCustomer?.id || null,
+            customerName: selectedCustomer?.name || null,
+            staffId: selectedStaff?.id || null,
+            staffName: selectedStaff?.name || null,
+            paymentMethod,
+            subtotal,
+            taxAmount,
+            total,
+            paidAmount: paid,
+            notes: orderNotes || null,
+            status: "COMPLETED",
+            syncStatus: "synced",
+          });
+
           finishOrder(order.orderNumber);
+          router.refresh();
           return;
         }
       }
@@ -545,7 +612,10 @@ export function POSTerminal({
                     {/* Product info */}
                     <div className="mb-2.5">
                       <p className="text-sm font-semibold text-slate-800 line-clamp-2 leading-tight capitalize">
-                        {product.name}
+                        {getProductDisplayName(
+                          product.name,
+                          product.variantName,
+                        )}
                       </p>
                       {product.sku && (
                         <p className="text-[10px] text-slate-400 mt-1 font-mono">
@@ -644,7 +714,7 @@ export function POSTerminal({
         </div>
 
         {/* Cart items */}
-        <div className="order-3 lg:order-none flex-1 overflow-y-auto border-t border-slate-100 lg:border-t-0">
+        <div className="order-3 lg:order-0 flex-1 overflow-y-auto border-t border-slate-100 lg:border-t-0">
           {cart.length === 0 ? (
             <div className="flex items-center justify-center h-full text-slate-400">
               <div className="text-center">
@@ -661,7 +731,10 @@ export function POSTerminal({
                 <div key={item.product.id} className="px-5 py-3.5 flex gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 capitalize truncate">
-                      {item.product.name}
+                      {getProductDisplayName(
+                        item.product.name,
+                        item.product.variantName,
+                      )}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">
                       {formatMoney(
@@ -752,36 +825,46 @@ export function POSTerminal({
           </div>
 
           {/* Payment method quickselect */}
-          <div className="flex gap-2">
-            {(["CASH", "CARD", "TRANSFER"] as const).map((method) => (
-              <button
-                key={method}
-                onClick={() => setPaymentMethod(method)}
-                className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all select-none active:scale-95 cursor-pointer ${
-                  paymentMethod === method
-                    ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {method === "CASH"
-                  ? "Cash"
-                  : method === "CARD"
-                    ? "Card"
-                    : "Transfer"}
-              </button>
-            ))}
+          <div className="grid grid-cols-3 gap-2.5">
+            {PAYMENT_METHOD_OPTIONS.map((opt) => {
+              const selected = paymentMethod === opt.value;
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setPaymentMethod(opt.value)}
+                  className={`flex flex-col items-center gap-1.5 rounded-xl py-3 px-2 text-xs font-semibold transition-all select-none active:scale-[0.96] cursor-pointer ring-2 ring-inset ${
+                    selected
+                      ? `${opt.activeRing} ${opt.activeBg} text-slate-900`
+                      : "ring-transparent bg-slate-50 text-slate-500 hover:bg-slate-100"
+                  }`}
+                >
+                  <span
+                    className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
+                      selected ? `${opt.activeBg}` : opt.idleIconBg
+                    }`}
+                  >
+                    <Icon size={22} />
+                  </span>
+                  <span>{opt.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          <Button
-            size="lg"
-            className="w-full text-base"
+          <button
             disabled={cart.length === 0}
             onClick={() => setCheckoutOpen(true)}
+            className="w-full flex items-center justify-between rounded-xl bg-indigo-600 pl-5 pr-3 py-3 text-white font-bold transition-all hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none select-none cursor-pointer shadow-sm shadow-indigo-600/20"
           >
-            Charge{" "}
-            {formatMoney(total, merchant.currency, merchant.numberFormat)}
-            <span className="text-xs opacity-70 ml-1">(F9)</span>
-          </Button>
+            <span className="text-sm tracking-wide">Charge</span>
+            <span className="flex items-center gap-2">
+              <span className="bg-white/20 rounded-lg px-3 py-1 text-sm tabular-nums">
+                {formatMoney(total, merchant.currency, merchant.numberFormat)}
+              </span>
+              <kbd className="text-[10px] font-medium opacity-50">F9</kbd>
+            </span>
+          </button>
         </div>
       </div>
 
@@ -838,22 +921,31 @@ export function POSTerminal({
             <label className="block text-sm font-semibold text-slate-700 mb-2">
               Payment Method
             </label>
-            <div className="flex gap-2">
-              {(["CASH", "CARD", "TRANSFER", "MOBILE_MONEY"] as const).map(
-                (method) => (
+            <div className="grid grid-cols-3 gap-3">
+              {PAYMENT_METHOD_OPTIONS.map((opt) => {
+                const selected = paymentMethod === opt.value;
+                const Icon = opt.icon;
+                return (
                   <button
-                    key={method}
-                    onClick={() => setPaymentMethod(method)}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all select-none active:scale-95 cursor-pointer ${
-                      paymentMethod === method
-                        ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    key={opt.value}
+                    onClick={() => setPaymentMethod(opt.value)}
+                    className={`flex flex-col items-center gap-2 rounded-xl py-3.5 px-2 text-sm font-semibold transition-all select-none active:scale-[0.96] cursor-pointer ring-2 ring-inset ${
+                      selected
+                        ? `${opt.activeRing} ${opt.activeBg} text-slate-900`
+                        : "ring-transparent bg-slate-50 text-slate-500 hover:bg-slate-100"
                     }`}
                   >
-                    {method.replace("_", " ")}
+                    <span
+                      className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
+                        selected ? `${opt.activeBg}` : opt.idleIconBg
+                      }`}
+                    >
+                      <Icon size={24} />
+                    </span>
+                    <span>{opt.label}</span>
                   </button>
-                ),
-              )}
+                );
+              })}
             </div>
           </div>
 
@@ -1049,7 +1141,11 @@ export function POSTerminal({
               {lastOrder.items.map((item, i) => (
                 <div key={i} className="flex justify-between py-0.5">
                   <span className="truncate mr-2">
-                    {item.quantity}x {item.product.name}
+                    {item.quantity}x{" "}
+                    {getProductDisplayName(
+                      item.product.name,
+                      item.product.variantName,
+                    )}
                   </span>
                   <span className="whitespace-nowrap tabular-nums">
                     {formatMoney(
@@ -1095,7 +1191,9 @@ export function POSTerminal({
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>Paid ({lastOrder.paymentMethod})</span>
+                <span>
+                  Paid ({getPaymentMethodLabel(lastOrder.paymentMethod)})
+                </span>
                 <span className="tabular-nums">
                   {formatMoney(
                     lastOrder.paid,

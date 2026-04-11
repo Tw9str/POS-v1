@@ -111,7 +111,10 @@ export async function PUT(req: Request) {
       where: { id: parsed.data.id, merchantId: merchant.id },
     });
     if (!existing) {
-      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Customer not found" },
+        { status: 404 },
+      );
     }
 
     const customer = await prisma.customer.update({
@@ -157,7 +160,10 @@ export async function DELETE(req: Request) {
       where: { id: parsed.data.id, merchantId: merchant.id },
     });
     if (!existing) {
-      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Customer not found" },
+        { status: 404 },
+      );
     }
 
     await prisma.customer.delete({ where: { id: parsed.data.id } });

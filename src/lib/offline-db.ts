@@ -8,6 +8,7 @@ export interface LocalProduct {
   id: string;
   merchantId: string;
   name: string;
+  variantName: string | null;
   sku: string | null;
   barcode: string | null;
   price: number;
@@ -114,7 +115,9 @@ export interface PendingMutation {
     | "staff"
     | "customer"
     | "supplier"
-    | "settings";
+    | "settings"
+    | "inventory"
+    | "order";
   localEntityId: string | null;
   createdAt: number;
   syncStatus: "pending" | "synced" | "failed";

@@ -33,7 +33,7 @@ const currencies = [
 export function SettingsForm({ merchant }: SettingsFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: merchant.name,
@@ -49,7 +49,7 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setSuccess(false);
+    setSuccess("");
 
     try {
       const result = await offlineFetch({
@@ -68,7 +68,11 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
         return;
       }
 
-      setSuccess(true);
+      setSuccess(
+        result.offline
+          ? "Settings were saved offline and will sync automatically."
+          : "Settings updated successfully",
+      );
       if (!result.offline) router.refresh();
     } catch {
       setError("Something went wrong");
@@ -155,7 +159,7 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
           )}
           {success && (
             <p className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg">
-              Settings updated successfully
+              {success}
             </p>
           )}
 

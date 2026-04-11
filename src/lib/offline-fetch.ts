@@ -7,6 +7,7 @@ import {
   type LocalCustomer,
   type LocalStaff,
   type LocalSupplier,
+  type LocalOrder,
 } from "./offline-db";
 
 // ─────────────────────────────────────────────
@@ -75,6 +76,14 @@ export async function offlineFetch(
   // Offline path: queue mutation + apply locally
   const localId = generateLocalId();
 
+  if (entity === "settings") {
+    await db.mutations
+      .where("merchantId")
+      .equals(merchantId)
+      .filter((mutation) => mutation.entity === "settings")
+      .delete();
+  }
+
   const mutation: PendingMutation = {
     id: localId,
     merchantId,
@@ -128,11 +137,18 @@ async function applyToLocalDB(
       const existing = await db.products.get(id);
       const categoryId = (body.categoryId as string) || null;
       const category = categoryId ? await db.categories.get(categoryId) : null;
+      const variantName =
+        "variantName" in body
+          ? (body.variantName as string | null | undefined)?.trim() || null
+          : ((serverData.variantName as string | null | undefined) ??
+            existing?.variantName ??
+            null);
 
       const product: LocalProduct = {
         id,
         merchantId,
         name: (body.name as string) ?? existing?.name ?? "",
+        variantName,
         sku: (body.sku as string) ?? existing?.sku ?? null,
         barcode: (body.barcode as string) ?? existing?.barcode ?? null,
         price: Number(body.price ?? existing?.price ?? 0),
@@ -140,11 +156,16 @@ async function applyToLocalDB(
         stock: Number(body.stock ?? existing?.stock ?? 0),
         lowStockAt: Number(body.lowStockAt ?? existing?.lowStockAt ?? 5),
         unit: (body.unit as string) ?? existing?.unit ?? "piece",
-        trackStock: (body.trackStock as boolean) ?? existing?.trackStock ?? true,
+        trackStock:
+          (body.trackStock as boolean) ?? existing?.trackStock ?? true,
         image: existing?.image ?? null,
         categoryId,
-        categoryName: categoryId ? (category?.name ?? existing?.categoryName ?? null) : null,
-        categoryColor: categoryId ? (category?.color ?? existing?.categoryColor ?? null) : null,
+        categoryName: categoryId
+          ? (category?.name ?? existing?.categoryName ?? null)
+          : null,
+        categoryColor: categoryId
+          ? (category?.color ?? existing?.categoryColor ?? null)
+          : null,
       };
       await db.products.put(product);
       return product as unknown as Record<string, unknown>;
@@ -153,10 +174,11 @@ async function applyToLocalDB(
     case "category": {
       if (method === "DELETE") {
         await db.categories.delete(id);
-        await db.products
-          .where("categoryId")
-          .equals(id)
-          .modify({ categoryId: null, categoryName: null, categoryColor: null });
+        await db.products.where("categoryId").equals(id).modify({
+          categoryId: null,
+          categoryName: null,
+          categoryColor: null,
+        });
         return { id };
       }
 
@@ -246,6 +268,81 @@ async function applyToLocalDB(
         updatedAt: Date.now(),
       });
       return { id: merchantId, ...body };
+    }
+
+    case "inventory": {
+      const productId = (body.productId as string) || id;
+      const existing = await db.products.get(productId);
+
+      if (!existing) {
+        return { id: productId };
+      }
+
+      const quantityChange = Number(body.quantity ?? 0);
+      const nextStock = Number(
+        serverData.stock ?? existing.stock + quantityChange,
+      );
+
+      await db.products.update(productId, { stock: nextStock });
+      return { id: productId, stock: nextStock };
+    }
+
+    case "order": {
+      const orderId = (body.id as string) || (body.localId as string) || id;
+      const existing = await db.orders.get(orderId);
+
+      if (!existing) {
+        return { id: orderId, status: body.action ?? serverData.status };
+      }
+
+      const action = body.action as string;
+      const nextStatus =
+        (serverData.status as string) ??
+        (action === "REFUND"
+          ? "REFUNDED"
+          : action === "VOID"
+            ? "VOIDED"
+            : action === "PARTIAL_REFUND"
+              ? "PARTIALLY_REFUNDED"
+              : (existing.status ?? "COMPLETED"));
+
+      if (
+        (nextStatus === "REFUNDED" || nextStatus === "VOIDED") &&
+        existing.status !== "REFUNDED" &&
+        existing.status !== "VOIDED"
+      ) {
+        await db.transaction("rw", db.orders, db.products, async () => {
+          const updatedOrder: LocalOrder = {
+            ...existing,
+            status: nextStatus,
+          };
+          await db.orders.put(updatedOrder);
+
+          for (const item of existing.items) {
+            const product = await db.products.get(item.productId);
+            if (product?.trackStock) {
+              await db.products.update(item.productId, {
+                stock: product.stock + item.quantity,
+              });
+            }
+          }
+        });
+      } else {
+        await db.orders.update(orderId, {
+          status: nextStatus,
+          notes: [
+            existing.notes,
+            body.reason,
+            action === "PARTIAL_REFUND" && body.amount
+              ? `Partial refund amount: ${body.amount}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" • "),
+        });
+      }
+
+      return { id: orderId, status: nextStatus };
     }
 
     default:

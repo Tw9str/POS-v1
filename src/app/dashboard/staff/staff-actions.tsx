@@ -9,16 +9,39 @@ import { IconPlus } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { offlineFetch } from "@/lib/offline-fetch";
 
-interface StaffActionsProps {
-  merchantId: string;
+interface EditableStaff {
+  id: string;
+  name: string;
+  pin: string;
+  role: string;
 }
 
-export function StaffActions({ merchantId }: StaffActionsProps) {
+interface StaffActionsProps {
+  merchantId: string;
+  staff?: EditableStaff;
+}
+
+export function StaffActions({ merchantId, staff }: StaffActionsProps) {
   const router = useRouter();
+  const isEdit = Boolean(staff);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ name: "", pin: "", role: "CASHIER" });
+  const [form, setForm] = useState({
+    name: staff?.name ?? "",
+    pin: staff?.pin ?? "",
+    role: staff?.role ?? "CASHIER",
+  });
+
+  function openModal() {
+    setError("");
+    setForm({
+      name: staff?.name ?? "",
+      pin: staff?.pin ?? "",
+      role: staff?.role ?? "CASHIER",
+    });
+    setOpen(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,14 +51,16 @@ export function StaffActions({ merchantId }: StaffActionsProps) {
     try {
       const result = await offlineFetch({
         url: "/api/merchant/staff",
-        method: "POST",
-        body: form,
+        method: isEdit ? "PUT" : "POST",
+        body: isEdit ? { id: staff?.id, ...form } : form,
         entity: "staff",
         merchantId,
       });
 
       if (!result.ok) {
-        setError(result.error || "Failed to add staff");
+        setError(
+          result.error || `Failed to ${isEdit ? "update" : "add"} staff`,
+        );
         return;
       }
 
@@ -51,15 +76,19 @@ export function StaffActions({ merchantId }: StaffActionsProps) {
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
-        <IconPlus size={18} />
-        Add Staff
+      <Button
+        onClick={openModal}
+        variant={isEdit ? "ghost" : "primary"}
+        size={isEdit ? "sm" : "md"}
+      >
+        {!isEdit && <IconPlus size={18} />}
+        {isEdit ? "Edit" : "Add Staff"}
       </Button>
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Add Staff Member"
+        title={isEdit ? "Edit Staff Member" : "Add Staff Member"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
@@ -90,6 +119,7 @@ export function StaffActions({ merchantId }: StaffActionsProps) {
               { value: "CASHIER", label: "Cashier" },
               { value: "MANAGER", label: "Manager" },
               { value: "STOCK_CLERK", label: "Stock Clerk" },
+              { value: "OWNER", label: "Owner" },
             ]}
           />
 
@@ -108,7 +138,7 @@ export function StaffActions({ merchantId }: StaffActionsProps) {
               Cancel
             </Button>
             <Button type="submit" loading={loading}>
-              Add Staff
+              {isEdit ? "Save Changes" : "Add Staff"}
             </Button>
           </div>
         </form>

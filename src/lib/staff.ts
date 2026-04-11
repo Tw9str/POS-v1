@@ -16,6 +16,7 @@ const ROLE_PAGES: Record<StaffRole, string[]> = {
     "/dashboard/suppliers",
     "/dashboard/staff",
     "/dashboard/reports",
+    "/dashboard/analytics",
     "/dashboard/settings",
   ],
   MANAGER: [
@@ -26,6 +27,7 @@ const ROLE_PAGES: Record<StaffRole, string[]> = {
     "/dashboard/orders",
     "/dashboard/customers",
     "/dashboard/reports",
+    "/dashboard/analytics",
   ],
   CASHIER: ["/dashboard/pos"],
   STOCK_CLERK: [
@@ -43,9 +45,14 @@ const ROLE_APIS: Record<StaffRole, string[]> = {
     "/api/merchant/orders",
     "/api/merchant/customers",
     "/api/merchant/suppliers",
+    "/api/merchant/inventory",
   ],
   CASHIER: ["/api/merchant/orders", "/api/merchant/products"],
-  STOCK_CLERK: ["/api/merchant/products", "/api/merchant/suppliers"],
+  STOCK_CLERK: [
+    "/api/merchant/products",
+    "/api/merchant/suppliers",
+    "/api/merchant/inventory",
+  ],
 };
 
 export function getAllowedPages(role: StaffRole): string[] {

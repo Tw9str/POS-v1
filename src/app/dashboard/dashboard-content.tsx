@@ -5,6 +5,7 @@ import {
   useLocalCustomers,
   useLocalOrders,
 } from "@/hooks/use-local-data";
+import type { LocalOrder } from "@/lib/offline-db";
 import {
   IconPOS,
   IconProducts,
@@ -14,15 +15,14 @@ import {
   IconSuppliers,
   IconStaff,
   IconReports,
+  IconActivity,
   IconSettings,
   IconMoney,
-  IconWarning,
   IconKey,
   IconLogout,
 } from "@/components/icons";
 import { formatCurrency, formatNumber, type NumberFormat } from "@/lib/utils";
 import { useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -84,6 +84,13 @@ const NAV_CARDS = [
     description: "Sales analytics",
   },
   {
+    href: "/dashboard/analytics",
+    label: "Analytics",
+    icon: IconActivity,
+    color: "bg-violet-500",
+    description: "Demand insights",
+  },
+  {
     href: "/dashboard/settings",
     label: "Settings",
     icon: IconSettings,
@@ -91,6 +98,25 @@ const NAV_CARDS = [
     description: "Store config",
   },
 ];
+
+function getRefundAmount(
+  order: Pick<LocalOrder, "status" | "total" | "notes">,
+): number {
+  if (order.status !== "REFUNDED" && order.status !== "PARTIALLY_REFUNDED") {
+    return 0;
+  }
+
+  const match = (order.notes || "").match(/Partial refund amount:\s*([\d.]+)/i);
+  const amount = match ? Number(match[1]) : order.total;
+  return Number.isFinite(amount) ? Math.min(amount, order.total) : order.total;
+}
+
+function getOrderCost(order: Pick<LocalOrder, "items">): number {
+  return order.items.reduce(
+    (sum, item) => sum + item.costPrice * item.quantity,
+    0,
+  );
+}
 
 export function DashboardContent({
   merchantId,
@@ -119,23 +145,76 @@ export function DashboardContent({
   }, []);
 
   const stats = useMemo(() => {
-    const todayOrders = orders.filter((o) => o.createdAt >= todayStart);
-    const todaySales = todayOrders.reduce((sum, o) => sum + o.total, 0);
+    const saleOrders = orders.filter((order) => order.status !== "VOIDED");
+    const refundedOrders = orders.filter(
+      (order) =>
+        order.status === "REFUNDED" || order.status === "PARTIALLY_REFUNDED",
+    );
+    const pendingSyncCount = orders.filter(
+      (order) => order.syncStatus === "pending",
+    ).length;
+
+    const todayOrders = saleOrders.filter(
+      (order) => order.createdAt >= todayStart,
+    );
+    const todayGross = todayOrders.reduce((sum, order) => sum + order.total, 0);
+    const todayRefunds = todayOrders.reduce(
+      (sum, order) => sum + getRefundAmount(order),
+      0,
+    );
+    const todayGrossCogs = todayOrders.reduce(
+      (sum, order) => sum + getOrderCost(order),
+      0,
+    );
+    const refundedCogs = todayOrders.reduce((sum, order) => {
+      const refundAmount = getRefundAmount(order);
+      if (!refundAmount || order.total <= 0) return sum;
+      return (
+        sum + getOrderCost(order) * Math.min(1, refundAmount / order.total)
+      );
+    }, 0);
+
+    const todayNet = todayGross - todayRefunds;
+    const todayProfit = todayNet - (todayGrossCogs - refundedCogs);
+    const profitMargin = todayNet > 0 ? (todayProfit / todayNet) * 100 : 0;
+    const families = new Set(
+      products
+        .map((product) => product.name.trim().toLowerCase())
+        .filter(Boolean),
+    );
     const lowStockCount = products.filter(
-      (p) => p.trackStock && p.stock <= 5,
+      (product) =>
+        product.trackStock &&
+        product.stock > 0 &&
+        product.stock <= Math.max(1, product.lowStockAt || 5),
+    ).length;
+    const outOfStockCount = products.filter(
+      (product) => product.trackStock && product.stock <= 0,
     ).length;
 
     return {
-      todaySales,
+      todayGross,
+      todayRefunds,
+      todayNet,
+      todayProfit,
+      profitMargin,
       todayOrderCount: todayOrders.length,
-      productCount: products.length,
+      productFamilies: families.size,
+      variantCount: products.length,
       customerCount: customers.length,
       lowStockCount,
+      outOfStockCount,
+      pendingSyncCount,
+      refundedTodayCount: refundedOrders.filter(
+        (order) => order.createdAt >= todayStart,
+      ).length,
     };
   }, [products, customers, orders, todayStart]);
 
   const visibleCards = NAV_CARDS.filter((card) =>
-    allowedPages.some((p) => card.href === p || card.href.startsWith(p + "/")),
+    allowedPages.some(
+      (page) => card.href === page || card.href.startsWith(page + "/"),
+    ),
   );
 
   const handleLock = async () => {
@@ -151,7 +230,6 @@ export function DashboardContent({
 
   return (
     <div className="space-y-8">
-      {/* Header with store info + actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-linear-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -164,8 +242,9 @@ export function DashboardContent({
               {merchantName}
             </h1>
             <p className="text-slate-500 text-sm mt-0.5">
-              {formatCurrency(stats.todaySales, currency, numberFormat)} today ·{" "}
-              {formatNumber(stats.todayOrderCount, numberFormat)} orders
+              Gross {formatCurrency(stats.todayGross, currency, numberFormat)} ·
+              Net {formatCurrency(stats.todayNet, currency, numberFormat)} ·
+              Profit {formatCurrency(stats.todayProfit, currency, numberFormat)}
             </p>
           </div>
         </div>
@@ -187,57 +266,56 @@ export function DashboardContent({
         </div>
       </div>
 
-      {/* Quick Stats Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+            <IconOrders size={20} />
+          </div>
+          <div>
+            <p className="text-xs text-slate-400 font-medium">Refunded Today</p>
+            <p className="text-lg font-bold text-slate-900 tabular-nums">
+              {formatCurrency(stats.todayRefunds, currency, numberFormat)}
+            </p>
+          </div>
+        </div>
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
             <IconMoney size={20} />
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-medium">Today</p>
+            <p className="text-xs text-slate-400 font-medium">Net Today</p>
             <p className="text-lg font-bold text-slate-900 tabular-nums">
-              {formatCurrency(stats.todaySales, currency, numberFormat)}
+              {formatCurrency(stats.todayNet, currency, numberFormat)}
             </p>
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
-            <IconProducts size={20} />
+          <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+            <IconMoney size={20} />
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-medium">Products</p>
+            <p className="text-xs text-slate-400 font-medium">Profit Today</p>
             <p className="text-lg font-bold text-slate-900 tabular-nums">
-              {formatNumber(stats.productCount, numberFormat)}
+              {formatCurrency(stats.todayProfit, currency, numberFormat)}
+            </p>
+            <p className="text-[11px] text-indigo-600 font-semibold">
+              {stats.profitMargin.toFixed(1)}% margin
             </p>
           </div>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
-            <IconCustomers size={20} />
+          <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center">
+            <IconOrders size={20} />
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-medium">Customers</p>
+            <p className="text-xs text-slate-400 font-medium">Orders Today</p>
             <p className="text-lg font-bold text-slate-900 tabular-nums">
-              {formatNumber(stats.customerCount, numberFormat)}
+              {formatNumber(stats.todayOrderCount, numberFormat)}
             </p>
           </div>
         </div>
-        {stats.lowStockCount > 0 && (
-          <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
-              <IconWarning size={20} />
-            </div>
-            <div>
-              <p className="text-xs text-amber-600 font-medium">Low Stock</p>
-              <p className="text-lg font-bold text-amber-700 tabular-nums">
-                {formatNumber(stats.lowStockCount, numberFormat)}
-              </p>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Navigation Launcher Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {visibleCards.map((card) => (
           <Link

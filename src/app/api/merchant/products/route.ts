@@ -6,6 +6,7 @@ import { z } from "zod";
 
 const productSchema = z.object({
   name: z.string().min(1).max(200),
+  variantName: z.string().max(120).optional().nullable(),
   sku: z.string().max(50).optional().nullable(),
   barcode: z.string().max(100).optional().nullable(),
   categoryId: z.string().optional().nullable(),
@@ -103,6 +104,7 @@ export async function POST(req: Request) {
       data: {
         merchantId: merchant.id,
         name: data.name,
+        variantName: data.variantName?.trim() || null,
         sku: data.sku || null,
         barcode: data.barcode || null,
         categoryId: data.categoryId || null,
@@ -217,6 +219,7 @@ export async function PUT(req: Request) {
       where: { id: parsed.data.id },
       data: {
         name: parsed.data.name,
+        variantName: parsed.data.variantName?.trim() || null,
         sku: parsed.data.sku || null,
         barcode: parsed.data.barcode || null,
         categoryId: parsed.data.categoryId || null,

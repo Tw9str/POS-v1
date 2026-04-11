@@ -589,13 +589,162 @@ export function IconMoney({ size = 24, className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
     >
-      <line x1="12" y1="1" x2="12" y2="23" />
-      <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+      <path d="M12 6.5v11" />
+      <path d="M16.5 9.5H10a2.5 2.5 0 0 0 0 5h4a2.5 2.5 0 0 1 0 5H7.5" />
+    </svg>
+  );
+}
+
+export function IconCashBanknote({ size = 24, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      className={className}
+    >
+      <rect x="1.5" y="5" width="21" height="14" rx="2.5" fill="url(#cash_g)" />
+      <rect
+        x="3.5"
+        y="7"
+        width="17"
+        height="10"
+        rx="1.5"
+        stroke="#fff"
+        strokeWidth="0.6"
+        opacity="0.35"
+      />
+      <circle cx="12" cy="12" r="4" fill="#047857" opacity="0.35" />
+      <circle
+        cx="12"
+        cy="12"
+        r="4"
+        stroke="#fff"
+        strokeWidth="0.8"
+        opacity="0.7"
+      />
+      <path
+        d="M12 9V15"
+        stroke="#fff"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+      <path
+        d="M13.8 10.2C13.8 10.2 13.2 9.5 12 9.5C10.8 9.5 10 10.15 10 10.9C10 11.65 10.65 12.1 12 12.3C13.35 12.5 14 12.95 14 13.7C14 14.45 13.2 15.1 12 15.1C10.8 15.1 10.2 14.4 10.2 14.4"
+        stroke="#fff"
+        strokeWidth="1"
+        strokeLinecap="round"
+      />
+      <circle cx="5" cy="8.5" r="0.8" fill="#fff" opacity="0.4" />
+      <circle cx="19" cy="8.5" r="0.8" fill="#fff" opacity="0.4" />
+      <circle cx="5" cy="15.5" r="0.8" fill="#fff" opacity="0.4" />
+      <circle cx="19" cy="15.5" r="0.8" fill="#fff" opacity="0.4" />
+      <defs>
+        <linearGradient
+          id="cash_g"
+          x1="1.5"
+          y1="5"
+          x2="22.5"
+          y2="19"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#34D399" />
+          <stop offset="0.5" stopColor="#059669" />
+          <stop offset="1" stopColor="#047857" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+export function IconCardPayment({ size = 24, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      className={className}
+    >
+      <rect x="2" y="4" width="20" height="16" rx="3" fill="url(#card_g)" />
+      <rect x="2" y="8" width="20" height="3" fill="#312E81" opacity="0.4" />
+      <rect x="5" y="14" width="4" height="2.5" rx="0.75" fill="#FDE68A" />
+      <line
+        x1="12"
+        y1="15.25"
+        x2="17"
+        y2="15.25"
+        stroke="#fff"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.6"
+      />
+      <defs>
+        <linearGradient
+          id="card_g"
+          x1="2"
+          y1="4"
+          x2="22"
+          y2="20"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#818CF8" />
+          <stop offset="1" stopColor="#4338CA" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+export function IconWallet({ size = 24, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 56 56"
+      fill="none"
+      className={className}
+    >
+      <path
+        d="M37.614 39.7355L28.676 34.3808C27.7194 33.8078 27.7172 32.4401 28.6719 31.864L35.7638 27.5846C36.7307 27.0011 36.7131 25.6109 35.7318 25.0514L15.0774 13.2763C14.6153 13.0128 14.3307 12.5265 14.3307 12.0003V1.47622C14.3307 0.348418 15.5633 -0.361617 16.5603 0.19189L50.089 18.8064C50.5595 19.0677 50.8506 19.5585 50.8506 20.0908V32.2723C50.8506 32.8002 50.5642 33.2878 50.0996 33.5507L39.1355 39.7543C38.6627 40.0218 38.0798 40.0146 37.614 39.7355Z"
+        fill="url(#shw_g1)"
+      />
+      <path
+        d="M13.2366 16.2645L22.1746 21.6192C23.1312 22.1922 23.1334 23.5599 22.1787 24.1359L15.0868 28.4154C14.1199 28.9989 14.1375 30.3891 15.1189 30.9486L35.7732 42.7237C36.2354 42.9872 36.52 43.4735 36.52 43.9997V54.5238C36.52 55.6516 35.2873 56.3616 34.2903 55.8081L0.761586 37.1936C0.291093 36.9323 0 36.4415 0 35.9092V23.7277C0 23.1998 0.286454 22.7122 0.750992 22.4493L11.7152 16.2457C12.1879 15.9782 12.7708 15.9854 13.2366 16.2645Z"
+        fill="url(#shw_g2)"
+      />
+      <defs>
+        <linearGradient
+          id="shw_g1"
+          x1="-1.677"
+          y1="2.166"
+          x2="7.068"
+          y2="97.743"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#81A0F2" />
+          <stop offset="0.27" stopColor="#2F4095" stopOpacity="0.57" />
+          <stop offset="1" stopColor="#81A0F2" />
+        </linearGradient>
+        <linearGradient
+          id="shw_g2"
+          x1="-1.677"
+          y1="2.166"
+          x2="7.068"
+          y2="97.743"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#81F2BD" />
+          <stop offset="0.27" stopColor="#19796D" stopOpacity="0.57" />
+          <stop offset="1" stopColor="#81F2CA" />
+        </linearGradient>
+      </defs>
     </svg>
   );
 }

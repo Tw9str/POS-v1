@@ -11,6 +11,7 @@ import {
   IconCustomers,
   IconOrders,
   IconReports,
+  IconActivity,
   IconStaff,
   IconSuppliers,
   IconSettings,
@@ -71,6 +72,12 @@ const navItems = [
     label: "Reports",
     short: "Reports",
     icon: IconReports,
+  },
+  {
+    href: "/dashboard/analytics",
+    label: "Analytics",
+    short: "Analytics",
+    icon: IconActivity,
   },
   {
     href: "/dashboard/settings",
