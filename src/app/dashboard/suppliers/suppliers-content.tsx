@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { PageHeader } from "@/components/layout/page-header";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 const PAGE_SIZE = 10;
 
@@ -25,9 +26,23 @@ export function SuppliersContent({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
+  } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [editSupplier, setEditSupplier] = useState<{
+    id: string;
+    name: string;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    notes?: string | null;
   } | null>(null);
   const suppliers = useLocalSuppliers(merchantId);
 
@@ -72,8 +87,6 @@ export function SuppliersContent({
   }
 
   async function handleDeleteSupplier(id: string, name: string) {
-    if (!window.confirm(`Delete supplier "${name}"?`)) return;
-
     setDeletingId(id);
     setFeedback(null);
     const result = await offlineFetch({
@@ -99,9 +112,6 @@ export function SuppliersContent({
 
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Delete ${selectedIds.length} selected suppliers?`)) {
-      return;
-    }
 
     setBulkDeleting(true);
     setFeedback(null);
@@ -155,18 +165,30 @@ export function SuppliersContent({
             }}
           />
         </div>
-        {selectedIds.length > 0 && (
+        <div className="flex items-center gap-2">
           <Button
-            variant="danger"
+            variant={editMode ? "primary" : "outline"}
             size="sm"
-            disabled={bulkDeleting}
-            onClick={handleBulkDelete}
+            onClick={() => {
+              setEditMode((prev) => !prev);
+              if (editMode) setSelectedIds([]);
+            }}
           >
-            {bulkDeleting
-              ? "Deleting..."
-              : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+            {editMode ? "Done" : "Edit"}
           </Button>
-        )}
+          {editMode && selectedIds.length > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={bulkDeleting}
+              onClick={() => setConfirmBulkDelete(true)}
+            >
+              {bulkDeleting
+                ? "Deleting..."
+                : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+            </Button>
+          )}
+        </div>
       </div>
 
       {feedback && (
@@ -185,26 +207,28 @@ export function SuppliersContent({
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-4 py-3.5 text-left">
-                <input
-                  type="checkbox"
-                  checked={allPageSelected}
-                  onChange={toggleSelectPage}
-                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-              </th>
+              {editMode && (
+                <th className="px-4 py-3.5 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectPage}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                </th>
+              )}
               <th className="px-5 py-3.5 text-left font-semibold">Name</th>
               <th className="px-5 py-3.5 text-left font-semibold">Phone</th>
               <th className="px-5 py-3.5 text-left font-semibold">Email</th>
               <th className="px-5 py-3.5 text-left font-semibold">Address</th>
-              <th className="px-5 py-3.5 text-right font-semibold">Actions</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Notes</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredSuppliers.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={editMode ? 7 : 6}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {suppliers.length === 0
@@ -218,35 +242,34 @@ export function SuppliersContent({
                   key={s.id}
                   className="hover:bg-slate-50/50 transition-colors"
                 >
-                  <td className="px-4 py-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(s.id)}
-                      onChange={() => toggleSelected(s.id)}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                  </td>
-                  <td className="px-5 py-4 font-semibold text-slate-800 capitalize">
-                    {s.name}
+                  {editMode && (
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(s.id)}
+                        onChange={() => toggleSelected(s.id)}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </td>
+                  )}
+                  <td className="px-5 py-4">
+                    <button
+                      type="button"
+                      className="text-left cursor-pointer"
+                      onClick={() => setEditSupplier(s)}
+                    >
+                      <span className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 hover:decoration-indigo-300 transition-all">
+                        {s.name}
+                      </span>
+                    </button>
                   </td>
                   <td className="px-5 py-4 text-slate-500">{s.phone || "—"}</td>
                   <td className="px-5 py-4 text-slate-500">{s.email || "—"}</td>
                   <td className="px-5 py-4 text-slate-500">
                     {s.address || "—"}
                   </td>
-                  <td className="px-5 py-4 text-right whitespace-nowrap">
-                    <div className="flex items-center justify-end gap-1">
-                      <SupplierActions merchantId={merchantId} supplier={s} />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                        disabled={deletingId === s.id}
-                        onClick={() => handleDeleteSupplier(s.id, s.name)}
-                      >
-                        {deletingId === s.id ? "Deleting..." : "Delete"}
-                      </Button>
-                    </div>
+                  <td className="px-5 py-4 text-slate-400 text-xs max-w-[200px] truncate">
+                    {s.notes || "—"}
                   </td>
                 </tr>
               ))
@@ -290,6 +313,47 @@ export function SuppliersContent({
           </div>
         </div>
       )}
+
+      {editSupplier && (
+        <SupplierActions
+          merchantId={merchantId}
+          supplier={editSupplier}
+          externalOpen
+          onExternalClose={() => setEditSupplier(null)}
+          onDelete={() => {
+            const { id, name } = editSupplier;
+            setEditSupplier(null);
+            setConfirmDelete({ id, name });
+          }}
+        />
+      )}
+
+      <ConfirmModal
+        open={Boolean(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete) {
+            handleDeleteSupplier(confirmDelete.id, confirmDelete.name);
+            setConfirmDelete(null);
+          }
+        }}
+        title="Delete supplier"
+        message={`Are you sure you want to delete "${confirmDelete?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        loading={Boolean(deletingId)}
+      />
+
+      <ConfirmModal
+        open={confirmBulkDelete}
+        onClose={() => setConfirmBulkDelete(false)}
+        onConfirm={() => {
+          setConfirmBulkDelete(false);
+          handleBulkDelete();
+        }}
+        title="Delete selected suppliers"
+        message={`Are you sure you want to delete ${formatNumber(selectedIds.length, numberFormat)} selected suppliers? This action cannot be undone.`}
+        confirmLabel="Delete all"
+      />
     </div>
   );
 }

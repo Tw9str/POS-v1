@@ -26,6 +26,9 @@ import {
 } from "@/lib/product-performance";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProductInsightModal } from "@/components/product-insight-modal";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { BarcodeScanner } from "@/components/barcode-scanner";
+import { IconCamera } from "@/components/icons";
 
 const PAGE_SIZE = 10;
 
@@ -44,12 +47,23 @@ export function ProductsContent({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
   const [selectedInsightProduct, setSelectedInsightProduct] =
     useState<LocalProduct | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [editProduct, setEditProduct] = useState<LocalProduct | null>(null);
+  const [addVariantProduct, setAddVariantProduct] =
+    useState<LocalProduct | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
   const products = useLocalProducts(merchantId);
   const categories = useLocalCategories(merchantId);
   const orders = useLocalOrders(merchantId, 500);
@@ -160,8 +174,6 @@ export function ProductsContent({
   }
 
   async function handleDeleteProduct(id: string, name: string) {
-    if (!window.confirm(`Delete product "${name}"?`)) return;
-
     setDeletingId(id);
     setFeedback(null);
     const result = await offlineFetch({
@@ -187,9 +199,6 @@ export function ProductsContent({
 
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Delete ${selectedIds.length} selected products?`)) {
-      return;
-    }
 
     setBulkDeleting(true);
     setFeedback(null);
@@ -223,17 +232,35 @@ export function ProductsContent({
     setBulkDeleting(false);
   }
 
+  function handleBarcodeScan(barcode: string) {
+    setScannerOpen(false);
+    const existing = products.find(
+      (p) => p.barcode?.toLowerCase() === barcode.toLowerCase(),
+    );
+    if (existing) {
+      setSelectedInsightProduct(existing);
+    } else {
+      setScannedBarcode(barcode);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Products"
         subtitle={`${formatNumber(productSummary.familyCount, numberFormat)} families · ${formatNumber(productSummary.variantCount, numberFormat)} sellable variants`}
       >
-        <ProductActions
-          categories={categories}
-          currency={currency}
-          merchantId={merchantId}
-        />
+        <div className="flex flex-wrap gap-2">
+          <ProductActions
+            categories={categories}
+            currency={currency}
+            merchantId={merchantId}
+          />
+          <Button variant="secondary" onClick={() => setScannerOpen(true)}>
+            <IconCamera size={18} />
+            Scan
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
@@ -288,7 +315,7 @@ export function ProductsContent({
       </div>
 
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="w-full md:max-w-sm">
+        <div className="relative w-full md:max-w-sm">
           <Input
             id="product-search"
             label="Search products"
@@ -298,20 +325,41 @@ export function ProductsContent({
               setSearch(e.target.value);
               setPage(1);
             }}
+            className="pr-11"
           />
-        </div>
-        {selectedIds.length > 0 && (
-          <Button
-            variant="danger"
-            size="sm"
-            disabled={bulkDeleting}
-            onClick={handleBulkDelete}
+          <button
+            type="button"
+            onClick={() => setScannerOpen(true)}
+            className="absolute right-2 bottom-1.5 p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer"
+            title="Scan barcode"
           >
-            {bulkDeleting
-              ? "Deleting..."
-              : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+            <IconCamera size={20} />
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={editMode ? "primary" : "outline"}
+            size="sm"
+            onClick={() => {
+              setEditMode((prev) => !prev);
+              if (editMode) setSelectedIds([]);
+            }}
+          >
+            {editMode ? "Done" : "Edit"}
           </Button>
-        )}
+          {editMode && selectedIds.length > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={bulkDeleting}
+              onClick={() => setConfirmBulkDelete(true)}
+            >
+              {bulkDeleting
+                ? "Deleting..."
+                : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+            </Button>
+          )}
+        </div>
       </div>
 
       {feedback && (
@@ -330,14 +378,16 @@ export function ProductsContent({
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-4 py-3.5 text-left">
-                <input
-                  type="checkbox"
-                  checked={allPageSelected}
-                  onChange={toggleSelectPage}
-                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-              </th>
+              {editMode && (
+                <th className="px-4 py-3.5 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectPage}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                </th>
+              )}
               <th className="px-5 py-3.5 text-left font-semibold">
                 Product / Variant
               </th>
@@ -352,14 +402,13 @@ export function ProductsContent({
               </th>
               <th className="px-5 py-3.5 text-left font-semibold">Movement</th>
               <th className="px-5 py-3.5 text-left font-semibold">Status</th>
-              <th className="px-5 py-3.5 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredProducts.length === 0 ? (
               <tr>
                 <td
-                  colSpan={12}
+                  colSpan={editMode ? 12 : 11}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {products.length === 0
@@ -384,17 +433,25 @@ export function ProductsContent({
                     key={p.id}
                     className="hover:bg-slate-50/50 transition-colors"
                   >
-                    <td className="px-4 py-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(p.id)}
-                        onChange={() => toggleSelected(p.id)}
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                    </td>
+                    {editMode && (
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(p.id)}
+                          onChange={() => toggleSelected(p.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </td>
+                    )}
                     <td className="px-5 py-4 text-slate-800">
-                      <div>
-                        <p className="font-semibold capitalize">{p.name}</p>
+                      <button
+                        type="button"
+                        className="text-left group cursor-pointer"
+                        onClick={() => setSelectedInsightProduct(p)}
+                      >
+                        <p className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 group-hover:decoration-indigo-300 transition-all">
+                          {p.name}
+                        </p>
                         <p className="text-xs font-medium text-slate-500">
                           {p.variantName || "Single/default item"}
                         </p>
@@ -403,7 +460,7 @@ export function ProductsContent({
                             ? `Last sold ${formatDateTime(new Date(metric.lastSoldAt), "numeric", numberFormat)}`
                             : "No sales yet"}
                         </p>
-                      </div>
+                      </button>
                     </td>
                     <td className="px-5 py-4 text-slate-500 capitalize">
                       {p.categoryName || "—"}
@@ -445,51 +502,6 @@ export function ProductsContent({
                       <Badge variant={p.stock > 0 ? "success" : "danger"}>
                         {p.stock > 0 ? "In stock" : "Out"}
                       </Badge>
-                    </td>
-                    <td className="px-5 py-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedInsightProduct(p)}
-                        >
-                          Insights
-                        </Button>
-                        <ProductActions
-                          categories={categories}
-                          currency={currency}
-                          merchantId={merchantId}
-                          prefillProduct={{
-                            name: p.name,
-                            categoryId: p.categoryId,
-                            price: p.price,
-                            costPrice: p.costPrice,
-                            lowStockAt: p.lowStockAt,
-                            unit: p.unit,
-                            trackStock: p.trackStock,
-                          }}
-                        />
-                        <ProductActions
-                          categories={categories}
-                          currency={currency}
-                          merchantId={merchantId}
-                          product={p}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                          disabled={deletingId === p.id}
-                          onClick={() =>
-                            handleDeleteProduct(
-                              p.id,
-                              getProductDisplayName(p.name, p.variantName),
-                            )
-                          }
-                        >
-                          {deletingId === p.id ? "Deleting..." : "Delete"}
-                        </Button>
-                      </div>
                     </td>
                   </tr>
                 );
@@ -551,7 +563,102 @@ export function ProductsContent({
         }
         currency={currency}
         numberFormat={numberFormat}
+        onEdit={(p) => {
+          setSelectedInsightProduct(null);
+          setEditProduct(p);
+        }}
+        onAddVariant={(p) => {
+          setSelectedInsightProduct(null);
+          setAddVariantProduct(p);
+        }}
+        onDelete={(p) => {
+          setSelectedInsightProduct(null);
+          setConfirmDelete({
+            id: p.id,
+            name: getProductDisplayName(p.name, p.variantName),
+          });
+        }}
+        deleting={
+          selectedInsightProduct
+            ? deletingId === selectedInsightProduct.id
+            : false
+        }
       />
+
+      {editProduct && (
+        <ProductActions
+          categories={categories}
+          currency={currency}
+          merchantId={merchantId}
+          product={editProduct}
+          externalOpen
+          onExternalClose={() => setEditProduct(null)}
+        />
+      )}
+
+      {addVariantProduct && (
+        <ProductActions
+          categories={categories}
+          currency={currency}
+          merchantId={merchantId}
+          prefillProduct={{
+            name: addVariantProduct.name,
+            categoryId: addVariantProduct.categoryId,
+            price: addVariantProduct.price,
+            costPrice: addVariantProduct.costPrice,
+            lowStockAt: addVariantProduct.lowStockAt,
+            unit: addVariantProduct.unit,
+            trackStock: addVariantProduct.trackStock,
+          }}
+          externalOpen
+          onExternalClose={() => setAddVariantProduct(null)}
+        />
+      )}
+
+      <ConfirmModal
+        open={Boolean(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete) {
+            handleDeleteProduct(confirmDelete.id, confirmDelete.name);
+            setConfirmDelete(null);
+          }
+        }}
+        title="Delete product"
+        message={`Are you sure you want to delete "${confirmDelete?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        loading={Boolean(deletingId)}
+      />
+
+      <ConfirmModal
+        open={confirmBulkDelete}
+        onClose={() => setConfirmBulkDelete(false)}
+        onConfirm={() => {
+          setConfirmBulkDelete(false);
+          handleBulkDelete();
+        }}
+        title="Delete selected products"
+        message={`Are you sure you want to delete ${formatNumber(selectedIds.length, numberFormat)} selected products? This action cannot be undone.`}
+        confirmLabel="Delete all"
+      />
+
+      {scannerOpen && (
+        <BarcodeScanner
+          onScan={handleBarcodeScan}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
+
+      {scannedBarcode && (
+        <ProductActions
+          categories={categories}
+          currency={currency}
+          merchantId={merchantId}
+          initialBarcode={scannedBarcode}
+          externalOpen
+          onExternalClose={() => setScannedBarcode(null)}
+        />
+      )}
     </div>
   );
 }

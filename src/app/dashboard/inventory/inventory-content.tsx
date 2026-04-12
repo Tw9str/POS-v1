@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProductInsightModal } from "@/components/product-insight-modal";
+import { BarcodeScanner } from "@/components/barcode-scanner";
+import { IconCamera } from "@/components/icons";
 import type { LocalProduct } from "@/lib/offline-db";
 import { offlineFetch } from "@/lib/offline-fetch";
 import {
@@ -54,6 +56,7 @@ export function InventoryContent({
   const products = useLocalProducts(merchantId);
   const orders = useLocalOrders(merchantId, 500);
   const [search, setSearch] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState<LocalProduct | null>(
@@ -402,17 +405,28 @@ export function InventoryContent({
         </div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <Input
-          id="inventory-search"
-          label="Search inventory"
-          placeholder="Product, variant, SKU, barcode, category..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-        />
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="relative">
+          <Input
+            id="inventory-search"
+            label="Search inventory"
+            placeholder="Product, SKU, barcode, category..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="pr-11"
+          />
+          <button
+            type="button"
+            onClick={() => setScannerOpen(true)}
+            className="absolute right-2 bottom-1.5 p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer"
+            title="Scan barcode"
+          >
+            <IconCamera size={20} />
+          </button>
+        </div>
         <Select
           id="inventory-status-filter"
           label="Stock status"
@@ -463,14 +477,13 @@ export function InventoryContent({
               <th className="px-5 py-3.5 text-left font-semibold">Net 30d</th>
               <th className="px-5 py-3.5 text-left font-semibold">Movement</th>
               <th className="px-5 py-3.5 text-left font-semibold">Status</th>
-              <th className="px-5 py-3.5 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={9}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {tracked.length === 0
@@ -499,8 +512,14 @@ export function InventoryContent({
                     className="hover:bg-slate-50/50 transition-colors"
                   >
                     <td className="px-5 py-4 text-slate-800">
-                      <div>
-                        <p className="font-semibold capitalize">{p.name}</p>
+                      <button
+                        type="button"
+                        className="text-left group cursor-pointer"
+                        onClick={() => setSelectedInsightProduct(p)}
+                      >
+                        <p className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 group-hover:decoration-indigo-300 transition-all">
+                          {p.name}
+                        </p>
                         <p className="text-xs font-medium text-slate-500">
                           {p.variantName || "Single/default item"}
                         </p>
@@ -509,7 +528,7 @@ export function InventoryContent({
                             ? `Last sold ${formatDateTime(new Date(metric.lastSoldAt), "numeric", numberFormat)}`
                             : "No sales yet"}
                         </p>
-                      </div>
+                      </button>
                     </td>
                     <td className="px-5 py-4 text-slate-500 capitalize">
                       {p.categoryName || "—"}
@@ -556,24 +575,6 @@ export function InventoryContent({
                             ? "Low stock"
                             : "In stock"}
                       </Badge>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedInsightProduct(p)}
-                        >
-                          Insights
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openAdjustModal(p)}
-                        >
-                          Adjust
-                        </Button>
-                      </div>
                     </td>
                   </tr>
                 );
@@ -697,6 +698,10 @@ export function InventoryContent({
         }
         currency={currency}
         numberFormat={numberFormat}
+        onEdit={(p) => {
+          setSelectedInsightProduct(null);
+          openAdjustModal(p as LocalProduct);
+        }}
       />
 
       <Modal
@@ -777,6 +782,17 @@ export function InventoryContent({
           </form>
         )}
       </Modal>
+
+      {scannerOpen && (
+        <BarcodeScanner
+          onScan={(barcode) => {
+            setScannerOpen(false);
+            setSearch(barcode);
+            setPage(1);
+          }}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
     </div>
   );
 }

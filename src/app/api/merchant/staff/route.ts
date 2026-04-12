@@ -10,8 +10,9 @@ const staffSchema = z.object({
   role: z.enum(["CASHIER", "MANAGER", "STOCK_CLERK", "OWNER"]),
 });
 
-const staffUpdateSchema = staffSchema.extend({
+const staffUpdateSchema = staffSchema.partial().extend({
   id: z.string().min(1),
+  isActive: z.boolean().optional(),
 });
 
 const deleteSchema = z.object({
@@ -130,7 +131,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Staff not found" }, { status: 404 });
     }
 
-    if (parsed.data.pin !== existing.pin) {
+    if (parsed.data.pin && parsed.data.pin !== existing.pin) {
       const pinExists = await prisma.staff.findUnique({
         where: {
           merchantId_pin: { merchantId: merchant.id, pin: parsed.data.pin },
@@ -148,9 +149,12 @@ export async function PUT(req: Request) {
     const staff = await prisma.staff.update({
       where: { id: parsed.data.id },
       data: {
-        name: parsed.data.name,
-        pin: parsed.data.pin,
-        role: parsed.data.role,
+        ...(parsed.data.name !== undefined && { name: parsed.data.name }),
+        ...(parsed.data.pin !== undefined && { pin: parsed.data.pin }),
+        ...(parsed.data.role !== undefined && { role: parsed.data.role }),
+        ...(parsed.data.isActive !== undefined && {
+          isActive: parsed.data.isActive,
+        }),
       },
     });
 

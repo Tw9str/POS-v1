@@ -14,6 +14,7 @@ import {
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { useRouter } from "next/navigation";
 import { offlineFetch } from "@/lib/offline-fetch";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 interface Category {
   id: string;
@@ -43,6 +44,9 @@ interface ProductActionsProps {
   merchantId: string;
   product?: EditableProduct;
   prefillProduct?: Partial<EditableProduct>;
+  initialBarcode?: string;
+  externalOpen?: boolean;
+  onExternalClose?: () => void;
 }
 
 export function ProductActions({
@@ -51,12 +55,20 @@ export function ProductActions({
   merchantId,
   product,
   prefillProduct,
+  initialBarcode,
+  externalOpen,
+  onExternalClose,
 }: ProductActionsProps) {
   const router = useRouter();
   const isEdit = Boolean(product);
   const isVariantPrefill = !isEdit && Boolean(prefillProduct);
   const sourceProduct = product ?? prefillProduct;
   const [open, setOpen] = useState(false);
+  const isModalOpen = externalOpen ?? open;
+  const closeModal = () => {
+    setOpen(false);
+    onExternalClose?.();
+  };
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [categoryLoading, setCategoryLoading] = useState(false);
@@ -67,12 +79,18 @@ export function ProductActions({
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
     null,
   );
+  const [confirmCategoryDelete, setConfirmCategoryDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const emptyForm = {
     name: sourceProduct?.name ?? "",
     variantName: isVariantPrefill ? "" : (sourceProduct?.variantName ?? ""),
     sku: isVariantPrefill ? "" : (sourceProduct?.sku ?? ""),
-    barcode: isVariantPrefill ? "" : (sourceProduct?.barcode ?? ""),
+    barcode: isVariantPrefill
+      ? ""
+      : (sourceProduct?.barcode ?? initialBarcode ?? ""),
     categoryId: sourceProduct?.categoryId ?? "",
     price: sourceProduct ? String(sourceProduct.price ?? "") : "",
     costPrice: sourceProduct ? String(sourceProduct.costPrice ?? "") : "",
@@ -97,7 +115,9 @@ export function ProductActions({
       name: sourceProduct?.name ?? "",
       variantName: isVariantPrefill ? "" : (sourceProduct?.variantName ?? ""),
       sku: isVariantPrefill ? "" : (sourceProduct?.sku ?? ""),
-      barcode: isVariantPrefill ? "" : (sourceProduct?.barcode ?? ""),
+      barcode: isVariantPrefill
+        ? ""
+        : (sourceProduct?.barcode ?? initialBarcode ?? ""),
       categoryId: sourceProduct?.categoryId ?? "",
       price: sourceProduct ? String(sourceProduct.price ?? "") : "",
       costPrice: sourceProduct ? String(sourceProduct.costPrice ?? "") : "",
@@ -176,7 +196,7 @@ export function ProductActions({
         return;
       }
 
-      setOpen(false);
+      closeModal();
       if (!isEdit) {
         setForm({
           name: "",
@@ -248,14 +268,6 @@ export function ProductActions({
   }
 
   async function handleDeleteCategory(id: string, name: string) {
-    if (
-      !window.confirm(
-        `Delete category "${name}"? Products will be uncategorized.`,
-      )
-    ) {
-      return;
-    }
-
     const result = await offlineFetch({
       url: "/api/merchant/categories",
       method: "DELETE",
@@ -275,40 +287,37 @@ export function ProductActions({
 
   return (
     <>
-      {isEdit ? (
-        <Button onClick={openProductModal} variant="ghost" size="sm">
-          Edit
-        </Button>
-      ) : isVariantPrefill ? (
-        <Button onClick={openProductModal} variant="secondary" size="sm">
-          Add Variant
-        </Button>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={openProductModal}>
-            <IconPlus size={18} />
-            Add Product
+      {!externalOpen &&
+        (isEdit ? (
+          <Button onClick={openProductModal} variant="ghost" size="sm">
+            Edit
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              resetCategoryForm();
-              setCategoriesOpen(true);
-            }}
-          >
-            <IconSettings size={18} />
-            Categories
+        ) : isVariantPrefill ? (
+          <Button onClick={openProductModal} variant="secondary" size="sm">
+            Add Variant
           </Button>
-          <Button variant="secondary" onClick={() => setScannerOpen(true)}>
-            <IconCamera size={18} />
-            Scan to Add
-          </Button>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={openProductModal}>
+              <IconPlus size={18} />
+              Add Product
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                resetCategoryForm();
+                setCategoriesOpen(true);
+              }}
+            >
+              <IconSettings size={18} />
+              Categories
+            </Button>
+          </div>
+        ))}
 
       <Modal
-        open={open}
-        onClose={() => setOpen(false)}
+        open={isModalOpen}
+        onClose={closeModal}
         title={
           isEdit
             ? "Edit Product"
@@ -475,11 +484,7 @@ export function ProductActions({
           )}
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => setOpen(false)}
-            >
+            <Button variant="secondary" type="button" onClick={closeModal}>
               Cancel
             </Button>
             <Button type="submit" loading={loading}>
@@ -581,7 +586,10 @@ export function ProductActions({
                       size="sm"
                       className="text-red-600 hover:bg-red-50 hover:text-red-700"
                       onClick={() =>
-                        handleDeleteCategory(category.id, category.name)
+                        setConfirmCategoryDelete({
+                          id: category.id,
+                          name: category.name,
+                        })
                       }
                     >
                       Delete
@@ -600,6 +608,23 @@ export function ProductActions({
           onClose={() => setScannerOpen(false)}
         />
       )}
+
+      <ConfirmModal
+        open={Boolean(confirmCategoryDelete)}
+        onClose={() => setConfirmCategoryDelete(null)}
+        onConfirm={() => {
+          if (confirmCategoryDelete) {
+            handleDeleteCategory(
+              confirmCategoryDelete.id,
+              confirmCategoryDelete.name,
+            );
+            setConfirmCategoryDelete(null);
+          }
+        }}
+        title="Delete category"
+        message={`Delete category "${confirmCategoryDelete?.name}"? Products will be uncategorized.`}
+        confirmLabel="Delete"
+      />
     </>
   );
 }

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { formatCurrency, formatNumber, type NumberFormat } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/page-header";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 const PAGE_SIZE = 10;
 
@@ -27,9 +28,23 @@ export function CustomersContent({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
+  } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [editCustomer, setEditCustomer] = useState<{
+    id: string;
+    name: string;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    notes?: string | null;
   } | null>(null);
   const customers = useLocalCustomers(merchantId);
 
@@ -74,8 +89,6 @@ export function CustomersContent({
   }
 
   async function handleDeleteCustomer(id: string, name: string) {
-    if (!window.confirm(`Delete customer "${name}"?`)) return;
-
     setDeletingId(id);
     setFeedback(null);
     const result = await offlineFetch({
@@ -101,9 +114,6 @@ export function CustomersContent({
 
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Delete ${selectedIds.length} selected customers?`)) {
-      return;
-    }
 
     setBulkDeleting(true);
     setFeedback(null);
@@ -157,18 +167,30 @@ export function CustomersContent({
             }}
           />
         </div>
-        {selectedIds.length > 0 && (
+        <div className="flex items-center gap-2">
           <Button
-            variant="danger"
+            variant={editMode ? "primary" : "outline"}
             size="sm"
-            disabled={bulkDeleting}
-            onClick={handleBulkDelete}
+            onClick={() => {
+              setEditMode((prev) => !prev);
+              if (editMode) setSelectedIds([]);
+            }}
           >
-            {bulkDeleting
-              ? "Deleting..."
-              : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+            {editMode ? "Done" : "Edit"}
           </Button>
-        )}
+          {editMode && selectedIds.length > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={bulkDeleting}
+              onClick={() => setConfirmBulkDelete(true)}
+            >
+              {bulkDeleting
+                ? "Deleting..."
+                : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+            </Button>
+          )}
+        </div>
       </div>
 
       {feedback && (
@@ -187,14 +209,16 @@ export function CustomersContent({
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-4 py-3.5 text-left">
-                <input
-                  type="checkbox"
-                  checked={allPageSelected}
-                  onChange={toggleSelectPage}
-                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-              </th>
+              {editMode && (
+                <th className="px-4 py-3.5 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectPage}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                </th>
+              )}
               <th className="px-5 py-3.5 text-left font-semibold">Name</th>
               <th className="px-5 py-3.5 text-left font-semibold">Phone</th>
               <th className="px-5 py-3.5 text-left font-semibold">Email</th>
@@ -202,14 +226,14 @@ export function CustomersContent({
                 Total Spent
               </th>
               <th className="px-5 py-3.5 text-left font-semibold">Visits</th>
-              <th className="px-5 py-3.5 text-right font-semibold">Actions</th>
+              <th className="px-5 py-3.5 text-left font-semibold">Notes</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredCustomers.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={editMode ? 8 : 7}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {customers.length === 0
@@ -223,16 +247,26 @@ export function CustomersContent({
                   key={c.id}
                   className="hover:bg-slate-50/50 transition-colors"
                 >
-                  <td className="px-4 py-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(c.id)}
-                      onChange={() => toggleSelected(c.id)}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                  </td>
-                  <td className="px-5 py-4 font-semibold text-slate-800 capitalize">
-                    {c.name}
+                  {editMode && (
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(c.id)}
+                        onChange={() => toggleSelected(c.id)}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </td>
+                  )}
+                  <td className="px-5 py-4">
+                    <button
+                      type="button"
+                      className="text-left cursor-pointer"
+                      onClick={() => setEditCustomer(c)}
+                    >
+                      <span className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 hover:decoration-indigo-300 transition-all">
+                        {c.name}
+                      </span>
+                    </button>
                   </td>
                   <td className="px-5 py-4 text-slate-500">{c.phone || "—"}</td>
                   <td className="px-5 py-4 text-slate-500">{c.email || "—"}</td>
@@ -242,19 +276,8 @@ export function CustomersContent({
                   <td className="px-5 py-4 text-slate-500 tabular-nums">
                     {formatNumber(c.visitCount, numberFormat)}
                   </td>
-                  <td className="px-5 py-4 text-right whitespace-nowrap">
-                    <div className="flex items-center justify-end gap-1">
-                      <CustomerActions merchantId={merchantId} customer={c} />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                        disabled={deletingId === c.id}
-                        onClick={() => handleDeleteCustomer(c.id, c.name)}
-                      >
-                        {deletingId === c.id ? "Deleting..." : "Delete"}
-                      </Button>
-                    </div>
+                  <td className="px-5 py-4 text-slate-400 text-xs max-w-[200px] truncate">
+                    {c.notes || "—"}
                   </td>
                 </tr>
               ))
@@ -298,6 +321,47 @@ export function CustomersContent({
           </div>
         </div>
       )}
+
+      {editCustomer && (
+        <CustomerActions
+          merchantId={merchantId}
+          customer={editCustomer}
+          externalOpen
+          onExternalClose={() => setEditCustomer(null)}
+          onDelete={() => {
+            const { id, name } = editCustomer;
+            setEditCustomer(null);
+            setConfirmDelete({ id, name });
+          }}
+        />
+      )}
+
+      <ConfirmModal
+        open={Boolean(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete) {
+            handleDeleteCustomer(confirmDelete.id, confirmDelete.name);
+            setConfirmDelete(null);
+          }
+        }}
+        title="Delete customer"
+        message={`Are you sure you want to delete "${confirmDelete?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        loading={Boolean(deletingId)}
+      />
+
+      <ConfirmModal
+        open={confirmBulkDelete}
+        onClose={() => setConfirmBulkDelete(false)}
+        onConfirm={() => {
+          setConfirmBulkDelete(false);
+          handleBulkDelete();
+        }}
+        title="Delete selected customers"
+        message={`Are you sure you want to delete ${formatNumber(selectedIds.length, numberFormat)} selected customers? This action cannot be undone.`}
+        confirmLabel="Delete all"
+      />
     </div>
   );
 }

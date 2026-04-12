@@ -24,6 +24,10 @@ interface ProductInsightModalProps {
   insight?: InventoryInsight;
   currency: string;
   numberFormat?: NumberFormat;
+  onEdit?: (product: LocalProduct) => void;
+  onAddVariant?: (product: LocalProduct) => void;
+  onDelete?: (product: LocalProduct) => void;
+  deleting?: boolean;
 }
 
 function getActionLabel(action?: InventoryInsight["action"]) {
@@ -47,6 +51,10 @@ export function ProductInsightModal({
   insight,
   currency,
   numberFormat = "western",
+  onEdit,
+  onAddVariant,
+  onDelete,
+  deleting,
 }: ProductInsightModalProps) {
   if (!product) return null;
 
@@ -207,8 +215,36 @@ export function ProductInsightModal({
           </div>
         </div>
 
-        <div className="flex justify-end">
-          <Button variant="secondary" onClick={onClose}>
+        <div className="flex flex-wrap gap-2 justify-end">
+          {onAddVariant && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onAddVariant(product)}
+            >
+              + Variant
+            </Button>
+          )}
+          {onEdit && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onEdit(product)}
+            >
+              Edit
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={deleting}
+              onClick={() => onDelete(product)}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={onClose}>
             Close
           </Button>
         </div>

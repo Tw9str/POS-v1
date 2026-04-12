@@ -14,17 +14,32 @@ interface EditableStaff {
   name: string;
   pin: string;
   role: string;
+  isActive?: boolean;
 }
 
 interface StaffActionsProps {
   merchantId: string;
   staff?: EditableStaff;
+  externalOpen?: boolean;
+  onExternalClose?: () => void;
+  onDelete?: () => void;
 }
 
-export function StaffActions({ merchantId, staff }: StaffActionsProps) {
+export function StaffActions({
+  merchantId,
+  staff,
+  externalOpen,
+  onExternalClose,
+  onDelete,
+}: StaffActionsProps) {
   const router = useRouter();
   const isEdit = Boolean(staff);
   const [open, setOpen] = useState(false);
+  const isModalOpen = externalOpen ?? open;
+  const closeModal = () => {
+    setOpen(false);
+    onExternalClose?.();
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
@@ -64,7 +79,7 @@ export function StaffActions({ merchantId, staff }: StaffActionsProps) {
         return;
       }
 
-      setOpen(false);
+      closeModal();
       setForm({ name: "", pin: "", role: "CASHIER" });
       router.refresh();
     } catch {
@@ -76,18 +91,20 @@ export function StaffActions({ merchantId, staff }: StaffActionsProps) {
 
   return (
     <>
-      <Button
-        onClick={openModal}
-        variant={isEdit ? "ghost" : "primary"}
-        size={isEdit ? "sm" : "md"}
-      >
-        {!isEdit && <IconPlus size={18} />}
-        {isEdit ? "Edit" : "Add Staff"}
-      </Button>
+      {!externalOpen && (
+        <Button
+          onClick={openModal}
+          variant={isEdit ? "ghost" : "primary"}
+          size={isEdit ? "sm" : "md"}
+        >
+          {!isEdit && <IconPlus size={18} />}
+          {isEdit ? "Edit" : "Add Staff"}
+        </Button>
+      )}
 
       <Modal
-        open={open}
-        onClose={() => setOpen(false)}
+        open={isModalOpen}
+        onClose={closeModal}
         title={isEdit ? "Edit Staff Member" : "Add Staff Member"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -129,17 +146,27 @@ export function StaffActions({ merchantId, staff }: StaffActionsProps) {
             </p>
           )}
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" loading={loading}>
-              {isEdit ? "Save Changes" : "Add Staff"}
-            </Button>
+          <div className="flex items-center gap-3 pt-4">
+            {isEdit && onDelete && (
+              <Button
+                variant="danger"
+                type="button"
+                onClick={() => {
+                  closeModal();
+                  onDelete();
+                }}
+              >
+                Delete
+              </Button>
+            )}
+            <div className="ml-auto flex gap-3">
+              <Button variant="secondary" type="button" onClick={closeModal}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={loading}>
+                {isEdit ? "Save Changes" : "Add Staff"}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

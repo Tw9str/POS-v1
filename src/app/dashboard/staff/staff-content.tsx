@@ -4,12 +4,12 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocalStaff } from "@/hooks/use-local-data";
 import { StaffActions } from "./staff-actions";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { PageHeader } from "@/components/layout/page-header";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 const PAGE_SIZE = 10;
 
@@ -33,9 +33,22 @@ export function StaffContent({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
+  } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [editStaff, setEditStaff] = useState<{
+    id: string;
+    name: string;
+    pin: string;
+    role: string;
+    isActive?: boolean;
   } | null>(null);
   const staff = useLocalStaff(merchantId);
 
@@ -76,8 +89,6 @@ export function StaffContent({
   }
 
   async function handleDeleteStaff(id: string, name: string) {
-    if (!window.confirm(`Delete staff member "${name}"?`)) return;
-
     setDeletingId(id);
     setFeedback(null);
     const result = await offlineFetch({
@@ -101,13 +112,36 @@ export function StaffContent({
     setDeletingId(null);
   }
 
+  async function handleToggleActive(
+    id: string,
+    name: string,
+    currentActive: boolean,
+  ) {
+    setFeedback(null);
+    const result = await offlineFetch({
+      url: "/api/merchant/staff",
+      method: "PUT",
+      body: { id, isActive: !currentActive },
+      entity: "staff",
+      merchantId,
+    });
+
+    if (!result.ok) {
+      setFeedback({
+        type: "error",
+        text: result.error || "Failed to update staff status",
+      });
+    } else {
+      setFeedback({
+        type: "success",
+        text: `${name} has been ${currentActive ? "deactivated" : "activated"}.`,
+      });
+      router.refresh();
+    }
+  }
+
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return;
-    if (
-      !window.confirm(`Delete ${selectedIds.length} selected staff members?`)
-    ) {
-      return;
-    }
 
     setBulkDeleting(true);
     setFeedback(null);
@@ -161,18 +195,30 @@ export function StaffContent({
             }}
           />
         </div>
-        {selectedIds.length > 0 && (
+        <div className="flex items-center gap-2">
           <Button
-            variant="danger"
+            variant={editMode ? "primary" : "outline"}
             size="sm"
-            disabled={bulkDeleting}
-            onClick={handleBulkDelete}
+            onClick={() => {
+              setEditMode((prev) => !prev);
+              if (editMode) setSelectedIds([]);
+            }}
           >
-            {bulkDeleting
-              ? "Deleting..."
-              : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+            {editMode ? "Done" : "Edit"}
           </Button>
-        )}
+          {editMode && selectedIds.length > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={bulkDeleting}
+              onClick={() => setConfirmBulkDelete(true)}
+            >
+              {bulkDeleting
+                ? "Deleting..."
+                : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+            </Button>
+          )}
+        </div>
       </div>
 
       {feedback && (
@@ -191,26 +237,27 @@ export function StaffContent({
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-4 py-3.5 text-left">
-                <input
-                  type="checkbox"
-                  checked={allPageSelected}
-                  onChange={toggleSelectPage}
-                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-              </th>
+              {editMode && (
+                <th className="px-4 py-3.5 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectPage}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                </th>
+              )}
               <th className="px-5 py-3.5 text-left font-semibold">Name</th>
               <th className="px-5 py-3.5 text-left font-semibold">Role</th>
               <th className="px-5 py-3.5 text-left font-semibold">PIN</th>
               <th className="px-5 py-3.5 text-left font-semibold">Status</th>
-              <th className="px-5 py-3.5 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredStaff.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={editMode ? 6 : 5}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {staff.length === 0
@@ -224,16 +271,26 @@ export function StaffContent({
                   key={s.id}
                   className="hover:bg-slate-50/50 transition-colors"
                 >
-                  <td className="px-4 py-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(s.id)}
-                      onChange={() => toggleSelected(s.id)}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                  </td>
-                  <td className="px-5 py-4 font-semibold text-slate-800 capitalize">
-                    {s.name}
+                  {editMode && (
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(s.id)}
+                        onChange={() => toggleSelected(s.id)}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </td>
+                  )}
+                  <td className="px-5 py-4">
+                    <button
+                      type="button"
+                      className="text-left cursor-pointer"
+                      onClick={() => setEditStaff(s)}
+                    >
+                      <span className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 hover:decoration-indigo-300 transition-all">
+                        {s.name}
+                      </span>
+                    </button>
                   </td>
                   <td className="px-5 py-4 text-slate-500">
                     {formatStaffRoleLabel(s.role)}
@@ -242,23 +299,29 @@ export function StaffContent({
                     {"••••"}
                   </td>
                   <td className="px-5 py-4">
-                    <Badge variant={s.isActive ? "success" : "danger"}>
-                      {s.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </td>
-                  <td className="px-5 py-4 text-right whitespace-nowrap">
-                    <div className="flex items-center justify-end gap-1">
-                      <StaffActions merchantId={merchantId} staff={s} />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                        disabled={deletingId === s.id}
-                        onClick={() => handleDeleteStaff(s.id, s.name)}
+                    <button
+                      type="button"
+                      className="group flex items-center gap-2 cursor-pointer"
+                      onClick={() =>
+                        handleToggleActive(s.id, s.name, s.isActive)
+                      }
+                      title={
+                        s.isActive ? "Click to deactivate" : "Click to activate"
+                      }
+                    >
+                      <span
+                        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${s.isActive ? "bg-green-500" : "bg-slate-300"}`}
                       >
-                        {deletingId === s.id ? "Deleting..." : "Delete"}
-                      </Button>
-                    </div>
+                        <span
+                          className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform mt-0.5 ${s.isActive ? "translate-x-4 ml-0.5" : "translate-x-0.5"}`}
+                        />
+                      </span>
+                      <span
+                        className={`text-xs font-medium ${s.isActive ? "text-green-700" : "text-slate-500"}`}
+                      >
+                        {s.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </button>
                   </td>
                 </tr>
               ))
@@ -302,6 +365,47 @@ export function StaffContent({
           </div>
         </div>
       )}
+
+      {editStaff && (
+        <StaffActions
+          merchantId={merchantId}
+          staff={editStaff}
+          externalOpen
+          onExternalClose={() => setEditStaff(null)}
+          onDelete={() => {
+            const { id, name } = editStaff;
+            setEditStaff(null);
+            setConfirmDelete({ id, name });
+          }}
+        />
+      )}
+
+      <ConfirmModal
+        open={Boolean(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete) {
+            handleDeleteStaff(confirmDelete.id, confirmDelete.name);
+            setConfirmDelete(null);
+          }
+        }}
+        title="Delete staff member"
+        message={`Are you sure you want to delete "${confirmDelete?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        loading={Boolean(deletingId)}
+      />
+
+      <ConfirmModal
+        open={confirmBulkDelete}
+        onClose={() => setConfirmBulkDelete(false)}
+        onConfirm={() => {
+          setConfirmBulkDelete(false);
+          handleBulkDelete();
+        }}
+        title="Delete selected staff"
+        message={`Are you sure you want to delete ${formatNumber(selectedIds.length, numberFormat)} selected staff members? This action cannot be undone.`}
+        confirmLabel="Delete all"
+      />
     </div>
   );
 }

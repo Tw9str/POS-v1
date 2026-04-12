@@ -20,15 +20,26 @@ interface EditableCustomer {
 interface CustomerActionsProps {
   merchantId: string;
   customer?: EditableCustomer;
+  externalOpen?: boolean;
+  onExternalClose?: () => void;
+  onDelete?: () => void;
 }
 
 export function CustomerActions({
   merchantId,
   customer,
+  externalOpen,
+  onExternalClose,
+  onDelete,
 }: CustomerActionsProps) {
   const router = useRouter();
   const isEdit = Boolean(customer);
   const [open, setOpen] = useState(false);
+  const isModalOpen = externalOpen ?? open;
+  const closeModal = () => {
+    setOpen(false);
+    onExternalClose?.();
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -75,7 +86,7 @@ export function CustomerActions({
         return;
       }
 
-      setOpen(false);
+      closeModal();
       setForm({ name: "", phone: "", email: "", address: "", notes: "" });
       router.refresh();
     } catch {
@@ -87,18 +98,20 @@ export function CustomerActions({
 
   return (
     <>
-      <Button
-        onClick={openModal}
-        variant={isEdit ? "ghost" : "primary"}
-        size={isEdit ? "sm" : "md"}
-      >
-        {!isEdit && <IconPlus size={18} />}
-        {isEdit ? "Edit" : "Add Customer"}
-      </Button>
+      {!externalOpen && (
+        <Button
+          onClick={openModal}
+          variant={isEdit ? "ghost" : "primary"}
+          size={isEdit ? "sm" : "md"}
+        >
+          {!isEdit && <IconPlus size={18} />}
+          {isEdit ? "Edit" : "Add Customer"}
+        </Button>
+      )}
 
       <Modal
-        open={open}
-        onClose={() => setOpen(false)}
+        open={isModalOpen}
+        onClose={closeModal}
         title={isEdit ? "Edit Customer" : "Add Customer"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -141,17 +154,27 @@ export function CustomerActions({
             </p>
           )}
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" loading={loading}>
-              {isEdit ? "Save Changes" : "Add Customer"}
-            </Button>
+          <div className="flex items-center gap-3 pt-4">
+            {isEdit && onDelete && (
+              <Button
+                variant="danger"
+                type="button"
+                onClick={() => {
+                  closeModal();
+                  onDelete();
+                }}
+              >
+                Delete
+              </Button>
+            )}
+            <div className="ml-auto flex gap-3">
+              <Button variant="secondary" type="button" onClick={closeModal}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={loading}>
+                {isEdit ? "Save Changes" : "Add Customer"}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>
