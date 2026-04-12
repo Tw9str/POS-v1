@@ -69,6 +69,17 @@ enum AdjustmentType {
   TRANSFER
 }
 
+enum PromoType {
+  PERCENT
+  FIXED
+}
+
+enum PromoScope {
+  ORDER
+  PRODUCT
+  CATEGORY
+}
+
 // ─────────────────────────────────────────────
 // AUTH & USERS
 // ─────────────────────────────────────────────
@@ -163,6 +174,7 @@ model Merchant {
   inventoryAdjustments InventoryAdjustment[]
   shifts       Shift[]
   activityLogs ActivityLog[]
+  promotions   Promotion[]
 
   @@map("merchants")
 }
@@ -216,6 +228,7 @@ model Staff {
   name       String
   pin        String
   role       StaffRole @default(CASHIER)
+  maxDiscountPercent Int @default(0)
   isActive   Boolean   @default(true)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -254,7 +267,7 @@ model Category {
 model Product {
   id          String   @id @default(cuid())
   merchantId  String
-  categoryId  String?
+  categoryId  String
   name        String
   variantName String?
   sku         String?
@@ -271,7 +284,7 @@ model Product {
   updatedAt   DateTime @updatedAt
 
   merchant   Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  category   Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   orderItems OrderItem[]
   inventoryAdjustments InventoryAdjustment[]
   purchaseOrderItems   PurchaseOrderItem[]
@@ -321,6 +334,9 @@ model Order {
   subtotal       Float
   taxAmount      Float         @default(0)
   discountAmount Float         @default(0)
+  promoCode      String?
+  promoId        String?
+  promoDiscount  Float         @default(0)
   total          Float
   paidAmount     Float         @default(0)
   changeAmount   Float         @default(0)
@@ -335,6 +351,7 @@ model Order {
   staff     Staff?      @relation(fields: [staffId], references: [id], onDelete: SetNull)
   customer  Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items     OrderItem[]
+  promotion Promotion? @relation(fields: [promoId], references: [id], onDelete: SetNull)
 
   @@unique([merchantId, orderNumber])
   @@index([merchantId])
@@ -350,6 +367,10 @@ model OrderItem {
   name       String
   sku        String?
   price      Float
+  originalPrice  Float?
+  unitPrice      Float?
+  discountType   String?
+  discountValue  Float    @default(0)
   costPrice  Float  @default(0)
   quantity   Int
   discount   Float  @default(0)
@@ -489,4 +510,38 @@ model ActivityLog {
   @@index([action])
   @@index([createdAt])
   @@map("activity_logs")
+}
+
+// ─────────────────────────────────────────────
+// PROMOTIONS & PROMO CODES
+// ─────────────────────────────────────────────
+
+model Promotion {
+  id                  String     @id @default(cuid())
+  merchantId          String
+  code                String
+  type                PromoType  @default(PERCENT)
+  value               Float
+  scope               PromoScope @default(ORDER)
+  scopeTargetId       String?
+  minSubtotal         Float      @default(0)
+  maxDiscount         Float?
+  startsAt            DateTime?
+  endsAt              DateTime?
+  maxUses             Int?
+  usedCount           Int        @default(0)
+  maxUsesPerCustomer  Int?
+  stackable           Boolean    @default(false)
+  isActive            Boolean    @default(true)
+  createdBy           String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  orders   Order[]
+
+  @@unique([merchantId, code])
+  @@index([merchantId])
+  @@index([code])
+  @@map("promotions")
 }

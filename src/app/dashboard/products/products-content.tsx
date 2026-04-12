@@ -8,9 +8,7 @@ import {
   useLocalOrders,
 } from "@/hooks/use-local-data";
 import { ProductActions } from "./product-actions";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { offlineFetch } from "@/lib/offline-fetch";
 import type { LocalProduct } from "@/lib/offline-db";
 import {
@@ -29,8 +27,15 @@ import { ProductInsightModal } from "@/components/product-insight-modal";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { IconCamera } from "@/components/icons";
+import { SearchInput } from "@/components/ui/search-input";
+import { Select } from "@/components/ui/select";
+import {
+  SortableTh,
+  useSortToggle,
+  type SortDirection,
+} from "@/components/ui/sortable-th";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZES = [10, 25, 50, 100];
 
 export function ProductsContent({
   merchantId,
@@ -46,6 +51,7 @@ export function ProductsContent({
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -64,6 +70,11 @@ export function ProductsContent({
     useState<LocalProduct | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [stockFilter, setStockFilter] = useState("all");
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDirection>(null);
+  const toggleSort = useSortToggle();
   const products = useLocalProducts(merchantId);
   const categories = useLocalCategories(merchantId);
   const orders = useLocalOrders(merchantId, 500);
@@ -82,7 +93,7 @@ export function ProductsContent({
   );
 
   const productSummary = useMemo(() => {
-    const families = new Set(
+    const uniqueProducts = new Set(
       products.map((p) => p.name.trim().toLowerCase()).filter(Boolean),
     );
     const lowStock = products.filter(
@@ -98,6 +109,12 @@ export function ProductsContent({
       (sum, metric) => sum + metric.sold7d,
       0,
     );
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayTs = todayStart.getTime();
+    const unitsSoldToday = orders
+      .filter((o) => o.createdAt >= todayTs && o.status !== "VOIDED")
+      .reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0), 0);
     const fastMoving = Array.from(performance.values()).filter(
       (metric) => metric.movement === "fast",
     ).length;
@@ -110,11 +127,12 @@ export function ProductsContent({
       )[0];
 
     return {
-      familyCount: families.size,
+      productCount: uniqueProducts.size,
       variantCount: products.length,
       lowStock,
       outOfStock,
       totalSold7d,
+      unitsSoldToday,
       fastMoving,
       topSellerName:
         topSeller && (topSeller.metric?.sold30d ?? 0) > 0
@@ -128,32 +146,83 @@ export function ProductsContent({
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const sorted = [...products].sort((a, b) => {
-      const nameCompare = a.name.localeCompare(b.name);
-      if (nameCompare !== 0) return nameCompare;
-      return (a.variantName || "").localeCompare(b.variantName || "");
-    });
 
-    if (!query) return sorted;
-
-    return sorted.filter(
-      (p) =>
+    const filtered = products.filter((p) => {
+      const matchesSearch =
+        !query ||
         p.name.toLowerCase().includes(query) ||
         p.variantName?.toLowerCase().includes(query) ||
         p.categoryName?.toLowerCase().includes(query) ||
         p.sku?.toLowerCase().includes(query) ||
-        p.barcode?.toLowerCase().includes(query),
-    );
-  }, [products, search]);
+        p.barcode?.toLowerCase().includes(query);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredProducts.length / PAGE_SIZE),
-  );
+      const matchesCategory =
+        categoryFilter === "all" || p.categoryId === categoryFilter;
+
+      const matchesStock =
+        stockFilter === "all" ||
+        (stockFilter === "in" && (!p.trackStock || p.stock > 0)) ||
+        (stockFilter === "low" &&
+          p.trackStock &&
+          p.stock > 0 &&
+          p.stock <= Math.max(1, p.lowStockAt || 5)) ||
+        (stockFilter === "out" && p.trackStock && p.stock <= 0);
+
+      return matchesSearch && matchesCategory && matchesStock;
+    });
+
+    return filtered.sort((a, b) => {
+      if (!sortKey || !sortDir) {
+        const nameCompare = a.name.localeCompare(b.name);
+        if (nameCompare !== 0) return nameCompare;
+        return (a.variantName || "").localeCompare(b.variantName || "");
+      }
+
+      const metricA = performance.get(a.id);
+      const metricB = performance.get(b.id);
+      let cmp = 0;
+
+      switch (sortKey) {
+        case "name":
+          cmp = a.name.localeCompare(b.name);
+          break;
+        case "category":
+          cmp = (a.categoryName || "").localeCompare(b.categoryName || "");
+          break;
+        case "sku":
+          cmp = (a.sku || "").localeCompare(b.sku || "");
+          break;
+        case "price":
+          cmp = a.price - b.price;
+          break;
+        case "cost":
+          cmp = a.costPrice - b.costPrice;
+          break;
+        case "sold7d":
+          cmp = (metricA?.sold7d ?? 0) - (metricB?.sold7d ?? 0);
+          break;
+        case "created":
+          cmp = a.createdAt - b.createdAt;
+          break;
+      }
+
+      return sortDir === "desc" ? -cmp : cmp;
+    });
+  }, [
+    products,
+    search,
+    categoryFilter,
+    stockFilter,
+    sortKey,
+    sortDir,
+    performance,
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pagedProducts = filteredProducts.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
   );
   const pageIds = pagedProducts.map((p) => p.id);
   const allPageSelected =
@@ -248,7 +317,7 @@ export function ProductsContent({
     <div className="space-y-6">
       <PageHeader
         title="Products"
-        subtitle={`${formatNumber(productSummary.familyCount, numberFormat)} families · ${formatNumber(productSummary.variantCount, numberFormat)} sellable variants`}
+        subtitle={`${formatNumber(productSummary.productCount, numberFormat)} products · ${formatNumber(productSummary.variantCount, numberFormat)} variants`}
       >
         <div className="flex flex-wrap gap-2">
           <ProductActions
@@ -263,21 +332,21 @@ export function ProductsContent({
         </div>
       </PageHeader>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Product families
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">
-            {formatNumber(productSummary.familyCount, numberFormat)}
-          </p>
-        </div>
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-5">
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
-            Sellable variants
+            Products
           </p>
           <p className="mt-2 text-2xl font-bold text-indigo-900 tabular-nums">
-            {formatNumber(productSummary.variantCount, numberFormat)}
+            {formatNumber(productSummary.productCount, numberFormat)}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
+            Sold today
+          </p>
+          <p className="mt-2 text-2xl font-bold text-violet-900 tabular-nums">
+            {formatNumber(productSummary.unitsSoldToday, numberFormat)}
           </p>
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
@@ -290,18 +359,10 @@ export function ProductsContent({
         </div>
         <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
-            Fast-moving variants
+            Fast movers
           </p>
           <p className="mt-2 text-2xl font-bold text-cyan-900 tabular-nums">
             {formatNumber(productSummary.fastMoving, numberFormat)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-            Low-stock variants
-          </p>
-          <p className="mt-2 text-2xl font-bold text-amber-900 tabular-nums">
-            {formatNumber(productSummary.lowStock, numberFormat)}
           </p>
         </div>
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
@@ -315,26 +376,63 @@ export function ProductsContent({
       </div>
 
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="relative w-full md:max-w-sm">
-          <Input
+        <div className="flex flex-1 flex-col gap-3 md:flex-row">
+          <SearchInput
             id="product-search"
             label="Search products"
-            placeholder="Name, variant, SKU, barcode, category..."
+            placeholder="Name, variant, SKU, barcode..."
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
+            onChange={(v) => {
+              setSearch(v);
               setPage(1);
             }}
-            className="pr-11"
+            resultCount={filteredProducts.length}
+            totalCount={products.length}
+            numberFormat={numberFormat}
+            onScan={() => setScannerOpen(true)}
+            className="w-full md:max-w-sm"
           />
-          <button
-            type="button"
-            onClick={() => setScannerOpen(true)}
-            className="absolute right-2 bottom-1.5 p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer"
-            title="Scan barcode"
-          >
-            <IconCamera size={20} />
-          </button>
+          <Select
+            id="product-category-filter"
+            label="Category"
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setPage(1);
+            }}
+            options={[
+              { value: "all", label: "All categories" },
+              ...categories.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
+          <Select
+            id="product-stock-filter"
+            label="Stock"
+            value={stockFilter}
+            onChange={(e) => {
+              setStockFilter(e.target.value);
+              setPage(1);
+            }}
+            options={[
+              { value: "all", label: "All stock" },
+              { value: "in", label: "In stock" },
+              { value: "low", label: "Low stock" },
+              { value: "out", label: "Out of stock" },
+            ]}
+          />
+          <Select
+            id="product-page-size"
+            label="Per page"
+            value={String(pageSize)}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+            options={PAGE_SIZES.map((s) => ({
+              value: String(s),
+              label: `${s} rows`,
+            }))}
+          />
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -388,27 +486,97 @@ export function ProductsContent({
                   />
                 </th>
               )}
-              <th className="px-5 py-3.5 text-left font-semibold">
-                Product / Variant
-              </th>
-              <th className="px-5 py-3.5 text-left font-semibold">Category</th>
-              <th className="px-5 py-3.5 text-left font-semibold">SKU</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Price</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Cost</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Stock</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Sold 7d</th>
-              <th className="px-5 py-3.5 text-left font-semibold">
-                Net Revenue
-              </th>
-              <th className="px-5 py-3.5 text-left font-semibold">Movement</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Status</th>
+              <SortableTh
+                label="Product"
+                sortKey="name"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="Category"
+                sortKey="category"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="SKU"
+                sortKey="sku"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="Price"
+                sortKey="price"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="Cost"
+                sortKey="cost"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="Sold 7d"
+                sortKey="sold7d"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="Created"
+                sortKey="created"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredProducts.length === 0 ? (
               <tr>
                 <td
-                  colSpan={editMode ? 12 : 11}
+                  colSpan={editMode ? 9 : 8}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {products.length === 0
@@ -419,14 +587,6 @@ export function ProductsContent({
             ) : (
               pagedProducts.map((p) => {
                 const metric = performance.get(p.id);
-                const movementVariant =
-                  metric?.movement === "fast"
-                    ? "success"
-                    : metric?.movement === "steady"
-                      ? "info"
-                      : metric?.movement === "slow"
-                        ? "warning"
-                        : "default";
 
                 return (
                   <tr
@@ -450,23 +610,15 @@ export function ProductsContent({
                         onClick={() => setSelectedInsightProduct(p)}
                       >
                         <p className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 group-hover:decoration-indigo-300 transition-all">
-                          {p.name}
-                        </p>
-                        <p className="text-xs font-medium text-slate-500">
-                          {p.variantName || "Single/default item"}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-400">
-                          {metric?.lastSoldAt
-                            ? `Last sold ${formatDateTime(new Date(metric.lastSoldAt), "numeric", numberFormat)}`
-                            : "No sales yet"}
+                          {getProductDisplayName(p.name, p.variantName)}
                         </p>
                       </button>
                     </td>
                     <td className="px-5 py-4 text-slate-500 capitalize">
-                      {p.categoryName || "—"}
+                      {p.categoryName || "·"}
                     </td>
                     <td className="px-5 py-4 text-slate-500 font-mono text-xs">
-                      {p.sku || "—"}
+                      {p.sku || "·"}
                     </td>
                     <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
                       {formatCurrency(p.price, currency, numberFormat)}
@@ -474,34 +626,11 @@ export function ProductsContent({
                     <td className="px-5 py-4 text-slate-500 tabular-nums">
                       {formatCurrency(p.costPrice, currency, numberFormat)}
                     </td>
-                    <td className="px-5 py-4 tabular-nums">
-                      {p.trackStock ? formatNumber(p.stock, numberFormat) : "∞"}
-                    </td>
                     <td className="px-5 py-4 tabular-nums text-slate-600">
                       {formatNumber(metric?.sold7d ?? 0, numberFormat)}
                     </td>
-                    <td className="px-5 py-4 font-semibold text-slate-900 tabular-nums">
-                      {formatCurrency(
-                        metric?.netRevenue ?? 0,
-                        currency,
-                        numberFormat,
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      <Badge variant={movementVariant}>
-                        {metric?.movement === "fast"
-                          ? "Fast"
-                          : metric?.movement === "steady"
-                            ? "Steady"
-                            : metric?.movement === "slow"
-                              ? "Slow"
-                              : "No movement"}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-4">
-                      <Badge variant={p.stock > 0 ? "success" : "danger"}>
-                        {p.stock > 0 ? "In stock" : "Out"}
-                      </Badge>
+                    <td className="px-5 py-4 text-slate-500 whitespace-nowrap">
+                      {formatDateTime(new Date(p.createdAt), "long", numberFormat)}
                     </td>
                   </tr>
                 );
@@ -515,9 +644,9 @@ export function ProductsContent({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
             Showing{" "}
-            {formatNumber((currentPage - 1) * PAGE_SIZE + 1, numberFormat)}-
+            {formatNumber((currentPage - 1) * pageSize + 1, numberFormat)}-
             {formatNumber(
-              Math.min(currentPage * PAGE_SIZE, filteredProducts.length),
+              Math.min(currentPage * pageSize, filteredProducts.length),
               numberFormat,
             )}{" "}
             of {formatNumber(filteredProducts.length, numberFormat)}

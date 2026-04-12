@@ -263,13 +263,13 @@ export function SuppliersContent({
                       </span>
                     </button>
                   </td>
-                  <td className="px-5 py-4 text-slate-500">{s.phone || "—"}</td>
-                  <td className="px-5 py-4 text-slate-500">{s.email || "—"}</td>
+                  <td className="px-5 py-4 text-slate-500">{s.phone || "·"}</td>
+                  <td className="px-5 py-4 text-slate-500">{s.email || "·"}</td>
                   <td className="px-5 py-4 text-slate-500">
-                    {s.address || "—"}
+                    {s.address || "·"}
                   </td>
                   <td className="px-5 py-4 text-slate-400 text-xs max-w-[200px] truncate">
-                    {s.notes || "—"}
+                    {s.notes || "·"}
                   </td>
                 </tr>
               ))

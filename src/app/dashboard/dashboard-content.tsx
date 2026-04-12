@@ -20,6 +20,7 @@ import {
   IconMoney,
   IconKey,
   IconLogout,
+  IconPromo,
 } from "@/components/icons";
 import { formatCurrency, formatNumber, type NumberFormat } from "@/lib/utils";
 import { useMemo } from "react";
@@ -56,6 +57,13 @@ const NAV_CARDS = [
     description: "Stock levels",
   },
   {
+    href: "/dashboard/promos",
+    label: "Promos",
+    icon: IconPromo,
+    color: "bg-rose-500",
+    description: "Discount codes",
+  },
+  {
     href: "/dashboard/customers",
     label: "Customers",
     icon: IconCustomers,
@@ -89,13 +97,6 @@ const NAV_CARDS = [
     icon: IconActivity,
     color: "bg-violet-500",
     description: "Demand insights",
-  },
-  {
-    href: "/dashboard/settings",
-    label: "Settings",
-    icon: IconSettings,
-    color: "bg-slate-500",
-    description: "Store config",
   },
 ];
 
@@ -177,7 +178,7 @@ export function DashboardContent({
     const todayNet = todayGross - todayRefunds;
     const todayProfit = todayNet - (todayGrossCogs - refundedCogs);
     const profitMargin = todayNet > 0 ? (todayProfit / todayNet) * 100 : 0;
-    const families = new Set(
+    const uniqueProducts = new Set(
       products
         .map((product) => product.name.trim().toLowerCase())
         .filter(Boolean),
@@ -199,7 +200,7 @@ export function DashboardContent({
       todayProfit,
       profitMargin,
       todayOrderCount: todayOrders.length,
-      productFamilies: families.size,
+      productCount: uniqueProducts.size,
       variantCount: products.length,
       customerCount: customers.length,
       lowStockCount,
@@ -242,13 +243,21 @@ export function DashboardContent({
               {merchantName}
             </h1>
             <p className="text-slate-500 text-sm mt-0.5">
-              Gross {formatCurrency(stats.todayGross, currency, numberFormat)} ·
-              Net {formatCurrency(stats.todayNet, currency, numberFormat)} ·
-              Profit {formatCurrency(stats.todayProfit, currency, numberFormat)}
+              Today {formatCurrency(stats.todayNet, currency, numberFormat)} ·{" "}
+              {formatNumber(stats.todayOrderCount, numberFormat)} orders
             </p>
           </div>
         </div>
         <div className="hidden lg:flex items-center gap-2">
+          {allowedPages.includes("/dashboard/settings") && (
+            <Link
+              href="/dashboard/settings"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 active:scale-[0.98] transition-all"
+            >
+              <IconSettings size={18} />
+              Settings
+            </Link>
+          )}
           <button
             onClick={handleLock}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-amber-600 hover:bg-amber-50 active:scale-[0.98] transition-all cursor-pointer"

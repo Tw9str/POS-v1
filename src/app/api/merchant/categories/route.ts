@@ -184,6 +184,34 @@ export async function DELETE(req: Request) {
       );
     }
 
+    if (category.name === "Other") {
+      return NextResponse.json(
+        { error: "The 'Other' category cannot be deleted" },
+        { status: 400 },
+      );
+    }
+
+    // Find or create the "Other" fallback category
+    let otherCategory = await prisma.category.findFirst({
+      where: { merchantId: merchant.id, name: "Other", isActive: true },
+    });
+    if (!otherCategory) {
+      otherCategory = await prisma.category.create({
+        data: {
+          merchantId: merchant.id,
+          name: "Other",
+          color: "#6b7280",
+          sortOrder: 999,
+        },
+      });
+    }
+
+    // Reassign products to "Other" before deactivating
+    await prisma.product.updateMany({
+      where: { categoryId: category.id },
+      data: { categoryId: otherCategory.id },
+    });
+
     await prisma.category.update({
       where: { id: category.id },
       data: { isActive: false },

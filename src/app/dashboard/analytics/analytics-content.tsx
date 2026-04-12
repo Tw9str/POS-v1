@@ -273,7 +273,7 @@ export function AnalyticsContent({
       )
       .slice(0, 5);
 
-    const families = new Set(
+    const uniqueProducts = new Set(
       products
         .map((product) => product.name.trim().toLowerCase())
         .filter(Boolean),
@@ -291,7 +291,7 @@ export function AnalyticsContent({
       paymentMix,
       dailyTrend,
       topVariants,
-      familyCount: families.size,
+      productCount: uniqueProducts.size,
       variantCount: products.length,
       fastMovingCount: Array.from(performance.values()).filter(
         (metric) => metric.movement === "fast",
@@ -507,8 +507,8 @@ export function AnalyticsContent({
           icon={<IconMoney size={22} />}
         />
         <StatCard
-          title="Families / Variants"
-          value={`${formatNumber(stats.familyCount, numberFormat)} / ${formatNumber(stats.variantCount, numberFormat)}`}
+          title="Products / Variants"
+          value={`${formatNumber(stats.productCount, numberFormat)} / ${formatNumber(stats.variantCount, numberFormat)}`}
           subtitle="Catalog depth"
           icon={<IconProducts size={22} />}
         />

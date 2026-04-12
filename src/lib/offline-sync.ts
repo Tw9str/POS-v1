@@ -8,6 +8,7 @@ import {
   type LocalCustomer,
   type LocalStaff,
   type LocalSupplier,
+  type LocalPromotion,
   type LocalOrder,
   type LocalOrderItem,
 } from "./offline-db";
@@ -67,7 +68,17 @@ export async function hydrateSuppliers(
   });
 }
 
-/** Hydrate orders from server — merge with local pending orders */
+export async function hydratePromotions(
+  merchantId: string,
+  promotions: LocalPromotion[],
+): Promise<void> {
+  await db.transaction("rw", db.promotions, async () => {
+    await db.promotions.where("merchantId").equals(merchantId).delete();
+    await db.promotions.bulkPut(promotions);
+  });
+}
+
+/** Hydrate orders from server - merge with local pending orders */
 export async function hydrateOrders(
   merchantId: string,
   serverOrders: Record<string, unknown>[],
@@ -343,7 +354,7 @@ export async function syncOrders(merchantId: string): Promise<SyncResult> {
         });
         synced++;
       } else if (res.status === 409) {
-        // Already exists (duplicate localId) — mark as synced
+        // Already exists (duplicate localId) · mark as synced
         await db.orders.update(order.localId, {
           syncStatus: "synced",
           syncError: null,
@@ -381,6 +392,7 @@ export async function pullData(merchantId: string): Promise<boolean> {
       staffRes,
       suppliersRes,
       ordersRes,
+      promosRes,
     ] = await Promise.all([
       fetch("/api/merchant/products"),
       fetch("/api/merchant/categories"),
@@ -388,6 +400,7 @@ export async function pullData(merchantId: string): Promise<boolean> {
       fetch("/api/merchant/staff"),
       fetch("/api/merchant/suppliers"),
       fetch("/api/merchant/orders"),
+      fetch("/api/merchant/promotions"),
     ]);
 
     if (categoriesRes.ok) {
@@ -425,6 +438,7 @@ export async function pullData(merchantId: string): Promise<boolean> {
           categoryId: p.categoryId ?? null,
           categoryName: (p.category as Record<string, unknown>)?.name ?? null,
           categoryColor: (p.category as Record<string, unknown>)?.color ?? null,
+          createdAt: new Date(p.createdAt as string).getTime(),
         })),
       );
     }
@@ -465,6 +479,17 @@ export async function pullData(merchantId: string): Promise<boolean> {
     if (ordersRes.ok) {
       const orders = await ordersRes.json();
       await hydrateOrders(merchantId, orders);
+    }
+
+    if (promosRes.ok) {
+      const promos = await promosRes.json();
+      await hydratePromotions(
+        merchantId,
+        promos.map((p: Record<string, unknown>) => ({
+          ...p,
+          merchantId,
+        })),
+      );
     }
 
     return true;

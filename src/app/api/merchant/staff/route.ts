@@ -30,7 +30,14 @@ export async function GET() {
     const staffList = await prisma.staff.findMany({
       where: { merchantId: merchant.id, isActive: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, role: true, pin: true, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        pin: true,
+        isActive: true,
+        maxDiscountPercent: true,
+      },
     });
 
     return NextResponse.json(staffList);

@@ -55,7 +55,7 @@ export async function POST(req: Request) {
         },
       });
     } catch {
-      // DB unreachable (offline) — use cached merchant data for PIN verification
+      // DB unreachable (offline) · use cached merchant data for PIN verification
       merchant = { ...merchantSession, isActive: true };
     }
 
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
         },
       });
     } catch {
-      // DB unreachable — if client already verified PIN against IndexedDB, trust it
+      // DB unreachable · if client already verified PIN against IndexedDB, trust it
       if (
         parsed.data.offlineVerified &&
         parsed.data.staffId &&

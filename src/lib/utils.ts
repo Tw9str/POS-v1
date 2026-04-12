@@ -184,7 +184,7 @@ export function getProductDisplayName(
   const baseName = name.trim();
   const variant = variantName?.trim();
 
-  return variant ? `${baseName} — ${variant}` : baseName;
+  return variant ? `${baseName} · ${variant}` : baseName;
 }
 
 export function cn(

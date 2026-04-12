@@ -142,7 +142,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
             </div>
           )}
 
-          {/* Manual barcode input — always visible */}
+          {/* Manual barcode input · always visible */}
           <div className="mt-4 flex gap-2">
             <input
               ref={inputRef}

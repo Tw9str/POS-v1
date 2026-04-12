@@ -108,7 +108,7 @@ function migrateOldCookie(token: string): MerchantCacheData | null {
     return null;
   }
 
-  // Return partial data — the DB call in getMerchantFromSession will fill in the rest
+  // Return partial data · the DB call in getMerchantFromSession will fill in the rest
   return {
     id: payload,
     name: "",

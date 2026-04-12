@@ -9,7 +9,7 @@ const productSchema = z.object({
   variantName: z.string().max(120).optional().nullable(),
   sku: z.string().max(50).optional().nullable(),
   barcode: z.string().max(100).optional().nullable(),
-  categoryId: z.string().optional().nullable(),
+  categoryId: z.string().min(1),
   price: z.number().min(0),
   costPrice: z.number().min(0).default(0),
   stock: z.number().int().min(0).default(0),
@@ -69,6 +69,28 @@ export async function POST(req: Request) {
 
     const data = parsed.data;
 
+    // Check duplicate name + variant (case-insensitive)
+    const duplicateVariant = await prisma.product.findFirst({
+      where: {
+        merchantId: merchant.id,
+        name: { equals: data.name, mode: "insensitive" },
+        variantName: data.variantName?.trim()
+          ? { equals: data.variantName.trim(), mode: "insensitive" }
+          : null,
+        isActive: true,
+      },
+    });
+    if (duplicateVariant) {
+      return NextResponse.json(
+        {
+          error: data.variantName
+            ? `A variant "${data.variantName}" already exists for "${data.name}"`
+            : `A product named "${data.name}" already exists`,
+        },
+        { status: 400 },
+      );
+    }
+
     // Check unique SKU
     if (data.sku) {
       const skuExists = await prisma.product.findUnique({
@@ -107,7 +129,7 @@ export async function POST(req: Request) {
         variantName: data.variantName?.trim() || null,
         sku: data.sku || null,
         barcode: data.barcode || null,
-        categoryId: data.categoryId || null,
+        categoryId: data.categoryId,
         price: data.price,
         costPrice: data.costPrice,
         stock: data.stock,
@@ -181,6 +203,29 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
+    // Check duplicate name + variant (case-insensitive)
+    const duplicateVariant = await prisma.product.findFirst({
+      where: {
+        merchantId: merchant.id,
+        name: { equals: parsed.data.name, mode: "insensitive" },
+        variantName: parsed.data.variantName?.trim()
+          ? { equals: parsed.data.variantName.trim(), mode: "insensitive" }
+          : null,
+        isActive: true,
+        NOT: { id: parsed.data.id },
+      },
+    });
+    if (duplicateVariant) {
+      return NextResponse.json(
+        {
+          error: parsed.data.variantName
+            ? `A variant "${parsed.data.variantName}" already exists for "${parsed.data.name}"`
+            : `A product named "${parsed.data.name}" already exists`,
+        },
+        { status: 400 },
+      );
+    }
+
     if (parsed.data.sku) {
       const skuExists = await prisma.product.findFirst({
         where: {
@@ -222,7 +267,7 @@ export async function PUT(req: Request) {
         variantName: parsed.data.variantName?.trim() || null,
         sku: parsed.data.sku || null,
         barcode: parsed.data.barcode || null,
-        categoryId: parsed.data.categoryId || null,
+        categoryId: parsed.data.categoryId,
         price: parsed.data.price,
         costPrice: parsed.data.costPrice,
         stock: parsed.data.stock,

@@ -18,9 +18,10 @@ export interface LocalProduct {
   unit: string;
   trackStock: boolean;
   image: string | null;
-  categoryId: string | null;
+  categoryId: string;
   categoryName: string | null;
   categoryColor: string | null;
+  createdAt: number;
 }
 
 export interface LocalCategory {
@@ -51,6 +52,27 @@ export interface LocalStaff {
   pin: string;
   role: string;
   isActive: boolean;
+  maxDiscountPercent: number;
+}
+
+export interface LocalPromotion {
+  id: string;
+  merchantId: string;
+  code: string;
+  type: "PERCENT" | "FIXED";
+  value: number;
+  scope: "ORDER" | "PRODUCT" | "CATEGORY";
+  scopeTargetId: string | null;
+  minSubtotal: number;
+  maxDiscount: number | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  maxUses: number | null;
+  usedCount: number;
+  maxUsesPerCustomer: number | null;
+  stackable: boolean;
+  isActive: boolean;
+  createdAt: string;
 }
 
 export interface LocalSupplier {
@@ -135,6 +157,7 @@ class ShampayDB extends Dexie {
   customers!: Table<LocalCustomer, string>;
   staff!: Table<LocalStaff, string>;
   suppliers!: Table<LocalSupplier, string>;
+  promotions!: Table<LocalPromotion, string>;
   orders!: Table<LocalOrder, string>;
   mutations!: Table<PendingMutation, string>;
   meta!: Table<LocalMeta, string>;
@@ -158,6 +181,20 @@ class ShampayDB extends Dexie {
       customers: "id, merchantId",
       staff: "id, merchantId",
       suppliers: "id, merchantId",
+      orders:
+        "localId, merchantId, syncStatus, createdAt, [merchantId+syncStatus]",
+      mutations:
+        "id, merchantId, syncStatus, createdAt, [merchantId+syncStatus]",
+      meta: "key",
+    });
+
+    this.version(3).stores({
+      products: "id, merchantId, barcode, categoryId, [merchantId+barcode]",
+      categories: "id, merchantId, sortOrder",
+      customers: "id, merchantId",
+      staff: "id, merchantId",
+      suppliers: "id, merchantId",
+      promotions: "id, merchantId, code, [merchantId+code]",
       orders:
         "localId, merchantId, syncStatus, createdAt, [merchantId+syncStatus]",
       mutations:

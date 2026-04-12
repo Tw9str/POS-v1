@@ -17,7 +17,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Bottom nav offset — used by layout + POS for padding/height */
+/* Bottom nav offset used by layout + POS for padding/height */
 :root {
   --bottom-nav: calc(4.5rem + env(safe-area-inset-bottom, 0px));
 }
@@ -73,11 +73,11 @@ body {
   body * {
     visibility: hidden;
   }
-  #receipt-print,
-  #receipt-print * {
+  .print-receipt,
+  .print-receipt * {
     visibility: visible;
   }
-  #receipt-print {
+  .print-receipt {
     position: absolute;
     left: 0;
     top: 0;

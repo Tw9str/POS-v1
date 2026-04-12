@@ -6,7 +6,7 @@ export function ServiceWorkerRegister() {
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {
-        // SW registration failed — silently ignore
+        // SW registration failed · silently ignore
       });
     }
   }, []);

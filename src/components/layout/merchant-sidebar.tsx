@@ -17,6 +17,7 @@ import {
   IconSettings,
   IconLogout,
   IconKey,
+  IconPromo,
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -43,16 +44,22 @@ const navItems = [
     icon: IconProducts,
   },
   {
+    href: "/dashboard/orders",
+    label: "Orders",
+    short: "Orders",
+    icon: IconOrders,
+  },
+  {
     href: "/dashboard/inventory",
     label: "Inventory",
     short: "Inventory",
     icon: IconInventory,
   },
   {
-    href: "/dashboard/orders",
-    label: "Orders",
-    short: "Orders",
-    icon: IconOrders,
+    href: "/dashboard/promos",
+    label: "Promos",
+    short: "Promos",
+    icon: IconPromo,
   },
   {
     href: "/dashboard/customers",

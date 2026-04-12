@@ -93,10 +93,10 @@ export default async function SubscriptionsPage() {
                       {formatDate(sub.expiresAt)}
                     </td>
                     <td className="px-6 py-4 text-gray-500">
-                      {sub.paidAt ? formatDate(sub.paidAt) : "—"}
+                      {sub.paidAt ? formatDate(sub.paidAt) : "·"}
                     </td>
                     <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate">
-                      {sub.notes || "—"}
+                      {sub.notes || "·"}
                     </td>
                   </tr>
                 );

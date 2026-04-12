@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { CategorySelect } from "@/components/ui/category-select";
+import { CreatableSelect } from "@/components/ui/creatable-select";
 import { Modal } from "@/components/ui/modal";
 import {
   IconPlus,
@@ -84,6 +86,9 @@ export function ProductActions({
     name: string;
   } | null>(null);
 
+  const defaultCategoryId =
+    categories.find((c) => c.name === "Other")?.id ?? categories[0]?.id ?? "";
+
   const emptyForm = {
     name: sourceProduct?.name ?? "",
     variantName: isVariantPrefill ? "" : (sourceProduct?.variantName ?? ""),
@@ -91,14 +96,14 @@ export function ProductActions({
     barcode: isVariantPrefill
       ? ""
       : (sourceProduct?.barcode ?? initialBarcode ?? ""),
-    categoryId: sourceProduct?.categoryId ?? "",
+    categoryId: sourceProduct?.categoryId ?? defaultCategoryId,
     price: sourceProduct ? String(sourceProduct.price ?? "") : "",
     costPrice: sourceProduct ? String(sourceProduct.costPrice ?? "") : "",
     stock: isVariantPrefill
-      ? "0"
+      ? ""
       : sourceProduct
         ? String(sourceProduct.stock ?? 0)
-        : "0",
+        : "",
     lowStockAt: sourceProduct ? String(sourceProduct.lowStockAt ?? 5) : "5",
     unit: sourceProduct?.unit ?? "piece",
     trackStock: sourceProduct?.trackStock ?? true,
@@ -118,14 +123,14 @@ export function ProductActions({
       barcode: isVariantPrefill
         ? ""
         : (sourceProduct?.barcode ?? initialBarcode ?? ""),
-      categoryId: sourceProduct?.categoryId ?? "",
+      categoryId: sourceProduct?.categoryId ?? defaultCategoryId,
       price: sourceProduct ? String(sourceProduct.price ?? "") : "",
       costPrice: sourceProduct ? String(sourceProduct.costPrice ?? "") : "",
       stock: isVariantPrefill
-        ? "0"
+        ? ""
         : sourceProduct
           ? String(sourceProduct.stock ?? 0)
-          : "0",
+          : "",
       lowStockAt: sourceProduct ? String(sourceProduct.lowStockAt ?? 5) : "5",
       unit: sourceProduct?.unit ?? "piece",
       trackStock: sourceProduct?.trackStock ?? true,
@@ -148,7 +153,7 @@ export function ProductActions({
         setForm((prev) => ({ ...prev, sku: data.sku }));
       }
     } catch {
-      // silently fail — user can type SKU manually
+      // silently fail · user can type SKU manually
     } finally {
       setSkuLoading(false);
     }
@@ -183,7 +188,10 @@ export function ProductActions({
           costPrice: parseFloat(form.costPrice || "0"),
           stock: parseInt(form.stock || "0"),
           lowStockAt: parseInt(form.lowStockAt || "5"),
-          categoryId: form.categoryId || null,
+          categoryId:
+            form.categoryId ||
+            categories.find((c) => c.name === "Other")?.id ||
+            categories[0]?.id,
         },
         entity: "product",
         merchantId,
@@ -203,10 +211,10 @@ export function ProductActions({
           variantName: "",
           sku: "",
           barcode: "",
-          categoryId: "",
+          categoryId: defaultCategoryId,
           price: "",
           costPrice: "",
-          stock: "0",
+          stock: "",
           lowStockAt: "5",
           unit: "piece",
           trackStock: true,
@@ -357,19 +365,28 @@ export function ProductActions({
                 Each variant gets its own SKU, barcode, price, and stock.
               </p>
             </div>
-            <Select
-              id="categoryId"
+            <CategorySelect
               label="Category"
               value={form.categoryId}
-              onChange={(e) => {
-                const catId = e.target.value;
+              categories={categories}
+              onChange={(catId) => {
                 setForm({ ...form, categoryId: catId });
                 if (catId && !form.sku) generateSku(catId);
               }}
-              options={[
-                { value: "", label: "No category" },
-                ...categories.map((c) => ({ value: c.id, label: c.name })),
-              ]}
+              onCreateCategory={async (name, color) => {
+                const result = await offlineFetch({
+                  url: "/api/merchant/categories",
+                  method: "POST",
+                  body: { name, color, sortOrder: categories.length },
+                  entity: "category",
+                  merchantId,
+                });
+                if (result.ok && result.data?.id) {
+                  router.refresh();
+                  return result.data.id as string;
+                }
+                return null;
+              }}
             />
             <div>
               <div className="flex items-center gap-2">
@@ -435,14 +452,35 @@ export function ProductActions({
               value={form.costPrice}
               onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
             />
-            <Input
-              id="stock"
-              label={isEdit ? "Stock" : "Initial stock"}
-              type="number"
-              min="0"
-              value={form.stock}
-              onChange={(e) => setForm({ ...form, stock: e.target.value })}
-            />
+            <div>
+              <Input
+                id="stock"
+                label={isEdit ? "Stock" : "Initial stock"}
+                type="number"
+                min="0"
+                placeholder="0"
+                value={form.stock}
+                onChange={(e) => setForm({ ...form, stock: e.target.value })}
+              />
+              {!isEdit && (
+                <div className="flex gap-1.5 mt-2">
+                  {[0, 5, 10, 25, 50, 100].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setForm({ ...form, stock: String(n) })}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${
+                        form.stock === String(n)
+                          ? "bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Input
               id="lowStockAt"
               label="Low stock alert at"
@@ -451,12 +489,22 @@ export function ProductActions({
               value={form.lowStockAt}
               onChange={(e) => setForm({ ...form, lowStockAt: e.target.value })}
             />
-            <Input
-              id="unit"
+            <CreatableSelect
               label="Unit"
-              placeholder="piece, kg, box..."
               value={form.unit}
-              onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              onChange={(val) => setForm({ ...form, unit: val })}
+              placeholder="Select unit..."
+              options={[
+                "piece",
+                "kg",
+                "g",
+                "liter",
+                "ml",
+                "box",
+                "pack",
+                "dozen",
+                "meter",
+              ]}
             />
             <div className="flex items-center gap-2 pt-6">
               <input
@@ -580,20 +628,22 @@ export function ProductActions({
                     >
                       Edit
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                      onClick={() =>
-                        setConfirmCategoryDelete({
-                          id: category.id,
-                          name: category.name,
-                        })
-                      }
-                    >
-                      Delete
-                    </Button>
+                    {category.name !== "Other" && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        onClick={() =>
+                          setConfirmCategoryDelete({
+                            id: category.id,
+                            name: category.name,
+                          })
+                        }
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))
@@ -622,7 +672,7 @@ export function ProductActions({
           }
         }}
         title="Delete category"
-        message={`Delete category "${confirmCategoryDelete?.name}"? Products will be uncategorized.`}
+        message={`Delete category "${confirmCategoryDelete?.name}"? Products will be moved to "Other".`}
         confirmLabel="Delete"
       />
     </>

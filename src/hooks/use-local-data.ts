@@ -8,11 +8,12 @@ import type {
   LocalCustomer,
   LocalStaff,
   LocalSupplier,
+  LocalPromotion,
   LocalOrder,
 } from "@/lib/offline-db";
 
 // ─────────────────────────────────────────────
-// Individual entity hooks — read from IndexedDB
+// Individual entity hooks · read from IndexedDB
 // ─────────────────────────────────────────────
 
 export function useLocalProducts(merchantId: string): LocalProduct[] {
@@ -59,6 +60,15 @@ export function useLocalSuppliers(merchantId: string): LocalSupplier[] {
   return (
     useLiveQuery(
       () => db.suppliers.where("merchantId").equals(merchantId).toArray(),
+      [merchantId],
+    ) ?? []
+  );
+}
+
+export function useLocalPromotions(merchantId: string): LocalPromotion[] {
+  return (
+    useLiveQuery(
+      () => db.promotions.where("merchantId").equals(merchantId).toArray(),
       [merchantId],
     ) ?? []
   );

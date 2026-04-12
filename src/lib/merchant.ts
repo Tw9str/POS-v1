@@ -38,7 +38,7 @@ export async function getMerchantFromSession() {
 
     return merchant;
   } catch {
-    // DB unreachable (offline) — return cached merchant data from cookie
+    // DB unreachable (offline) · return cached merchant data from cookie
     return {
       id: cached.id,
       name: cached.name,

@@ -15,6 +15,6 @@ export default async function HomePage() {
     redirect("/admin");
   }
 
-  // No session — go to store login
+  // No session go to store login
   redirect("/store");
 }

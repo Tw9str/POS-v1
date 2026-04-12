@@ -11,7 +11,7 @@ import {
 } from "./offline-db";
 
 // ─────────────────────────────────────────────
-// offlineFetch — universal offline-aware fetch
+// offlineFetch universal offline-aware fetch
 // ─────────────────────────────────────────────
 
 interface OfflineFetchOptions {
@@ -57,7 +57,7 @@ export async function offlineFetch(
         return { ok: true, data, offline: false, error: null };
       }
 
-      // Server returned an error — don't queue, return the error
+      // Server returned an error · don't queue, return the error
       const errorData = await res
         .json()
         .catch(() => ({ error: "Server error" }));
@@ -69,7 +69,7 @@ export async function offlineFetch(
           (errorData as Record<string, string>).error || `HTTP ${res.status}`,
       };
     } catch {
-      // Network error — fall through to offline path
+      // Network error · fall through to offline path
     }
   }
 
@@ -173,12 +173,28 @@ async function applyToLocalDB(
 
     case "category": {
       if (method === "DELETE") {
+        // Prevent deleting the "Other" fallback category
+        const catToDelete = await db.categories.get(id);
+        if (catToDelete?.name === "Other") {
+          throw new Error("The 'Other' category cannot be deleted");
+        }
+
+        // Find the "Other" fallback category
+        const allCats = await db.categories
+          .where("merchantId")
+          .equals(merchantId)
+          .toArray();
+        const otherCat = allCats.find((c) => c.name === "Other" && c.id !== id);
+
         await db.categories.delete(id);
-        await db.products.where("categoryId").equals(id).modify({
-          categoryId: null,
-          categoryName: null,
-          categoryColor: null,
-        });
+
+        if (otherCat) {
+          await db.products.where("categoryId").equals(id).modify({
+            categoryId: otherCat.id,
+            categoryName: otherCat.name,
+            categoryColor: otherCat.color,
+          });
+        }
         return { id };
       }
 

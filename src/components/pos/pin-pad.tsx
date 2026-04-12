@@ -99,7 +99,7 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
       setError(data.error || "Invalid PIN");
       setPin("");
     } catch {
-      // Network completely down — try offline verification
+      // Network completely down · try offline verification
       if (merchantId) {
         try {
           const localMatch = await verifyPinOffline(merchantId, pin);

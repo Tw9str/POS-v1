@@ -18,6 +18,7 @@ const ROLE_PAGES: Record<StaffRole, string[]> = {
     "/dashboard/reports",
     "/dashboard/analytics",
     "/dashboard/settings",
+    "/dashboard/promos",
   ],
   MANAGER: [
     "/dashboard",
@@ -28,6 +29,7 @@ const ROLE_PAGES: Record<StaffRole, string[]> = {
     "/dashboard/customers",
     "/dashboard/reports",
     "/dashboard/analytics",
+    "/dashboard/promos",
   ],
   CASHIER: ["/dashboard/pos"],
   STOCK_CLERK: [
@@ -46,8 +48,13 @@ const ROLE_APIS: Record<StaffRole, string[]> = {
     "/api/merchant/customers",
     "/api/merchant/suppliers",
     "/api/merchant/inventory",
+    "/api/merchant/promotions",
   ],
-  CASHIER: ["/api/merchant/orders", "/api/merchant/products"],
+  CASHIER: [
+    "/api/merchant/orders",
+    "/api/merchant/products",
+    "/api/merchant/promotions",
+  ],
   STOCK_CLERK: [
     "/api/merchant/products",
     "/api/merchant/suppliers",

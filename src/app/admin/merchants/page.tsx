@@ -112,7 +112,7 @@ export default async function MerchantsPage() {
                   <td className="px-6 py-4 text-gray-500">
                     {m.subscription?.expiresAt
                       ? formatDate(m.subscription.expiresAt)
-                      : "—"}
+                      : "·"}
                   </td>
                   <td className="px-6 py-4 text-gray-500">
                     {formatDate(m.createdAt)}

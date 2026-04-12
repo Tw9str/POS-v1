@@ -19,7 +19,7 @@ export function DashboardGate({
       merchantId={merchantId}
       merchantName={merchantName}
       onSuccess={() => {
-        // Staff auth API sets the cookie — just reload to re-render layout
+        // Staff auth API sets the cookie · just reload to re-render layout
         router.refresh();
       }}
     />

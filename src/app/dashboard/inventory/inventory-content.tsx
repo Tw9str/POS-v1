@@ -12,6 +12,12 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ProductInsightModal } from "@/components/product-insight-modal";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { IconCamera } from "@/components/icons";
+import { SearchInput } from "@/components/ui/search-input";
+import {
+  SortableTh,
+  useSortToggle,
+  type SortDirection,
+} from "@/components/ui/sortable-th";
 import type { LocalProduct } from "@/lib/offline-db";
 import { offlineFetch } from "@/lib/offline-fetch";
 import {
@@ -26,7 +32,7 @@ import {
   buildProductPerformance,
 } from "@/lib/product-performance";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZES = [10, 25, 50, 100];
 
 type InventoryAdjustmentEntry = {
   id: string;
@@ -58,7 +64,12 @@ export function InventoryContent({
   const [search, setSearch] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [movementFilter, setMovementFilter] = useState("all");
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<SortDirection>(null);
+  const toggleSort = useSortToggle();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
   const [selectedProduct, setSelectedProduct] = useState<LocalProduct | null>(
     null,
   );
@@ -135,7 +146,7 @@ export function InventoryContent({
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return tracked.filter((product) => {
+    const result = tracked.filter((product) => {
       const matchesSearch =
         !query ||
         product.name.toLowerCase().includes(query) ||
@@ -154,15 +165,62 @@ export function InventoryContent({
         (statusFilter === "low" && stockState === "low") ||
         (statusFilter === "in" && stockState === "in");
 
-      return matchesSearch && matchesStatus;
-    });
-  }, [tracked, search, statusFilter]);
+      const metric = performance.get(product.id);
+      const movement = metric?.movement || "dead";
+      const matchesMovement =
+        movementFilter === "all" || movement === movementFilter;
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+      return matchesSearch && matchesStatus && matchesMovement;
+    });
+
+    return result.sort((a, b) => {
+      if (!sortKey || !sortDir) return a.stock - b.stock;
+
+      const metricA = performance.get(a.id);
+      const metricB = performance.get(b.id);
+      let cmp = 0;
+
+      switch (sortKey) {
+        case "name":
+          cmp = a.name.localeCompare(b.name);
+          break;
+        case "category":
+          cmp = (a.categoryName || "").localeCompare(b.categoryName || "");
+          break;
+        case "sku":
+          cmp = (a.sku || "").localeCompare(b.sku || "");
+          break;
+        case "stock":
+          cmp = a.stock - b.stock;
+          break;
+        case "lowAlert":
+          cmp = (a.lowStockAt || 5) - (b.lowStockAt || 5);
+          break;
+        case "sold7d":
+          cmp = (metricA?.sold7d ?? 0) - (metricB?.sold7d ?? 0);
+          break;
+        case "net30d":
+          cmp = (metricA?.netRevenue ?? 0) - (metricB?.netRevenue ?? 0);
+          break;
+      }
+
+      return sortDir === "desc" ? -cmp : cmp;
+    });
+  }, [
+    tracked,
+    search,
+    statusFilter,
+    movementFilter,
+    sortKey,
+    sortDir,
+    performance,
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pagedItems = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
   );
 
   async function loadHistory() {
@@ -405,28 +463,21 @@ export function InventoryContent({
         </div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <div className="relative">
-          <Input
-            id="inventory-search"
-            label="Search inventory"
-            placeholder="Product, SKU, barcode, category..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="pr-11"
-          />
-          <button
-            type="button"
-            onClick={() => setScannerOpen(true)}
-            className="absolute right-2 bottom-1.5 p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer"
-            title="Scan barcode"
-          >
-            <IconCamera size={20} />
-          </button>
-        </div>
+      <div className="grid gap-3 lg:grid-cols-4">
+        <SearchInput
+          id="inventory-search"
+          label="Search inventory"
+          placeholder="Product, SKU, barcode, category..."
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          resultCount={filtered.length}
+          totalCount={tracked.length}
+          numberFormat={numberFormat}
+          onScan={() => setScannerOpen(true)}
+        />
         <Select
           id="inventory-status-filter"
           label="Stock status"
@@ -441,6 +492,35 @@ export function InventoryContent({
             { value: "low", label: "Low stock" },
             { value: "out", label: "Out of stock" },
           ]}
+        />
+        <Select
+          id="inventory-movement-filter"
+          label="Movement"
+          value={movementFilter}
+          onChange={(e) => {
+            setMovementFilter(e.target.value);
+            setPage(1);
+          }}
+          options={[
+            { value: "all", label: "All movement" },
+            { value: "fast", label: "Fast movers" },
+            { value: "steady", label: "Steady" },
+            { value: "slow", label: "Slow movers" },
+            { value: "dead", label: "Dead stock" },
+          ]}
+        />
+        <Select
+          id="inventory-page-size"
+          label="Per page"
+          value={String(pageSize)}
+          onChange={(e) => {
+            setPageSize(Number(e.target.value));
+            setPage(1);
+          }}
+          options={PAGE_SIZES.map((s) => ({
+            value: String(s),
+            label: `${s} rows`,
+          }))}
         />
       </div>
 
@@ -457,24 +537,98 @@ export function InventoryContent({
       )}
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+        <div className="px-6 py-4 border-b border-slate-100">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
             Stock Levels
           </h2>
-          <p className="text-sm text-slate-500">
-            {formatNumber(filtered.length, numberFormat)} matching items
-          </p>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-5 py-3.5 text-left font-semibold">Product</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Category</th>
-              <th className="px-5 py-3.5 text-left font-semibold">SKU</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Stock</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Low alert</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Sold 7d</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Net 30d</th>
+              <SortableTh
+                label="Product"
+                sortKey="name"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="Category"
+                sortKey="category"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="SKU"
+                sortKey="sku"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="Stock"
+                sortKey="stock"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="Low alert"
+                sortKey="lowAlert"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="Sold 7d"
+                sortKey="sold7d"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
+              <SortableTh
+                label="Net 30d"
+                sortKey="net30d"
+                currentSort={sortKey}
+                currentDirection={sortDir}
+                onSort={(k) => {
+                  const r = toggleSort(k, sortKey, sortDir);
+                  setSortKey(r.sort);
+                  setSortDir(r.direction);
+                  setPage(1);
+                }}
+              />
               <th className="px-5 py-3.5 text-left font-semibold">Movement</th>
               <th className="px-5 py-3.5 text-left font-semibold">Status</th>
             </tr>
@@ -531,10 +685,10 @@ export function InventoryContent({
                       </button>
                     </td>
                     <td className="px-5 py-4 text-slate-500 capitalize">
-                      {p.categoryName || "—"}
+                      {p.categoryName || "·"}
                     </td>
                     <td className="px-5 py-4 text-slate-500 font-mono text-xs">
-                      {p.sku || "—"}
+                      {p.sku || "·"}
                     </td>
                     <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
                       {formatNumber(p.stock, numberFormat)} {p.unit}
@@ -588,9 +742,9 @@ export function InventoryContent({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
             Showing{" "}
-            {formatNumber((currentPage - 1) * PAGE_SIZE + 1, numberFormat)}-
+            {formatNumber((currentPage - 1) * pageSize + 1, numberFormat)}-
             {formatNumber(
-              Math.min(currentPage * PAGE_SIZE, filtered.length),
+              Math.min(currentPage * pageSize, filtered.length),
               numberFormat,
             )}{" "}
             of {formatNumber(filtered.length, numberFormat)}
@@ -787,8 +941,15 @@ export function InventoryContent({
         <BarcodeScanner
           onScan={(barcode) => {
             setScannerOpen(false);
-            setSearch(barcode);
-            setPage(1);
+            const found = products.find(
+              (p) => p.barcode?.toLowerCase() === barcode.toLowerCase(),
+            );
+            if (found) {
+              setSelectedInsightProduct(found);
+            } else {
+              setSearch(barcode);
+              setPage(1);
+            }
           }}
           onClose={() => setScannerOpen(false)}
         />

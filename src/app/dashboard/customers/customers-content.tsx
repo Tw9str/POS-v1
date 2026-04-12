@@ -268,8 +268,8 @@ export function CustomersContent({
                       </span>
                     </button>
                   </td>
-                  <td className="px-5 py-4 text-slate-500">{c.phone || "—"}</td>
-                  <td className="px-5 py-4 text-slate-500">{c.email || "—"}</td>
+                  <td className="px-5 py-4 text-slate-500">{c.phone || "·"}</td>
+                  <td className="px-5 py-4 text-slate-500">{c.email || "·"}</td>
                   <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
                     {formatCurrency(c.totalSpent, currency, numberFormat)}
                   </td>
@@ -277,7 +277,7 @@ export function CustomersContent({
                     {formatNumber(c.visitCount, numberFormat)}
                   </td>
                   <td className="px-5 py-4 text-slate-400 text-xs max-w-[200px] truncate">
-                    {c.notes || "—"}
+                    {c.notes || "·"}
                   </td>
                 </tr>
               ))

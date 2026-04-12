@@ -18,10 +18,12 @@ import {
   IconWallet,
   IconCamera,
   IconKey,
+  IconPromo,
 } from "@/components/icons";
 import { BackButton } from "@/components/layout/page-header";
 import { useRouter } from "next/navigation";
 import { BarcodeScanner } from "@/components/barcode-scanner";
+import { QRCodeDisplay } from "@/components/qr-code";
 import { useOffline } from "@/hooks/use-offline";
 import { createOfflineOrder, saveOrderLocally } from "@/lib/offline-sync";
 import {
@@ -39,6 +41,7 @@ import {
   useLocalCategories,
   useLocalCustomers,
   useLocalStaff,
+  useLocalPromotions,
 } from "@/hooks/use-local-data";
 
 // ─────────────────────────────────────────────
@@ -77,12 +80,16 @@ interface POSStaff {
   id: string;
   name: string;
   role: string;
+  maxDiscountPercent: number;
 }
 
 interface CartItem {
   product: POSProduct;
   quantity: number;
   discount: number;
+  unitPrice: number | null; // price override (null = use product.price)
+  discountType: "PERCENT" | "FIXED" | null;
+  discountValue: number;
 }
 
 interface POSTerminalProps {
@@ -162,11 +169,12 @@ export function POSTerminal({
   // Offline support
   const offline = useOffline(merchant.id);
 
-  // Read all data from IndexedDB (live — auto-updates)
+  // Read all data from IndexedDB (live - auto-updates)
   const products = useLocalProducts(merchant.id) as POSProduct[];
   const categories = useLocalCategories(merchant.id) as POSCategory[];
   const customers = useLocalCustomers(merchant.id) as POSCustomer[];
   const staff = useLocalStaff(merchant.id) as POSStaff[];
+  const localPromotions = useLocalPromotions(merchant.id);
 
   // State
   const [search, setSearch] = useState("");
@@ -199,7 +207,29 @@ export function POSTerminal({
     customer: POSCustomer | null;
     staff: POSStaff | null;
     date: Date;
+    promoCode: string | null;
+    promoDiscount: number;
   } | null>(null);
+
+  // Promo code state
+  const [promoCode, setPromoCode] = useState("");
+  const [promoApplied, setPromoApplied] = useState<{
+    code: string;
+    id: string;
+    discountAmount: number;
+    type: string;
+    value: number;
+  } | null>(null);
+  const [promoError, setPromoError] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+
+  // Line discount editing
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [lineDiscountInput, setLineDiscountInput] = useState("");
+  const [lineDiscountType, setLineDiscountType] = useState<"PERCENT" | "FIXED">(
+    "PERCENT",
+  );
+  const [linePriceInput, setLinePriceInput] = useState("");
 
   // Focus search on mount
   useEffect(() => {
@@ -242,12 +272,23 @@ export function POSTerminal({
   }, [products, activeCategory, search]);
 
   // Cart calculations
-  const subtotal = cart.reduce(
-    (sum, item) => sum + item.product.price * item.quantity - item.discount,
-    0,
-  );
-  const taxAmount = subtotal * (merchant.taxRate / 100);
-  const total = subtotal + taxAmount;
+  const subtotal = cart.reduce((sum, item) => {
+    const price = item.unitPrice ?? item.product.price;
+    let lineTotal = price * item.quantity;
+    // Apply line discount
+    if (item.discountType === "PERCENT") {
+      lineTotal -= lineTotal * (item.discountValue / 100);
+    } else if (item.discountType === "FIXED") {
+      lineTotal -= item.discountValue;
+    }
+    // Legacy discount field
+    lineTotal -= item.discount;
+    return sum + Math.max(0, lineTotal);
+  }, 0);
+  const promoDiscount = promoApplied?.discountAmount ?? 0;
+  const subtotalAfterPromo = Math.max(0, subtotal - promoDiscount);
+  const taxAmount = subtotalAfterPromo * (merchant.taxRate / 100);
+  const total = subtotalAfterPromo + taxAmount;
 
   // ─────────────────────────────────────────────
   // Cart actions
@@ -268,7 +309,17 @@ export function POSTerminal({
       }
       // Check stock for new item
       if (product.trackStock && product.stock <= 0) return prev;
-      return [...prev, { product, quantity: 1, discount: 0 }];
+      return [
+        ...prev,
+        {
+          product,
+          quantity: 1,
+          discount: 0,
+          unitPrice: null,
+          discountType: null,
+          discountValue: 0,
+        },
+      ];
     });
   }, []);
 
@@ -295,6 +346,10 @@ export function POSTerminal({
     setCart([]);
     setSelectedCustomer(null);
     setOrderNotes("");
+    setPromoCode("");
+    setPromoApplied(null);
+    setPromoError("");
+    setEditingLineId(null);
   }, []);
 
   // Barcode scan handler (search field → enter = add first match)
@@ -322,6 +377,206 @@ export function POSTerminal({
   );
 
   // ─────────────────────────────────────────────
+  // Line discount / price override
+  // ─────────────────────────────────────────────
+
+  const maxDiscount = useMemo(() => {
+    if (staffRole === "OWNER" || staffRole === "MANAGER") return 100;
+    const currentStaffData = staff.find((s) => s.id === currentStaffId) as
+      | (POSStaff & { maxDiscountPercent?: number })
+      | undefined;
+    return currentStaffData?.maxDiscountPercent ?? 0;
+  }, [staffRole, staff, currentStaffId]);
+
+  const openLineEdit = (productId: string) => {
+    const item = cart.find((c) => c.product.id === productId);
+    if (!item) return;
+    setEditingLineId(productId);
+    setLineDiscountType(item.discountType ?? "PERCENT");
+    setLineDiscountInput(
+      item.discountValue > 0 ? String(item.discountValue) : "",
+    );
+    setLinePriceInput(item.unitPrice !== null ? String(item.unitPrice) : "");
+  };
+
+  const applyLineDiscount = () => {
+    if (!editingLineId) return;
+    const discVal = parseFloat(lineDiscountInput) || 0;
+    const priceOverride =
+      linePriceInput !== "" ? parseFloat(linePriceInput) : null;
+
+    // Enforce max discount for cashiers
+    if (lineDiscountType === "PERCENT" && discVal > maxDiscount) {
+      return; // blocked
+    }
+    if (priceOverride !== null && priceOverride >= 0) {
+      const item = cart.find((c) => c.product.id === editingLineId);
+      if (item) {
+        const discountPct =
+          ((item.product.price - priceOverride) / item.product.price) * 100;
+        if (discountPct > maxDiscount) return; // blocked
+      }
+    }
+
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.product.id !== editingLineId) return item;
+        return {
+          ...item,
+          unitPrice: priceOverride,
+          discountType: discVal > 0 ? lineDiscountType : null,
+          discountValue: discVal,
+        };
+      }),
+    );
+    setEditingLineId(null);
+    setLineDiscountInput("");
+    setLinePriceInput("");
+  };
+
+  // ─────────────────────────────────────────────
+  // Promo code
+  // ─────────────────────────────────────────────
+
+  const validatePromo = async () => {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError("");
+
+    const code = promoCode.trim().toUpperCase();
+
+    // Try online first, fall back to local
+    try {
+      if (navigator.onLine) {
+        const res = await fetch("/api/merchant/promotions/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code,
+            subtotal,
+            items: cart.map((item) => ({
+              productId: item.product.id,
+              categoryId: item.product.categoryId,
+              quantity: item.quantity,
+              lineTotal: (item.unitPrice ?? item.product.price) * item.quantity,
+            })),
+          }),
+        });
+        const data = await res.json();
+        if (data.valid) {
+          setPromoApplied({
+            code: data.promo.code,
+            id: data.promo.id,
+            discountAmount: data.discountAmount,
+            type: data.promo.type,
+            value: data.promo.value,
+          });
+          setPromoCode("");
+          setPromoLoading(false);
+          return;
+        } else {
+          setPromoError(data.reason || "Invalid promo code");
+          setPromoLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // Network error — fall through to offline
+    }
+
+    // Offline validation using locally cached promotions
+    const promo = localPromotions.find((p) => p.code === code);
+    if (!promo) {
+      setPromoError("Unknown promo code");
+      setPromoLoading(false);
+      return;
+    }
+    if (!promo.isActive) {
+      setPromoError("This promo is inactive");
+      setPromoLoading(false);
+      return;
+    }
+    const now = new Date();
+    if (promo.startsAt && now < new Date(promo.startsAt)) {
+      setPromoError("This promo hasn't started yet");
+      setPromoLoading(false);
+      return;
+    }
+    if (promo.endsAt && now > new Date(promo.endsAt)) {
+      setPromoError("This promo has expired");
+      setPromoLoading(false);
+      return;
+    }
+    if (promo.maxUses && promo.usedCount >= promo.maxUses) {
+      setPromoError("This promo has been fully used");
+      setPromoLoading(false);
+      return;
+    }
+    if (promo.minSubtotal > 0 && subtotal < promo.minSubtotal) {
+      setPromoError(
+        `Minimum subtotal: ${formatMoney(promo.minSubtotal, merchant.currency, merchant.numberFormat)}`,
+      );
+      setPromoLoading(false);
+      return;
+    }
+
+    // Calculate discount
+    let discountAmount = 0;
+    if (promo.scope === "ORDER") {
+      discountAmount =
+        promo.type === "PERCENT" ? subtotal * (promo.value / 100) : promo.value;
+    } else if (promo.scope === "PRODUCT" && promo.scopeTargetId) {
+      const matching = cart.filter((c) => c.product.id === promo.scopeTargetId);
+      const matchTotal = matching.reduce(
+        (s, c) => s + (c.unitPrice ?? c.product.price) * c.quantity,
+        0,
+      );
+      discountAmount =
+        promo.type === "PERCENT"
+          ? matchTotal * (promo.value / 100)
+          : promo.value;
+    } else if (promo.scope === "CATEGORY" && promo.scopeTargetId) {
+      const matching = cart.filter(
+        (c) => c.product.categoryId === promo.scopeTargetId,
+      );
+      const matchTotal = matching.reduce(
+        (s, c) => s + (c.unitPrice ?? c.product.price) * c.quantity,
+        0,
+      );
+      discountAmount =
+        promo.type === "PERCENT"
+          ? matchTotal * (promo.value / 100)
+          : promo.value;
+    }
+
+    if (promo.maxDiscount && discountAmount > promo.maxDiscount) {
+      discountAmount = promo.maxDiscount;
+    }
+    discountAmount = Math.min(discountAmount, subtotal);
+
+    if (discountAmount <= 0) {
+      setPromoError("No applicable items in cart");
+      setPromoLoading(false);
+      return;
+    }
+
+    setPromoApplied({
+      code: promo.code,
+      id: promo.id,
+      discountAmount,
+      type: promo.type,
+      value: promo.value,
+    });
+    setPromoCode("");
+    setPromoLoading(false);
+  };
+
+  const removePromo = () => {
+    setPromoApplied(null);
+    setPromoError("");
+  };
+
+  // ─────────────────────────────────────────────
   // Checkout
   // ─────────────────────────────────────────────
 
@@ -340,6 +595,10 @@ export function POSTerminal({
       costPrice: item.product.costPrice,
       quantity: item.quantity,
       discount: item.discount,
+      originalPrice: item.unitPrice !== null ? item.product.price : undefined,
+      unitPrice: item.unitPrice ?? item.product.price,
+      discountType: item.discountType ?? undefined,
+      discountValue: item.discountValue,
     }));
 
     const finishOrder = (orderNumber: string) => {
@@ -355,6 +614,8 @@ export function POSTerminal({
         customer: selectedCustomer,
         staff: selectedStaff,
         date: new Date(),
+        promoCode: promoApplied?.code ?? null,
+        promoDiscount,
       });
 
       setCheckoutOpen(false);
@@ -380,6 +641,9 @@ export function POSTerminal({
             subtotal,
             taxAmount,
             total,
+            promoCode: promoApplied?.code || null,
+            promoId: promoApplied?.id || null,
+            promoDiscount,
           }),
         });
 
@@ -727,72 +991,255 @@ export function POSTerminal({
             </div>
           ) : (
             <div className="divide-y divide-slate-50">
-              {cart.map((item) => (
-                <div key={item.product.id} className="px-5 py-3.5 flex gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 capitalize truncate">
-                      {getProductDisplayName(
-                        item.product.name,
-                        item.product.variantName,
-                      )}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {formatMoney(
-                        item.product.price,
-                        merchant.currency,
-                        merchant.numberFormat,
-                      )}{" "}
-                      each
-                    </p>
-                  </div>
+              {cart.map((item) => {
+                const effectivePrice = item.unitPrice ?? item.product.price;
+                let lineTotal = effectivePrice * item.quantity;
+                let lineDiscountAmt = 0;
+                if (item.discountType === "PERCENT") {
+                  lineDiscountAmt = lineTotal * (item.discountValue / 100);
+                } else if (item.discountType === "FIXED") {
+                  lineDiscountAmt = item.discountValue;
+                }
+                lineDiscountAmt += item.discount;
+                lineTotal = Math.max(0, lineTotal - lineDiscountAmt);
+                const hasDiscount =
+                  item.unitPrice !== null || item.discountValue > 0;
 
-                  {/* Quantity controls */}
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => updateQuantity(item.product.id, -1)}
-                      className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors active:scale-95 cursor-pointer"
-                    >
-                      <IconMinus size={14} />
-                    </button>
-                    <span className="w-8 text-center text-sm font-bold text-slate-900 tabular-nums">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => updateQuantity(item.product.id, 1)}
-                      className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors active:scale-95 cursor-pointer"
-                      disabled={
-                        item.product.trackStock &&
-                        item.quantity >= item.product.stock
-                      }
-                    >
-                      <IconPlus size={14} />
-                    </button>
-                  </div>
+                return (
+                  <div key={item.product.id}>
+                    <div className="px-5 py-3.5 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => openLineEdit(item.product.id)}
+                        className="flex-1 min-w-0 text-left cursor-pointer"
+                        title="Edit price / discount"
+                      >
+                        <p className="text-sm font-semibold text-slate-800 capitalize truncate">
+                          {getProductDisplayName(
+                            item.product.name,
+                            item.product.variantName,
+                          )}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {item.unitPrice !== null ? (
+                            <>
+                              <span className="text-xs text-slate-400 line-through">
+                                {formatMoney(
+                                  item.product.price,
+                                  merchant.currency,
+                                  merchant.numberFormat,
+                                )}
+                              </span>
+                              <span className="text-xs text-indigo-600 font-semibold">
+                                {formatMoney(
+                                  item.unitPrice,
+                                  merchant.currency,
+                                  merchant.numberFormat,
+                                )}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              {formatMoney(
+                                item.product.price,
+                                merchant.currency,
+                                merchant.numberFormat,
+                              )}{" "}
+                              each
+                            </span>
+                          )}
+                          {item.discountValue > 0 && (
+                            <Badge
+                              variant="success"
+                              className="text-[10px] py-0 px-1.5"
+                            >
+                              {item.discountType === "PERCENT"
+                                ? `-${formatNumber(item.discountValue, merchant.numberFormat)}%`
+                                : `-${formatMoney(item.discountValue, merchant.currency, merchant.numberFormat)}`}
+                            </Badge>
+                          )}
+                        </div>
+                      </button>
 
-                  {/* Line total & remove */}
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-sm font-bold text-slate-900 tabular-nums">
-                      {formatMoney(
-                        item.product.price * item.quantity,
-                        merchant.currency,
-                        merchant.numberFormat,
-                      )}
-                    </span>
-                    <button
-                      onClick={() => removeFromCart(item.product.id)}
-                      className="text-red-400 hover:text-red-600 p-0.5 transition-colors active:scale-90 cursor-pointer"
-                    >
-                      <IconTrash size={14} />
-                    </button>
+                      {/* Quantity controls */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => updateQuantity(item.product.id, -1)}
+                          className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors active:scale-95 cursor-pointer"
+                        >
+                          <IconMinus size={14} />
+                        </button>
+                        <span className="w-8 text-center text-sm font-bold text-slate-900 tabular-nums">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(item.product.id, 1)}
+                          className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors active:scale-95 cursor-pointer"
+                          disabled={
+                            item.product.trackStock &&
+                            item.quantity >= item.product.stock
+                          }
+                        >
+                          <IconPlus size={14} />
+                        </button>
+                      </div>
+
+                      {/* Line total & remove */}
+                      <div className="flex flex-col items-end gap-1">
+                        <span
+                          className={`text-sm font-bold tabular-nums ${hasDiscount ? "text-emerald-600" : "text-slate-900"}`}
+                        >
+                          {formatMoney(
+                            lineTotal,
+                            merchant.currency,
+                            merchant.numberFormat,
+                          )}
+                        </span>
+                        <button
+                          onClick={() => removeFromCart(item.product.id)}
+                          className="text-red-400 hover:text-red-600 p-0.5 transition-colors active:scale-90 cursor-pointer"
+                        >
+                          <IconTrash size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Inline line discount editor */}
+                    {editingLineId === item.product.id && (
+                      <div className="px-5 pb-3 space-y-2 bg-slate-50/80 border-t border-dashed border-slate-200">
+                        <p className="text-xs font-semibold text-slate-500 pt-2">
+                          Edit Price / Discount
+                          {maxDiscount < 100 && (
+                            <span className="text-amber-500 ml-1">
+                              (max {maxDiscount}%)
+                            </span>
+                          )}
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            placeholder="Custom price"
+                            value={linePriceInput}
+                            onChange={(e) => setLinePriceInput(e.target.value)}
+                            min="0"
+                            step="0.01"
+                            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                          />
+                          <button
+                            onClick={() => setLinePriceInput("")}
+                            className="text-xs text-slate-400 hover:text-slate-600 px-2 cursor-pointer"
+                            title="Reset price"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <select
+                            value={lineDiscountType}
+                            onChange={(e) =>
+                              setLineDiscountType(
+                                e.target.value as "PERCENT" | "FIXED",
+                              )
+                            }
+                            className="rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                          >
+                            <option value="PERCENT">%</option>
+                            <option value="FIXED">{merchant.currency}</option>
+                          </select>
+                          <input
+                            type="number"
+                            placeholder="Discount"
+                            value={lineDiscountInput}
+                            onChange={(e) =>
+                              setLineDiscountInput(e.target.value)
+                            }
+                            min="0"
+                            max={
+                              lineDiscountType === "PERCENT" ? "100" : undefined
+                            }
+                            step={lineDiscountType === "PERCENT" ? "1" : "0.01"}
+                            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingLineId(null)}
+                            className="flex-1 py-2 text-xs font-semibold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 active:scale-95 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={applyLineDiscount}
+                            className="flex-1 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 active:scale-95 cursor-pointer"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Cart totals & checkout */}
         <div className="order-2 lg:order-0 sticky bottom-(--bottom-nav) lg:bottom-0 z-10 border-t border-slate-200/80 bg-white p-5 lg:pb-5 space-y-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
+          {/* Promo code input */}
+          {cart.length > 0 && !promoApplied && (
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <IconPromo
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Promo code"
+                  value={promoCode}
+                  onChange={(e) => {
+                    setPromoCode(e.target.value.toUpperCase());
+                    setPromoError("");
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && validatePromo()}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border-2 border-dashed border-slate-200 text-sm font-mono font-semibold text-slate-700 placeholder:text-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <button
+                onClick={validatePromo}
+                disabled={!promoCode.trim() || promoLoading}
+                className="px-4 py-2 rounded-xl bg-indigo-50 text-indigo-600 text-sm font-semibold hover:bg-indigo-100 active:scale-95 disabled:opacity-40 cursor-pointer transition-all"
+              >
+                {promoLoading ? "..." : "Apply"}
+              </button>
+            </div>
+          )}
+          {promoError && (
+            <p className="text-xs text-red-500 font-medium">{promoError}</p>
+          )}
+          {promoApplied && (
+            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+              <div className="flex items-center gap-2">
+                <IconPromo size={16} className="text-emerald-600" />
+                <span className="text-sm font-mono font-bold text-emerald-700">
+                  {promoApplied.code}
+                </span>
+                <Badge variant="success" className="text-[10px]">
+                  {promoApplied.type === "PERCENT"
+                    ? `-${formatNumber(promoApplied.value, merchant.numberFormat)}%`
+                    : `-${formatMoney(promoApplied.value, merchant.currency, merchant.numberFormat)}`}
+                </Badge>
+              </div>
+              <button
+                onClick={removePromo}
+                className="text-red-400 hover:text-red-600 p-1 cursor-pointer"
+              >
+                <IconX size={14} />
+              </button>
+            </div>
+          )}
+
           <div className="space-y-1.5 text-sm">
             <div className="flex justify-between text-slate-500">
               <span>Subtotal</span>
@@ -804,6 +1251,19 @@ export function POSTerminal({
                 )}
               </span>
             </div>
+            {promoDiscount > 0 && (
+              <div className="flex justify-between text-emerald-600">
+                <span>Promo ({promoApplied?.code})</span>
+                <span className="tabular-nums font-semibold">
+                  -
+                  {formatMoney(
+                    promoDiscount,
+                    merchant.currency,
+                    merchant.numberFormat,
+                  )}
+                </span>
+              </div>
+            )}
             {merchant.taxRate > 0 && (
               <div className="flex justify-between text-slate-500">
                 <span>Tax ({merchant.taxRate}%)</span>
@@ -894,6 +1354,19 @@ export function POSTerminal({
                 )}
               </span>
             </div>
+            {promoDiscount > 0 && (
+              <div className="flex justify-between text-emerald-600">
+                <span>Promo ({promoApplied?.code})</span>
+                <span className="font-semibold tabular-nums">
+                  -
+                  {formatMoney(
+                    promoDiscount,
+                    merchant.currency,
+                    merchant.numberFormat,
+                  )}
+                </span>
+              </div>
+            )}
             {merchant.taxRate > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">
@@ -1138,24 +1611,73 @@ export function POSTerminal({
               {lastOrder.customer && <p>Customer: {lastOrder.customer.name}</p>}
               <p>─────────────────</p>
 
-              {lastOrder.items.map((item, i) => (
-                <div key={i} className="flex justify-between py-0.5">
-                  <span className="truncate mr-2">
-                    {item.quantity}x{" "}
-                    {getProductDisplayName(
-                      item.product.name,
-                      item.product.variantName,
+              {lastOrder.items.map((item, i) => {
+                const effectivePrice = item.unitPrice ?? item.product.price;
+                let lineTotal = effectivePrice * item.quantity;
+                let lineDisc = 0;
+                if (item.discountType === "PERCENT") {
+                  lineDisc = lineTotal * (item.discountValue / 100);
+                } else if (item.discountType === "FIXED") {
+                  lineDisc = item.discountValue;
+                }
+                lineDisc += item.discount;
+                lineTotal = Math.max(0, lineTotal - lineDisc);
+
+                return (
+                  <div key={i}>
+                    <div className="flex justify-between py-0.5">
+                      <span className="truncate mr-2">
+                        {item.quantity}x{" "}
+                        {getProductDisplayName(
+                          item.product.name,
+                          item.product.variantName,
+                        )}
+                      </span>
+                      <span className="whitespace-nowrap tabular-nums">
+                        {formatMoney(
+                          lineTotal,
+                          merchant.currency,
+                          merchant.numberFormat,
+                        )}
+                      </span>
+                    </div>
+                    {(item.unitPrice !== null || item.discountValue > 0) && (
+                      <div className="text-[10px] text-slate-400 pl-4">
+                        {item.unitPrice !== null && (
+                          <span>
+                            <span className="line-through">
+                              {formatMoney(
+                                item.product.price,
+                                merchant.currency,
+                                merchant.numberFormat,
+                              )}
+                            </span>
+                            {" → "}
+                            {formatMoney(
+                              item.unitPrice,
+                              merchant.currency,
+                              merchant.numberFormat,
+                            )}
+                          </span>
+                        )}
+                        {item.discountValue > 0 && (
+                          <span>
+                            {item.unitPrice !== null ? " · " : ""}
+                            Disc:{" "}
+                            {item.discountType === "PERCENT"
+                              ? `${item.discountValue}%`
+                              : formatMoney(
+                                  item.discountValue,
+                                  merchant.currency,
+                                  merchant.numberFormat,
+                                )}
+                          </span>
+                        )}
+                      </div>
                     )}
-                  </span>
-                  <span className="whitespace-nowrap tabular-nums">
-                    {formatMoney(
-                      item.product.price * item.quantity,
-                      merchant.currency,
-                      merchant.numberFormat,
-                    )}
-                  </span>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
 
               <p className="mt-1">─────────────────</p>
               <div className="flex justify-between">
@@ -1168,6 +1690,19 @@ export function POSTerminal({
                   )}
                 </span>
               </div>
+              {lastOrder.promoDiscount > 0 && (
+                <div className="flex justify-between">
+                  <span>Promo ({lastOrder.promoCode})</span>
+                  <span className="tabular-nums">
+                    -
+                    {formatMoney(
+                      lastOrder.promoDiscount,
+                      merchant.currency,
+                      merchant.numberFormat,
+                    )}
+                  </span>
+                </div>
+              )}
               {lastOrder.tax > 0 && (
                 <div className="flex justify-between">
                   <span>Tax</span>
@@ -1217,6 +1752,9 @@ export function POSTerminal({
 
               <div className="text-center mt-3">
                 <p>─────────────────</p>
+                <div className="flex justify-center mt-2">
+                  <QRCodeDisplay value={lastOrder.orderNumber} size={80} />
+                </div>
                 <p className="mt-1">Thank you!</p>
               </div>
             </div>

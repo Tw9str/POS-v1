@@ -78,6 +78,16 @@ export async function POST(req: Request) {
       },
     });
 
+    // Auto-create default "Other" category
+    await prisma.category.create({
+      data: {
+        merchantId: merchant.id,
+        name: "Other",
+        color: "#6b7280",
+        sortOrder: 999,
+      },
+    });
+
     await prisma.activityLog
       .create({
         data: {

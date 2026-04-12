@@ -44,7 +44,7 @@ export default async function ActivityPage() {
                     <span className="text-sm text-gray-600">{log.entity}</span>
                     {log.merchant && (
                       <>
-                        <span className="text-sm text-gray-400">—</span>
+                        <span className="text-sm text-gray-400">·</span>
                         <span className="text-sm text-gray-500">
                           {log.merchant.name}
                         </span>

@@ -54,7 +54,7 @@ function getOrderCost(order: Pick<LocalOrder, "items">): number {
 }
 
 function getBaseProductName(name: string): string {
-  return name.split(" — ")[0]?.trim() || name;
+  return name.split(" · ")[0]?.trim() || name;
 }
 
 function buildSnapshot(list: LocalOrder[]): MetricSnapshot {
@@ -150,7 +150,7 @@ export function ReportsContent({
       .map(([date, dayOrders]) => ({ date, ...buildSnapshot(dayOrders) }))
       .sort((a, b) => b.date.localeCompare(a.date));
 
-    const familySales = new Map<
+    const productSales = new Map<
       string,
       {
         name: string;
@@ -179,18 +179,18 @@ export function ReportsContent({
         const itemNetRevenue = itemGrossRevenue * (1 - refundRatio);
         const itemNetCost = item.costPrice * item.quantity * (1 - refundRatio);
         const itemProfit = itemNetRevenue - itemNetCost;
-        const familyName = getBaseProductName(item.name);
+        const productName = getBaseProductName(item.name);
 
-        const familyEntry = familySales.get(familyName) ?? {
-          name: familyName,
+        const productEntry = productSales.get(productName) ?? {
+          name: productName,
           quantity: 0,
           netRevenue: 0,
           grossProfit: 0,
         };
-        familyEntry.quantity += item.quantity;
-        familyEntry.netRevenue += itemNetRevenue;
-        familyEntry.grossProfit += itemProfit;
-        familySales.set(familyName, familyEntry);
+        productEntry.quantity += item.quantity;
+        productEntry.netRevenue += itemNetRevenue;
+        productEntry.grossProfit += itemProfit;
+        productSales.set(productName, productEntry);
 
         const variantEntry = variantSales.get(item.name) ?? {
           name: item.name,
@@ -205,7 +205,7 @@ export function ReportsContent({
       }
     }
 
-    const productFamilies = new Set(
+    const uniqueProducts = new Set(
       products
         .map((product) => product.name.trim().toLowerCase())
         .filter(Boolean),
@@ -219,13 +219,13 @@ export function ReportsContent({
       refundedOrders,
       voidedOrders,
       dailyPerformance,
-      topFamilies: Array.from(familySales.values())
+      topProducts: Array.from(productSales.values())
         .sort((a, b) => b.netRevenue - a.netRevenue)
         .slice(0, 8),
       topVariants: Array.from(variantSales.values())
         .sort((a, b) => b.netRevenue - a.netRevenue)
         .slice(0, 8),
-      familyCount: productFamilies.size,
+      productCount: uniqueProducts.size,
       variantCount: products.length,
       lowStockCount: products.filter(
         (product) =>
@@ -389,18 +389,18 @@ export function ReportsContent({
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Top Product Families
+              Top Products
             </h2>
           </div>
           <div className="divide-y divide-slate-50">
-            {stats.topFamilies.length === 0 ? (
+            {stats.topProducts.length === 0 ? (
               <div className="px-6 py-10 text-center text-slate-400 text-sm">
-                No product-family data yet
+                No product data yet
               </div>
             ) : (
-              stats.topFamilies.map((family, index) => (
+              stats.topProducts.map((product, index) => (
                 <div
-                  key={family.name}
+                  key={product.name}
                   className="px-6 py-3.5 flex items-center justify-between gap-4"
                 >
                   <div className="flex items-center gap-3">
@@ -409,12 +409,12 @@ export function ReportsContent({
                     </span>
                     <div>
                       <p className="text-sm font-semibold text-slate-800 capitalize">
-                        {family.name}
+                        {product.name}
                       </p>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        {formatNumber(family.quantity, numberFormat)} units ·{" "}
+                        {formatNumber(product.quantity, numberFormat)} units ·{" "}
                         {formatCurrency(
-                          family.grossProfit,
+                          product.grossProfit,
                           currency,
                           numberFormat,
                         )}{" "}
@@ -423,7 +423,7 @@ export function ReportsContent({
                     </div>
                   </div>
                   <span className="text-sm font-bold text-slate-900 tabular-nums">
-                    {formatCurrency(family.netRevenue, currency, numberFormat)}
+                    {formatCurrency(product.netRevenue, currency, numberFormat)}
                   </span>
                 </div>
               ))
@@ -484,13 +484,13 @@ export function ReportsContent({
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
             <div>
-              <p className="text-sm text-slate-500">Product Families</p>
+              <p className="text-sm text-slate-500">Products</p>
               <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-                {formatNumber(stats.familyCount, numberFormat)}
+                {formatNumber(stats.productCount, numberFormat)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">Sellable Variants</p>
+              <p className="text-sm text-slate-500">Variants</p>
               <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
                 {formatNumber(stats.variantCount, numberFormat)}
               </p>

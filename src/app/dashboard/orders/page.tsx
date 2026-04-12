@@ -9,6 +9,9 @@ export default async function OrdersPage() {
   return (
     <OrdersContent
       merchantId={merchant.id}
+      merchantName={merchant.name}
+      merchantAddress={merchant.address}
+      merchantPhone={merchant.phone}
       currency={merchant.currency}
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"

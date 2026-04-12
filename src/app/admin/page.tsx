@@ -163,7 +163,7 @@ export default async function AdminDashboardPage() {
                         ? new Date(
                             m.subscription.expiresAt,
                           ).toLocaleDateString()
-                        : "—"}
+                        : "·"}
                     </td>
                   </tr>
                 ))
