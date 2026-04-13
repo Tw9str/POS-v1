@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/db";
-import { StatCard } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/Card";
 import {
   IconMerchants,
   IconMoney,
   IconActivity,
   IconSubscription,
-} from "@/components/icons";
+} from "@/components/Icons";
 import { formatCurrency } from "@/lib/utils";
 
 export default async function AdminDashboardPage() {

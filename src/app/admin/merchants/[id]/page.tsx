@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
 import { formatDate, formatCurrency } from "@/lib/utils";
-import { MerchantActions } from "./actions";
+import { MerchantActions } from "./Actions";
 
 export default async function MerchantDetailPage({
   params,

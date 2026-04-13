@@ -1,7 +1,7 @@
 import { requireMerchant } from "@/lib/merchant";
 import { requireStaffForPage } from "@/lib/staff";
-import { SettingsForm } from "./settings-form";
-import { PageHeader } from "@/components/layout/page-header";
+import { SettingsForm } from "./SettingsForm";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { t, type Locale } from "@/lib/i18n";
 
 export default async function SettingsPage() {
@@ -21,10 +21,12 @@ export default async function SettingsPage() {
           phone: merchant.phone || "",
           address: merchant.address || "",
           currency: merchant.currency,
+          currencyFormat: merchant.currencyFormat ?? "symbol",
           numberFormat: merchant.numberFormat ?? "western",
           dateFormat: merchant.dateFormat ?? "long",
           language: merchant.language ?? "en",
           taxRate: merchant.taxRate,
+          shamcashId: merchant.shamcashId ?? "",
         }}
       />
     </div>

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { setMerchantSession } from "@/lib/merchant-auth";
+import { setMerchantSession } from "@/lib/merchantAuth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -28,12 +28,15 @@ export async function POST(req: Request) {
         name: true,
         isActive: true,
         currency: true,
+        currencyFormat: true,
         taxRate: true,
         phone: true,
         address: true,
         numberFormat: true,
         dateFormat: true,
         language: true,
+        shamcashId: true,
+        onboardingDone: true,
       },
     });
 
@@ -57,12 +60,15 @@ export async function POST(req: Request) {
       id: merchant.id,
       name: merchant.name,
       currency: merchant.currency,
+      currencyFormat: merchant.currencyFormat ?? "symbol",
       taxRate: merchant.taxRate,
       phone: merchant.phone,
       address: merchant.address,
       numberFormat: merchant.numberFormat ?? "western",
       dateFormat: merchant.dateFormat ?? "long",
       language: merchant.language ?? "en",
+      shamcashId: merchant.shamcashId ?? null,
+      onboardingDone: merchant.onboardingDone ?? false,
     });
 
     return NextResponse.json({

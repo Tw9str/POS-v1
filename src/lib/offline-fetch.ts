@@ -8,7 +8,7 @@ import {
   type LocalStaff,
   type LocalSupplier,
   type LocalOrder,
-} from "./offline-db";
+} from "./offlineDb";
 
 // ─────────────────────────────────────────────
 // offlineFetch universal offline-aware fetch

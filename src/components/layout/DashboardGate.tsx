@@ -1,0 +1,30 @@
+"use client";
+
+import { PinPad } from "@/components/pos/PinPad";
+import { useRouter } from "next/navigation";
+
+interface DashboardGateProps {
+  merchantId: string;
+  merchantName: string;
+  language?: string;
+}
+
+export function DashboardGate({
+  merchantId,
+  merchantName,
+  language,
+}: DashboardGateProps) {
+  const router = useRouter();
+
+  return (
+    <PinPad
+      merchantId={merchantId}
+      merchantName={merchantName}
+      language={language}
+      onSuccess={() => {
+        // Staff auth API sets the cookie · just reload to re-render layout
+        router.refresh();
+      }}
+    />
+  );
+}

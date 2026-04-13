@@ -1,7 +1,7 @@
 import { requireMerchant } from "@/lib/merchant";
 import { requireStaffForPage } from "@/lib/staff";
-import { getStaffSession } from "@/lib/staff-auth";
-import { POSTerminal } from "./pos-terminal";
+import { getStaffSession } from "@/lib/staffAuth";
+import { POSTerminal } from "./PosTerminal";
 
 export default async function POSPage() {
   const merchant = await requireMerchant();
@@ -18,6 +18,10 @@ export default async function POSPage() {
         id: merchant.id,
         name: merchant.name,
         currency: merchant.currency,
+        currencyFormat: (merchant.currencyFormat ?? "symbol") as
+          | "symbol"
+          | "code"
+          | "none",
         numberFormat: (merchant.numberFormat ?? "western") as
           | "western"
           | "eastern",
@@ -30,6 +34,7 @@ export default async function POSPage() {
         taxRate: merchant.taxRate,
         phone: merchant.phone ?? null,
         address: merchant.address ?? null,
+        shamcashId: merchant.shamcashId ?? null,
       }}
     />
   );

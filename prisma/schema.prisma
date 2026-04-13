@@ -153,12 +153,15 @@ model Merchant {
   phone        String?
   address      String?
   logo         String?
-  currency     String   @default("SYP")
+  currency     String   @default("USD")
+  currencyFormat String @default("symbol") @map("currency_format")
   numberFormat String   @default("western") @map("number_format")
   dateFormat   String   @default("long") @map("date_format")
   language     String   @default("en")
   timezone     String   @default("Asia/Damascus")
+  shamcashId   String?  @map("shamcash_id")
   taxRate      Float    @default(0)
+  onboardingDone Boolean @default(false) @map("onboarding_done")
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

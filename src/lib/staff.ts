@@ -1,4 +1,4 @@
-import { getStaffSession } from "@/lib/staff-auth";
+import { getStaffSession } from "@/lib/staffAuth";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 

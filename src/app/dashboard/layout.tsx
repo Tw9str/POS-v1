@@ -1,10 +1,10 @@
 import { getMerchantFromSession } from "@/lib/merchant";
 import { redirect } from "next/navigation";
-import { MerchantSidebar } from "@/components/layout/merchant-sidebar";
-import { getStaffSession } from "@/lib/staff-auth";
+import { MerchantSidebar } from "@/components/layout/MerchantSidebar";
+import { getStaffSession } from "@/lib/staffAuth";
 import { getAllowedPages, type StaffRole } from "@/lib/staff";
-import { DashboardGate } from "@/components/layout/dashboard-gate";
-import { DashboardHydrator } from "@/components/dashboard-hydrator";
+import { DashboardGate } from "@/components/layout/DashboardGate";
+import { DashboardHydrator } from "@/components/DashboardHydrator";
 import { prisma } from "@/lib/db";
 import { getDirection, type Locale } from "@/lib/i18n";
 
@@ -19,16 +19,26 @@ export default async function DashboardLayout({
     redirect("/store");
   }
 
+  // Onboarding not done → redirect to onboarding page
+  if (!merchant.onboardingDone) {
+    redirect("/onboarding");
+  }
+
   const staffSession = await getStaffSession();
 
   // No staff session → show PIN gate
   if (!staffSession || staffSession.merchantId !== merchant.id) {
+    const language = (merchant.language ?? "en") as Locale;
+    const dir = getDirection(language);
+
     return (
-      <DashboardGate
-        merchantId={merchant.id}
-        merchantName={merchant.name}
-        language={merchant.language ?? "en"}
-      />
+      <div dir={dir} lang={language}>
+        <DashboardGate
+          merchantId={merchant.id}
+          merchantName={merchant.name}
+          language={language}
+        />
+      </div>
     );
   }
 

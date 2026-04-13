@@ -4,8 +4,8 @@ import {
   getAllowedPages,
   type StaffRole,
 } from "@/lib/staff";
-import { getStaffSession } from "@/lib/staff-auth";
-import { DashboardContent } from "./dashboard-content";
+import { getStaffSession } from "@/lib/staffAuth";
+import { DashboardContent } from "./DashboardContent";
 
 export default async function DashboardPage() {
   const merchant = await requireMerchant();
@@ -20,6 +20,9 @@ export default async function DashboardPage() {
       merchantId={merchant.id}
       merchantName={merchant.name}
       currency={merchant.currency}
+      currencyFormat={
+        (merchant.currencyFormat ?? "symbol") as "symbol" | "code" | "none"
+      }
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }

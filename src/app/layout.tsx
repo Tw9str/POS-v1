@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans_Arabic, IBM_Plex_Mono } from "next/font/google";
-import { ServiceWorkerRegister } from "@/components/sw-register";
+import { ServiceWorkerRegister } from "@/components/SwRegister";
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans_Arabic({

@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { IconX } from "@/components/icons";
+import { IconX } from "@/components/Icons";
 import { useEffect, useCallback } from "react";
 
 interface ModalProps {

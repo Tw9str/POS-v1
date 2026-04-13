@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { getMerchantSession } from "@/lib/merchant-auth";
+import { getMerchantSession } from "@/lib/merchantAuth";
 import { redirect } from "next/navigation";
 
 export default async function HomePage() {

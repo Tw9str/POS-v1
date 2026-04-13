@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { setStaffSession, clearStaffSession } from "@/lib/staff-auth";
-import { getMerchantSession } from "@/lib/merchant-auth";
+import { setStaffSession, clearStaffSession } from "@/lib/staffAuth";
+import { getMerchantSession } from "@/lib/merchantAuth";
 
 const pinSchema = z.object({
   pin: z.string().min(4).max(6).regex(/^\d+$/, "PIN must be digits only"),

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/Button";
 import { useState } from "react";
 
 interface MerchantActionsProps {
@@ -8,7 +8,10 @@ interface MerchantActionsProps {
   isActive: boolean;
 }
 
-export function MerchantActions({ merchantId, isActive }: MerchantActionsProps) {
+export function MerchantActions({
+  merchantId,
+  isActive,
+}: MerchantActionsProps) {
   const [loading, setLoading] = useState(false);
 
   async function toggleStatus() {
@@ -31,7 +34,9 @@ export function MerchantActions({ merchantId, isActive }: MerchantActionsProps) 
       });
       const data = await res.json();
       if (data.activationCode) {
-        alert(`Activation Code: ${data.activationCode}\n\nSend this to the merchant via SMS or WhatsApp.`);
+        alert(
+          `Activation Code: ${data.activationCode}\n\nSend this to the merchant via SMS or WhatsApp.`,
+        );
       }
     } finally {
       setLoading(false);
@@ -40,7 +45,12 @@ export function MerchantActions({ merchantId, isActive }: MerchantActionsProps) 
 
   return (
     <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" onClick={generateLicense} loading={loading}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={generateLicense}
+        loading={loading}
+      >
         Generate License
       </Button>
       <Button

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/Badge";
 import { formatDate } from "@/lib/utils";
 
 export default async function SubscriptionsPage() {

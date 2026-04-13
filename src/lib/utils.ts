@@ -51,19 +51,59 @@ function applyNumberFormat(
     : toWesternNumerals(value);
 }
 
+export type CurrencyFormat = "symbol" | "code" | "none";
+
+// Explicit symbol map – Intl is inconsistent across locales/runtimes
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  TRY: "₺",
+  SAR: "ر.س",
+  AED: "د.إ",
+  SYP: "ل.س",
+  EGP: "ج.م",
+  IQD: "ع.د",
+  JOD: "د.ا",
+  KWD: "د.ك",
+  QAR: "ر.ق",
+  BHD: "د.ب",
+  OMR: "ر.ع",
+  LBP: "ل.ل",
+  MAD: "د.م",
+  DZD: "د.ج",
+  TND: "د.ت",
+  LYD: "د.ل",
+  JPY: "¥",
+  CNY: "¥",
+  INR: "₹",
+  KRW: "₩",
+};
+
+function getCurrencySymbol(currency: string): string {
+  return CURRENCY_SYMBOLS[currency] ?? currency;
+}
+
 export function formatCurrency(
   amount: number,
-  currency = "SYP",
+  currency = "USD",
   numberFormat: NumberFormat = "western",
+  currencyFormat: CurrencyFormat = "symbol",
 ): string {
-  const formatted = new Intl.NumberFormat("ar-SY", {
-    style: "currency",
-    currency,
+  const num = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(amount);
 
-  return applyNumberFormat(formatted, numberFormat);
+  const formatted = applyNumberFormat(num, numberFormat);
+
+  if (currencyFormat === "none") return formatted;
+
+  if (currencyFormat === "code") return `${formatted} ${currency}`;
+
+  // "symbol" — prefix with the currency symbol
+  const sym = getCurrencySymbol(currency);
+  return `${sym} ${formatted}`;
 }
 
 export function formatNumber(

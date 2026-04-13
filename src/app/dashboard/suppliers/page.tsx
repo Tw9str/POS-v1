@@ -1,6 +1,6 @@
 import { requireMerchant } from "@/lib/merchant";
 import { requireStaffForPage } from "@/lib/staff";
-import { SuppliersContent } from "./suppliers-content";
+import { SuppliersContent } from "./SuppliersContent";
 
 export default async function SuppliersPage() {
   const merchant = await requireMerchant();

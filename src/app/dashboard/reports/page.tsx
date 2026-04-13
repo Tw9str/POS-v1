@@ -1,6 +1,6 @@
 import { requireMerchant } from "@/lib/merchant";
 import { requireStaffForPage } from "@/lib/staff";
-import { ReportsContent } from "./reports-content";
+import { ReportsContent } from "./ReportsContent";
 
 export default async function ReportsPage() {
   const merchant = await requireMerchant();
@@ -10,6 +10,9 @@ export default async function ReportsPage() {
     <ReportsContent
       merchantId={merchant.id}
       currency={merchant.currency}
+      currencyFormat={
+        (merchant.currencyFormat ?? "symbol") as "symbol" | "code" | "none"
+      }
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }

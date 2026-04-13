@@ -1,6 +1,6 @@
 import { requireMerchant } from "@/lib/merchant";
 import { requireStaffForPage } from "@/lib/staff";
-import { PromosContent } from "./promos-content";
+import { PromosContent } from "./PromosContent";
 
 export default async function PromosPage() {
   const merchant = await requireMerchant();
@@ -10,6 +10,9 @@ export default async function PromosPage() {
     <PromosContent
       merchantId={merchant.id}
       currency={merchant.currency}
+      currencyFormat={
+        (merchant.currencyFormat ?? "symbol") as "symbol" | "code" | "none"
+      }
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }

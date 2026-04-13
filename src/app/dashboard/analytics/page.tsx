@@ -1,6 +1,6 @@
 import { requireMerchant } from "@/lib/merchant";
 import { requireStaffForPage } from "@/lib/staff";
-import { AnalyticsContent } from "./analytics-content";
+import { AnalyticsContent } from "./AnalyticsContent";
 
 export default async function AnalyticsPage() {
   const merchant = await requireMerchant();
@@ -10,6 +10,9 @@ export default async function AnalyticsPage() {
     <AnalyticsContent
       merchantId={merchant.id}
       currency={merchant.currency}
+      currencyFormat={
+        (merchant.currencyFormat ?? "symbol") as "symbol" | "code" | "none"
+      }
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }

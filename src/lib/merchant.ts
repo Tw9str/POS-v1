@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getMerchantSession, setMerchantSession } from "@/lib/merchant-auth";
+import { getMerchantSession, setMerchantSession } from "@/lib/merchantAuth";
 import { redirect } from "next/navigation";
 
 export async function getMerchantFromSession() {
@@ -23,18 +23,24 @@ export async function getMerchantFromSession() {
       merchant.address !== cached.address ||
       (merchant.numberFormat ?? "western") !== cached.numberFormat ||
       (merchant.dateFormat ?? "long") !== cached.dateFormat ||
-      (merchant.language ?? "en") !== cached.language
+      (merchant.language ?? "en") !== cached.language ||
+      (merchant.currencyFormat ?? "symbol") !== cached.currencyFormat ||
+      (merchant.shamcashId ?? null) !== cached.shamcashId ||
+      (merchant.onboardingDone ?? false) !== cached.onboardingDone
     ) {
       await setMerchantSession({
         id: merchant.id,
         name: merchant.name,
         currency: merchant.currency,
+        currencyFormat: merchant.currencyFormat ?? "symbol",
         taxRate: merchant.taxRate,
         phone: merchant.phone,
         address: merchant.address,
         numberFormat: merchant.numberFormat ?? "western",
         dateFormat: merchant.dateFormat ?? "long",
         language: merchant.language ?? "en",
+        shamcashId: merchant.shamcashId ?? null,
+        onboardingDone: merchant.onboardingDone ?? false,
       });
     }
 
@@ -50,11 +56,14 @@ export async function getMerchantFromSession() {
       address: cached.address,
       logo: null,
       currency: cached.currency,
+      currencyFormat: cached.currencyFormat ?? "symbol",
       timezone: "Asia/Damascus",
       taxRate: cached.taxRate,
       numberFormat: cached.numberFormat ?? "western",
       dateFormat: cached.dateFormat ?? "long",
       language: cached.language ?? "en",
+      shamcashId: cached.shamcashId ?? null,
+      onboardingDone: cached.onboardingDone ?? false,
       isActive: true,
       subscription: null,
       createdAt: new Date(),

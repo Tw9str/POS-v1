@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateAccessCode } from "@/lib/access-code";
+import { generateAccessCode } from "@/lib/accessCode";
 import { slugify } from "@/lib/utils";
 import { addDays } from "date-fns";
 
@@ -10,7 +10,7 @@ const createMerchantSchema = z.object({
   name: z.string().min(2).max(100),
   phone: z.string().optional(),
   address: z.string().optional(),
-  currency: z.string().default("SYP"),
+  currency: z.string().default("USD"),
 });
 
 export async function POST(req: Request) {

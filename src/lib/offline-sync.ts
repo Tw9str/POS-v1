@@ -11,7 +11,7 @@ import {
   type LocalPromotion,
   type LocalOrder,
   type LocalOrderItem,
-} from "./offline-db";
+} from "./offlineDb";
 
 // ─────────────────────────────────────────────
 // Hydrate local DB from server data

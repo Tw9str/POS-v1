@@ -1,6 +1,6 @@
 import { requireMerchant } from "@/lib/merchant";
 import { requireStaffForPage } from "@/lib/staff";
-import { OrdersContent } from "./orders-content";
+import { OrdersContent } from "./OrdersContent";
 
 export default async function OrdersPage() {
   const merchant = await requireMerchant();
@@ -13,6 +13,9 @@ export default async function OrdersPage() {
       merchantAddress={merchant.address}
       merchantPhone={merchant.phone}
       currency={merchant.currency}
+      currencyFormat={
+        (merchant.currencyFormat ?? "symbol") as "symbol" | "code" | "none"
+      }
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }

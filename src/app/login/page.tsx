@@ -3,9 +3,9 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Card } from "@/components/ui/Card";
 
 const ERROR_MESSAGES: Record<string, string> = {
   Signin: "Try signing in with a different account.",
@@ -63,7 +63,7 @@ function LoginContent() {
       const res = await signIn("nodemailer", {
         email,
         redirect: false,
-        callbackUrl: "/",
+        callbackUrl: "/admin",
       });
 
       if (res?.error) {
