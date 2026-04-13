@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { Badge } from "@/components/ui/Badge";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
-import { CreateMerchantButton } from "./createMerchanTButton";
+import { CreateMerchantButton } from "./CreateMerchantButton";
 
 export default async function MerchantsPage() {
   let merchants: (Awaited<
