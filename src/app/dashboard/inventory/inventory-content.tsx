@@ -31,6 +31,7 @@ import {
   buildInventoryInsights,
   buildProductPerformance,
 } from "@/lib/product-performance";
+import { t, type Locale } from "@/lib/i18n";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -53,12 +54,15 @@ export function InventoryContent({
   merchantId,
   currency,
   numberFormat = "western",
+  language = "en",
 }: {
   merchantId: string;
   currency: string;
   numberFormat?: NumberFormat;
+  language?: string;
 }) {
   const router = useRouter();
+  const i = t(language as Locale);
   const products = useLocalProducts(merchantId);
   const orders = useLocalOrders(merchantId, 500);
   const [search, setSearch] = useState("");
@@ -261,7 +265,7 @@ export function InventoryContent({
     ) {
       setFeedback({
         type: "error",
-        text: "Enter a whole number above or below zero.",
+        text: i.inventory.enterWholeNumber,
       });
       return;
     }
@@ -285,14 +289,14 @@ export function InventoryContent({
     if (!result.ok) {
       setFeedback({
         type: "error",
-        text: result.error || "Failed to adjust stock",
+        text: result.error || i.inventory.failedToAdjust,
       });
     } else {
       setFeedback({
         type: "success",
         text: result.offline
-          ? `Stock update for "${getProductDisplayName(selectedProduct.name, selectedProduct.variantName)}" was saved offline and will sync automatically.`
-          : `Stock updated for "${getProductDisplayName(selectedProduct.name, selectedProduct.variantName)}".`,
+          ? `${i.inventory.stockUpdateOffline} "${getProductDisplayName(selectedProduct.name, selectedProduct.variantName)}" ${i.common.offlineSaved}`
+          : `${i.inventory.stockUpdated} "${getProductDisplayName(selectedProduct.name, selectedProduct.variantName)}".`,
       });
       setSelectedProduct(null);
       await loadHistory();
@@ -304,15 +308,12 @@ export function InventoryContent({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Inventory"
-        subtitle="Track stock levels, low-stock alerts, and availability"
-      />
+      <PageHeader title={i.inventory.title} subtitle={i.inventory.subtitle} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Tracked items
+            {i.inventory.trackedItems}
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">
             {formatNumber(summary.tracked, numberFormat)}
@@ -320,7 +321,7 @@ export function InventoryContent({
         </div>
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-            Low stock
+            {i.inventory.lowStock}
           </p>
           <p className="mt-2 text-2xl font-bold text-amber-900 tabular-nums">
             {formatNumber(summary.lowStock, numberFormat)}
@@ -328,7 +329,7 @@ export function InventoryContent({
         </div>
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
-            Out of stock
+            {i.inventory.outOfStock}
           </p>
           <p className="mt-2 text-2xl font-bold text-red-900 tabular-nums">
             {formatNumber(summary.outOfStock, numberFormat)}
@@ -336,7 +337,7 @@ export function InventoryContent({
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-            Units sold 7d
+            {i.inventory.unitsSold7d}
           </p>
           <p className="mt-2 text-2xl font-bold text-emerald-900 tabular-nums">
             {formatNumber(summary.sold7d, numberFormat)}
@@ -344,7 +345,7 @@ export function InventoryContent({
         </div>
         <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
-            Fast movers
+            {i.inventory.fastMovers}
           </p>
           <p className="mt-2 text-2xl font-bold text-cyan-900 tabular-nums">
             {formatNumber(summary.fastMoving, numberFormat)}
@@ -352,7 +353,7 @@ export function InventoryContent({
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-            Dead stock
+            {i.inventory.deadStock}
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">
             {formatNumber(summary.deadStock, numberFormat)}
@@ -365,10 +366,10 @@ export function InventoryContent({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                Urgent reorder list
+                {i.inventory.urgentReorderList}
               </p>
               <p className="mt-1 text-sm text-amber-900">
-                Variants with low coverage or active demand.
+                {i.inventory.urgentReorderDesc}
               </p>
             </div>
             <Badge variant="warning">
@@ -378,7 +379,7 @@ export function InventoryContent({
           <div className="mt-3 space-y-2">
             {urgentReorders.length === 0 ? (
               <p className="text-sm text-slate-500">
-                No urgent reorder alerts right now.
+                {i.inventory.noUrgentReorder}
               </p>
             ) : (
               urgentReorders.map((item) => {
@@ -401,7 +402,7 @@ export function InventoryContent({
                       {item.reason}
                     </p>
                     <p className="text-xs font-semibold text-amber-700 mt-1">
-                      Suggested reorder: +
+                      {i.inventory.suggestedReorder} +
                       {formatNumber(item.recommendedQty, numberFormat)}{" "}
                       {product.unit}
                     </p>
@@ -416,10 +417,10 @@ export function InventoryContent({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-                Dead-stock watch
+                {i.inventory.deadStockWatch}
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                Items with stock left but no recent movement.
+                {i.inventory.deadStockDesc}
               </p>
             </div>
             <Badge variant="default">
@@ -429,7 +430,7 @@ export function InventoryContent({
           <div className="mt-3 space-y-2">
             {deadStockItems.length === 0 ? (
               <p className="text-sm text-slate-500">
-                No dead stock is being flagged.
+                {i.inventory.noDeadStock}
               </p>
             ) : (
               deadStockItems.map((item) => {
@@ -452,8 +453,8 @@ export function InventoryContent({
                       {item.reason}
                     </p>
                     <p className="text-xs font-semibold text-slate-700 mt-1">
-                      On hand: {formatNumber(product.stock, numberFormat)}{" "}
-                      {product.unit}
+                      {i.inventory.onHand}{" "}
+                      {formatNumber(product.stock, numberFormat)} {product.unit}
                     </p>
                   </button>
                 );
@@ -466,8 +467,8 @@ export function InventoryContent({
       <div className="grid gap-3 lg:grid-cols-4">
         <SearchInput
           id="inventory-search"
-          label="Search inventory"
-          placeholder="Product, SKU, barcode, category..."
+          label={i.common.search}
+          placeholder={i.inventory.searchPlaceholder}
           value={search}
           onChange={(v) => {
             setSearch(v);
@@ -477,41 +478,42 @@ export function InventoryContent({
           totalCount={tracked.length}
           numberFormat={numberFormat}
           onScan={() => setScannerOpen(true)}
+          language={language}
         />
         <Select
           id="inventory-status-filter"
-          label="Stock status"
+          label={i.inventory.stockStatus}
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
           options={[
-            { value: "all", label: "All stock" },
-            { value: "in", label: "In stock" },
-            { value: "low", label: "Low stock" },
-            { value: "out", label: "Out of stock" },
+            { value: "all", label: i.products.allStock },
+            { value: "in", label: i.inventory.inStock },
+            { value: "low", label: i.inventory.lowStock },
+            { value: "out", label: i.inventory.outOfStock },
           ]}
         />
         <Select
           id="inventory-movement-filter"
-          label="Movement"
+          label={i.inventory.movement}
           value={movementFilter}
           onChange={(e) => {
             setMovementFilter(e.target.value);
             setPage(1);
           }}
           options={[
-            { value: "all", label: "All movement" },
-            { value: "fast", label: "Fast movers" },
-            { value: "steady", label: "Steady" },
-            { value: "slow", label: "Slow movers" },
-            { value: "dead", label: "Dead stock" },
+            { value: "all", label: i.inventory.allMovement },
+            { value: "fast", label: i.inventory.fastMovers },
+            { value: "steady", label: i.inventory.steady },
+            { value: "slow", label: i.inventory.slowMovers },
+            { value: "dead", label: i.inventory.deadStock },
           ]}
         />
         <Select
           id="inventory-page-size"
-          label="Per page"
+          label={i.common.perPage}
           value={String(pageSize)}
           onChange={(e) => {
             setPageSize(Number(e.target.value));
@@ -519,7 +521,7 @@ export function InventoryContent({
           }}
           options={PAGE_SIZES.map((s) => ({
             value: String(s),
-            label: `${s} rows`,
+            label: `${s} ${i.common.rows}`,
           }))}
         />
       </div>
@@ -539,14 +541,14 @@ export function InventoryContent({
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
         <div className="px-6 py-4 border-b border-slate-100">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-            Stock Levels
+            {i.inventory.stockLevels}
           </h2>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
               <SortableTh
-                label="Product"
+                label={i.inventory.product}
                 sortKey="name"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -558,7 +560,7 @@ export function InventoryContent({
                 }}
               />
               <SortableTh
-                label="Category"
+                label={i.inventory.category}
                 sortKey="category"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -570,7 +572,7 @@ export function InventoryContent({
                 }}
               />
               <SortableTh
-                label="SKU"
+                label={i.inventory.sku}
                 sortKey="sku"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -582,7 +584,7 @@ export function InventoryContent({
                 }}
               />
               <SortableTh
-                label="Stock"
+                label={i.inventory.stockCol}
                 sortKey="stock"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -594,7 +596,7 @@ export function InventoryContent({
                 }}
               />
               <SortableTh
-                label="Low alert"
+                label={i.inventory.lowAlert}
                 sortKey="lowAlert"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -606,7 +608,7 @@ export function InventoryContent({
                 }}
               />
               <SortableTh
-                label="Sold 7d"
+                label={i.inventory.sold7d}
                 sortKey="sold7d"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -618,7 +620,7 @@ export function InventoryContent({
                 }}
               />
               <SortableTh
-                label="Net 30d"
+                label={i.inventory.net30d}
                 sortKey="net30d"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -629,8 +631,12 @@ export function InventoryContent({
                   setPage(1);
                 }}
               />
-              <th className="px-5 py-3.5 text-left font-semibold">Movement</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Status</th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.inventory.movementCol}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.inventory.statusCol}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -641,8 +647,8 @@ export function InventoryContent({
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {tracked.length === 0
-                    ? "No tracked products"
-                    : "No inventory items match your search or filter"}
+                    ? i.inventory.noTrackedProducts
+                    : i.inventory.noInventoryMatch}
                 </td>
               </tr>
             ) : (
@@ -675,12 +681,12 @@ export function InventoryContent({
                           {p.name}
                         </p>
                         <p className="text-xs font-medium text-slate-500">
-                          {p.variantName || "Single/default item"}
+                          {p.variantName || i.inventory.singleDefaultItem}
                         </p>
                         <p className="mt-1 text-[11px] text-slate-400">
                           {metric?.lastSoldAt
-                            ? `Last sold ${formatDateTime(new Date(metric.lastSoldAt), "numeric", numberFormat)}`
-                            : "No sales yet"}
+                            ? `${i.inventory.lastSold} ${formatDateTime(new Date(metric.lastSoldAt), "numeric", numberFormat)}`
+                            : i.inventory.noSalesYet}
                         </p>
                       </button>
                     </td>
@@ -709,12 +715,12 @@ export function InventoryContent({
                     <td className="px-5 py-4">
                       <Badge variant={movementVariant}>
                         {metric?.movement === "fast"
-                          ? "Fast"
+                          ? i.inventory.fast
                           : metric?.movement === "steady"
-                            ? "Steady"
+                            ? i.inventory.steady
                             : metric?.movement === "slow"
-                              ? "Slow"
-                              : "No movement"}
+                              ? i.inventory.slow
+                              : i.inventory.noMovement}
                       </Badge>
                     </td>
                     <td className="px-5 py-4">
@@ -724,10 +730,10 @@ export function InventoryContent({
                         }
                       >
                         {isOut
-                          ? "Out of stock"
+                          ? i.inventory.outOfStock
                           : isLow
-                            ? "Low stock"
-                            : "In stock"}
+                            ? i.inventory.lowStock
+                            : i.inventory.inStock}
                       </Badge>
                     </td>
                   </tr>
@@ -741,13 +747,13 @@ export function InventoryContent({
       {filtered.length > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            Showing{" "}
+            {i.common.showing}{" "}
             {formatNumber((currentPage - 1) * pageSize + 1, numberFormat)}-
             {formatNumber(
               Math.min(currentPage * pageSize, filtered.length),
               numberFormat,
             )}{" "}
-            of {formatNumber(filtered.length, numberFormat)}
+            {i.common.of} {formatNumber(filtered.length, numberFormat)}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -756,10 +762,10 @@ export function InventoryContent({
               disabled={currentPage === 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             >
-              Previous
+              {i.common.previous}
             </Button>
             <span className="text-sm text-slate-500">
-              Page {formatNumber(currentPage, numberFormat)} /{" "}
+              {i.common.page} {formatNumber(currentPage, numberFormat)} /{" "}
               {formatNumber(totalPages, numberFormat)}
             </span>
             <Button
@@ -768,7 +774,7 @@ export function InventoryContent({
               disabled={currentPage === totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
-              Next
+              {i.common.next}
             </Button>
           </div>
         </div>
@@ -777,17 +783,17 @@ export function InventoryContent({
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-            Recent Adjustments
+            {i.inventory.recentAdjustments}
           </h2>
           <p className="text-sm text-slate-500">
             {historyLoading
-              ? "Loading..."
-              : `${formatNumber(history.length, numberFormat)} recent entries`}
+              ? i.common.loading
+              : `${formatNumber(history.length, numberFormat)} ${i.inventory.recentEntries}`}
           </p>
         </div>
         {history.length === 0 ? (
           <div className="px-6 py-10 text-center text-sm text-slate-400">
-            No inventory adjustments yet.
+            {i.inventory.noAdjustments}
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -840,6 +846,7 @@ export function InventoryContent({
         open={Boolean(selectedInsightProduct)}
         onClose={() => setSelectedInsightProduct(null)}
         product={selectedInsightProduct}
+        language={language}
         metric={
           selectedInsightProduct
             ? performance.get(selectedInsightProduct.id)
@@ -863,14 +870,14 @@ export function InventoryContent({
         onClose={() => setSelectedProduct(null)}
         title={
           selectedProduct
-            ? `Adjust ${getProductDisplayName(selectedProduct.name, selectedProduct.variantName)}`
-            : "Adjust stock"
+            ? `${i.inventory.adjustStock} ${getProductDisplayName(selectedProduct.name, selectedProduct.variantName)}`
+            : i.inventory.adjustStock
         }
       >
         {selectedProduct && (
           <form onSubmit={handleAdjustStock} className="space-y-4">
             <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
-              Current stock:{" "}
+              {i.inventory.currentStock}{" "}
               <span className="font-semibold text-slate-900">
                 {formatNumber(selectedProduct.stock, numberFormat)}{" "}
                 {selectedProduct.unit}
@@ -879,23 +886,22 @@ export function InventoryContent({
 
             <Select
               id="adjustment-type"
-              label="Adjustment type"
+              label={i.inventory.adjustmentType}
               value={adjustmentForm.type}
               onChange={(e) =>
                 setAdjustmentForm((prev) => ({ ...prev, type: e.target.value }))
               }
               options={[
-                { value: "PURCHASE", label: "Receive stock" },
-                { value: "RETURN", label: "Customer return" },
-                { value: "DAMAGE", label: "Damage / loss" },
-                { value: "CORRECTION", label: "Manual correction" },
-                { value: "TRANSFER", label: "Transfer" },
+                { value: "PURCHASE", label: i.inventory.purchase },
+                { value: "RETURN", label: i.inventory.returnType },
+                { value: "DAMAGE", label: i.inventory.damage },
+                { value: "CORRECTION", label: i.inventory.correction },
               ]}
             />
 
             <Input
               id="adjustment-quantity"
-              label="Quantity change"
+              label={i.inventory.quantity}
               type="number"
               placeholder="Use + to add, - to remove"
               value={adjustmentForm.quantity}
@@ -910,7 +916,7 @@ export function InventoryContent({
 
             <Input
               id="adjustment-reason"
-              label="Reason (optional)"
+              label={i.inventory.reasonOptional}
               placeholder="Why is stock changing?"
               value={adjustmentForm.reason}
               onChange={(e) =>
@@ -927,10 +933,10 @@ export function InventoryContent({
                 type="button"
                 onClick={() => setSelectedProduct(null)}
               >
-                Cancel
+                {i.common.cancel}
               </Button>
               <Button type="submit" loading={adjusting}>
-                Save Adjustment
+                {i.inventory.adjustStock}
               </Button>
             </div>
           </form>
@@ -939,6 +945,7 @@ export function InventoryContent({
 
       {scannerOpen && (
         <BarcodeScanner
+          language={language}
           onScan={(barcode) => {
             setScannerOpen(false);
             const found = products.find(

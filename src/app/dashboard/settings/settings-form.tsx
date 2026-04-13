@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { normalizeDateFormat } from "@/lib/utils";
+import { t, type Locale } from "@/lib/i18n";
 
 interface SettingsFormProps {
   merchant: {
@@ -17,6 +18,7 @@ interface SettingsFormProps {
     currency: string;
     numberFormat: string;
     dateFormat: string;
+    language: string;
     taxRate: number;
   };
 }
@@ -42,8 +44,11 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
     currency: merchant.currency,
     numberFormat: merchant.numberFormat,
     dateFormat: normalizeDateFormat(merchant.dateFormat),
+    language: merchant.language,
     taxRate: merchant.taxRate.toString(),
   });
+
+  const i = t(form.language as Locale);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -64,18 +69,18 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
       });
 
       if (!result.ok) {
-        setError(result.error || "Failed to update settings");
+        setError(result.error || i.settings.failedToUpdate);
         return;
       }
 
       setSuccess(
         result.offline
-          ? "Settings were saved offline and will sync automatically."
-          : "Settings updated successfully",
+          ? i.settings.settingsSavedOffline
+          : i.settings.settingsSaved,
       );
       if (!result.offline) router.refresh();
     } catch {
-      setError("Something went wrong");
+      setError(i.common.somethingWentWrong);
     } finally {
       setLoading(false);
     }
@@ -86,48 +91,58 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
       {/* Store Information */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
         <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-5">
-          Store Information
+          {i.settings.storeInformation}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             id="name"
-            label="Store Name"
+            label={i.settings.storeName}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
           />
           <Input
             id="phone"
-            label="Phone"
+            label={i.settings.phone}
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
           <Input
             id="address"
-            label="Address"
+            label={i.settings.address}
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
           />
           <Select
             id="currency"
-            label="Currency"
+            label={i.settings.currency}
             value={form.currency}
             onChange={(e) => setForm({ ...form, currency: e.target.value })}
             options={currencies}
           />
           <Select
+            id="language"
+            label={i.settings.language}
+            value={form.language}
+            onChange={(e) => setForm({ ...form, language: e.target.value })}
+            options={[
+              { value: "en", label: i.settings.english },
+              { value: "ar", label: i.settings.arabic },
+            ]}
+          />
+          <Select
             id="numberFormat"
-            label="Number Format"
+            label={i.settings.numberFormat}
             value={form.numberFormat}
             onChange={(e) => setForm({ ...form, numberFormat: e.target.value })}
             options={[
-              { value: "western", label: "Western (0, 1, 2, 3)" },
-              { value: "eastern", label: "Eastern Arabic (٠, ١, ٢, ٣)" },
+              { value: "western", label: i.settings.westernNumbers },
+              { value: "eastern", label: i.settings.easternNumbers },
             ]}
           />
           <Select
             id="dateFormat"
-            label="Date Display"
+            label={i.settings.dateDisplay}
             value={form.dateFormat}
             onChange={(e) =>
               setForm({
@@ -136,14 +151,14 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
               })
             }
             options={[
-              { value: "long", label: "English (Apr 10, 2026)" },
-              { value: "numeric", label: "Numeric (10/4/2026)" },
-              { value: "arabic", label: "Arabic (١٠ نيسان ٢٠٢٦)" },
+              { value: "long", label: i.settings.dateEnglish },
+              { value: "numeric", label: i.settings.dateNumeric },
+              { value: "arabic", label: i.settings.dateArabic },
             ]}
           />
           <Input
             id="taxRate"
-            label="Tax Rate (%)"
+            label={i.settings.taxRate}
             type="number"
             value={form.taxRate}
             onChange={(e) => setForm({ ...form, taxRate: e.target.value })}
@@ -165,7 +180,7 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
 
           <div className="flex justify-end pt-4">
             <Button type="submit" loading={loading}>
-              Save Changes
+              {i.common.save}
             </Button>
           </div>
         </form>

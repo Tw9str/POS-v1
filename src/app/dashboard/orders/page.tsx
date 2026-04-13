@@ -24,6 +24,7 @@ export default async function OrdersPage() {
           | "gregorian"
           | "hijri"
       }
+      language={merchant.language ?? "en"}
     />
   );
 }

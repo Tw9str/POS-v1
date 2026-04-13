@@ -21,75 +21,81 @@ import {
 } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { t, type Locale } from "@/lib/i18n";
 
 // ─── Nav items with short labels for bottom tab bar ───
 
-const navItems = [
+const NAV_ITEMS = [
   {
     href: "/dashboard",
-    label: "Dashboard",
-    short: "Home",
+    labelKey: "dashboard" as const,
+    shortKey: "home" as const,
     icon: IconDashboard,
   },
   {
     href: "/dashboard/pos",
-    label: "POS Terminal",
-    short: "POS",
+    labelKey: "pos" as const,
+    shortKey: "posShort" as const,
     icon: IconPOS,
   },
   {
     href: "/dashboard/products",
-    label: "Products",
-    short: "Products",
+    labelKey: "products" as const,
+    shortKey: "products" as const,
     icon: IconProducts,
   },
   {
     href: "/dashboard/orders",
-    label: "Orders",
-    short: "Orders",
+    labelKey: "orders" as const,
+    shortKey: "orders" as const,
     icon: IconOrders,
   },
   {
     href: "/dashboard/inventory",
-    label: "Inventory",
-    short: "Inventory",
+    labelKey: "inventory" as const,
+    shortKey: "inventory" as const,
     icon: IconInventory,
   },
   {
     href: "/dashboard/promos",
-    label: "Promos",
-    short: "Promos",
+    labelKey: "promos" as const,
+    shortKey: "promos" as const,
     icon: IconPromo,
   },
   {
     href: "/dashboard/customers",
-    label: "Customers",
-    short: "Customers",
+    labelKey: "customers" as const,
+    shortKey: "customers" as const,
     icon: IconCustomers,
   },
   {
     href: "/dashboard/suppliers",
-    label: "Suppliers",
-    short: "Suppliers",
+    labelKey: "suppliers" as const,
+    shortKey: "suppliers" as const,
     icon: IconSuppliers,
   },
-  { href: "/dashboard/staff", label: "Staff", short: "Staff", icon: IconStaff },
+  {
+    href: "/dashboard/staff",
+    labelKey: "staff" as const,
+    shortKey: "staff" as const,
+    icon: IconStaff,
+  },
   {
     href: "/dashboard/reports",
-    label: "Reports",
-    short: "Reports",
+    labelKey: "reports" as const,
+    shortKey: "reports" as const,
     icon: IconReports,
   },
   {
     href: "/dashboard/analytics",
-    label: "Analytics",
-    short: "Analytics",
+    labelKey: "analytics" as const,
+    shortKey: "analytics" as const,
     icon: IconActivity,
   },
   {
     href: "/dashboard/settings",
-    label: "Settings",
-    short: "Settings",
+    labelKey: "settings" as const,
+    shortKey: "settings" as const,
     icon: IconSettings,
   },
 ];
@@ -102,18 +108,12 @@ const BOTTOM_TAB_HREFS = new Set([
   "/dashboard/products",
 ]);
 
-const ROLE_LABELS: Record<string, string> = {
-  OWNER: "Owner",
-  MANAGER: "Manager",
-  CASHIER: "Cashier",
-  STOCK_CLERK: "Stock Clerk",
-};
-
 interface MerchantSidebarProps {
   merchantName?: string;
   staffName?: string;
   staffRole?: string;
   allowedPages?: string[];
+  language?: string;
 }
 
 export function MerchantSidebar({
@@ -121,10 +121,12 @@ export function MerchantSidebar({
   staffName = "Staff",
   staffRole = "CASHIER",
   allowedPages = [],
+  language = "en",
 }: MerchantSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
+  const i = t(language as Locale);
 
   // Close "More" sheet on navigation
   useEffect(() => {
@@ -135,6 +137,12 @@ export function MerchantSidebar({
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
   };
+
+  const navItems = NAV_ITEMS.map((item) => ({
+    ...item,
+    label: i.nav[item.labelKey],
+    short: i.nav[item.shortKey],
+  }));
 
   const visibleItems = navItems.filter((item) =>
     allowedPages.some((p) => {
@@ -220,7 +228,7 @@ export function MerchantSidebar({
                   <circle cx="5" cy="12" r="1" />
                 </svg>
                 <span className="text-[10px] font-semibold leading-none mt-0.5">
-                  More
+                  {i.common.more}
                 </span>
               </button>
             )}
@@ -253,7 +261,8 @@ export function MerchantSidebar({
                 {merchantName}
               </p>
               <p className="text-xs text-slate-400 mt-0.5 capitalize">
-                {staffName} · {ROLE_LABELS[staffRole] || staffRole}
+                {staffName} ·{" "}
+                {i.roles[staffRole as keyof typeof i.roles] || staffRole}
               </p>
             </div>
 
@@ -289,14 +298,14 @@ export function MerchantSidebar({
                 className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold text-amber-600 hover:bg-amber-50 active:scale-[0.98] transition-all w-full cursor-pointer"
               >
                 <IconKey size={20} />
-                Switch User
+                {i.common.switchUser}
               </button>
               <button
                 onClick={handleSignOut}
                 className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 active:scale-[0.98] transition-all w-full cursor-pointer"
               >
                 <IconLogout size={20} />
-                Sign Out
+                {i.common.signOut}
               </button>
             </div>
           </div>

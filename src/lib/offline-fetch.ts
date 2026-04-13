@@ -159,13 +159,14 @@ async function applyToLocalDB(
         trackStock:
           (body.trackStock as boolean) ?? existing?.trackStock ?? true,
         image: existing?.image ?? null,
-        categoryId,
+        categoryId: categoryId ?? "",
         categoryName: categoryId
           ? (category?.name ?? existing?.categoryName ?? null)
           : null,
         categoryColor: categoryId
           ? (category?.color ?? existing?.categoryColor ?? null)
           : null,
+        createdAt: existing?.createdAt ?? Date.now(),
       };
       await db.products.put(product);
       return product as unknown as Record<string, unknown>;
@@ -251,6 +252,9 @@ async function applyToLocalDB(
         pin: (body.pin as string) ?? existing?.pin ?? "",
         role: (body.role as string) ?? existing?.role ?? "CASHIER",
         isActive: (body.isActive as boolean) ?? existing?.isActive ?? true,
+        maxDiscountPercent: Number(
+          body.maxDiscountPercent ?? existing?.maxDiscountPercent ?? 100,
+        ),
       };
       await db.staff.put(staff);
       return staff as unknown as Record<string, unknown>;

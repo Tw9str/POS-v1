@@ -13,6 +13,7 @@ export default async function POSPage() {
     <POSTerminal
       currentStaffId={staffSession?.staffId || null}
       staffRole={staffSession?.role || "CASHIER"}
+      language={merchant.language ?? "en"}
       merchant={{
         id: merchant.id,
         name: merchant.name,

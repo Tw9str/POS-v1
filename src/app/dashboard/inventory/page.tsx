@@ -13,6 +13,7 @@ export default async function InventoryPage() {
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }
+      language={merchant.language ?? "en"}
     />
   );
 }

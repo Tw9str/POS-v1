@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { IconPlus } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { offlineFetch } from "@/lib/offline-fetch";
+import { t, type Locale } from "@/lib/i18n";
 
 interface EditableSupplier {
   id: string;
@@ -23,6 +24,7 @@ interface SupplierActionsProps {
   externalOpen?: boolean;
   onExternalClose?: () => void;
   onDelete?: () => void;
+  language?: string;
 }
 
 export function SupplierActions({
@@ -31,7 +33,9 @@ export function SupplierActions({
   externalOpen,
   onExternalClose,
   onDelete,
+  language = "en",
 }: SupplierActionsProps) {
+  const i = t(language as Locale);
   const router = useRouter();
   const isEdit = Boolean(supplier);
   const [open, setOpen] = useState(false);
@@ -78,7 +82,8 @@ export function SupplierActions({
 
       if (!result.ok) {
         setError(
-          result.error || `Failed to ${isEdit ? "update" : "add"} supplier`,
+          result.error ||
+            (isEdit ? i.suppliers.failedToUpdate : i.suppliers.failedToAdd),
         );
         return;
       }
@@ -87,7 +92,7 @@ export function SupplierActions({
       setForm({ name: "", phone: "", email: "", address: "", notes: "" });
       router.refresh();
     } catch {
-      setError("Something went wrong");
+      setError(i.common.somethingWentWrong);
     } finally {
       setLoading(false);
     }
@@ -102,45 +107,45 @@ export function SupplierActions({
           size={isEdit ? "sm" : "md"}
         >
           {!isEdit && <IconPlus size={18} />}
-          {isEdit ? "Edit" : "Add Supplier"}
+          {isEdit ? i.common.edit : i.suppliers.addSupplier}
         </Button>
       )}
 
       <Modal
         open={isModalOpen}
         onClose={closeModal}
-        title={isEdit ? "Edit Supplier" : "Add Supplier"}
+        title={isEdit ? i.suppliers.editSupplier : i.suppliers.addSupplier}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             id="name"
-            label="Name"
+            label={i.common.name}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
           />
           <Input
             id="phone"
-            label="Phone"
+            label={i.common.phone}
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
           <Input
             id="email"
-            label="Email"
+            label={i.common.email}
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
           <Input
             id="address"
-            label="Address"
+            label={i.common.address}
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
           />
           <Input
             id="notes"
-            label="Notes"
+            label={i.common.notes}
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
           />
@@ -161,15 +166,15 @@ export function SupplierActions({
                   onDelete();
                 }}
               >
-                Delete
+                {i.common.delete}
               </Button>
             )}
             <div className="ml-auto flex gap-3">
               <Button variant="secondary" type="button" onClick={closeModal}>
-                Cancel
+                {i.common.cancel}
               </Button>
               <Button type="submit" loading={loading}>
-                {isEdit ? "Save Changes" : "Add Supplier"}
+                {isEdit ? i.common.save : i.suppliers.addSupplier}
               </Button>
             </div>
           </div>

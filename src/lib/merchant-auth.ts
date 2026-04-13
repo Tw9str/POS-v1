@@ -13,6 +13,7 @@ export interface MerchantCacheData {
   address: string | null;
   numberFormat: string;
   dateFormat: string;
+  language: string;
 }
 
 function getSecret(): string {
@@ -118,6 +119,7 @@ function migrateOldCookie(token: string): MerchantCacheData | null {
     address: null,
     numberFormat: "western",
     dateFormat: "long",
+    language: "en",
   };
 }
 

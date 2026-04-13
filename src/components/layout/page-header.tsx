@@ -9,7 +9,7 @@ export function BackButton({ className = "" }: { className?: string }) {
       href="/dashboard"
       className={`w-10 h-10 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-slate-800 active:scale-95 transition-all shrink-0 shadow-sm ${className}`}
     >
-      <IconChevronLeft size={20} />
+      <IconChevronLeft size={20} className="rtl:rotate-180" />
     </Link>
   );
 }

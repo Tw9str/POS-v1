@@ -36,6 +36,7 @@ import {
   type NumberFormat,
   type SupportedPaymentMethod,
 } from "@/lib/utils";
+import { t, type Locale } from "@/lib/i18n";
 import {
   useLocalProducts,
   useLocalCategories,
@@ -95,6 +96,7 @@ interface CartItem {
 interface POSTerminalProps {
   currentStaffId: string | null;
   staffRole: string;
+  language: string;
   merchant: {
     id: string;
     name: string;
@@ -121,7 +123,7 @@ function formatMoney(
 
 const PAYMENT_METHOD_OPTIONS: Array<{
   value: SupportedPaymentMethod;
-  label: string;
+  labelKey: "cash" | "shamcash" | "card";
   icon: React.ComponentType<{ size?: number; className?: string }>;
   activeRing: string;
   activeBg: string;
@@ -129,7 +131,7 @@ const PAYMENT_METHOD_OPTIONS: Array<{
 }> = [
   {
     value: "CASH",
-    label: "Cash",
+    labelKey: "cash",
     icon: IconCashBanknote,
     activeRing: "ring-emerald-500",
     activeBg: "bg-emerald-50",
@@ -137,7 +139,7 @@ const PAYMENT_METHOD_OPTIONS: Array<{
   },
   {
     value: "MOBILE_MONEY",
-    label: "ShamCash",
+    labelKey: "shamcash",
     icon: IconWallet,
     activeRing: "ring-indigo-500",
     activeBg: "bg-indigo-50",
@@ -145,7 +147,7 @@ const PAYMENT_METHOD_OPTIONS: Array<{
   },
   {
     value: "CARD",
-    label: "Card",
+    labelKey: "card",
     icon: IconCardPayment,
     activeRing: "ring-sky-500",
     activeBg: "bg-sky-50",
@@ -160,10 +162,12 @@ const PAYMENT_METHOD_OPTIONS: Array<{
 export function POSTerminal({
   currentStaffId,
   staffRole,
+  language,
   merchant,
 }: POSTerminalProps) {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  const i = t(language as Locale);
   const isCashier = staffRole === "CASHIER";
 
   // Offline support
@@ -475,7 +479,7 @@ export function POSTerminal({
           setPromoLoading(false);
           return;
         } else {
-          setPromoError(data.reason || "Invalid promo code");
+          setPromoError(data.reason || i.pos.invalidPromoCode);
           setPromoLoading(false);
           return;
         }
@@ -487,34 +491,34 @@ export function POSTerminal({
     // Offline validation using locally cached promotions
     const promo = localPromotions.find((p) => p.code === code);
     if (!promo) {
-      setPromoError("Unknown promo code");
+      setPromoError(i.pos.unknownPromoCode);
       setPromoLoading(false);
       return;
     }
     if (!promo.isActive) {
-      setPromoError("This promo is inactive");
+      setPromoError(i.pos.promoInactive);
       setPromoLoading(false);
       return;
     }
     const now = new Date();
     if (promo.startsAt && now < new Date(promo.startsAt)) {
-      setPromoError("This promo hasn't started yet");
+      setPromoError(i.pos.promoNotStarted);
       setPromoLoading(false);
       return;
     }
     if (promo.endsAt && now > new Date(promo.endsAt)) {
-      setPromoError("This promo has expired");
+      setPromoError(i.pos.promoExpired);
       setPromoLoading(false);
       return;
     }
     if (promo.maxUses && promo.usedCount >= promo.maxUses) {
-      setPromoError("This promo has been fully used");
+      setPromoError(i.pos.promoFullyUsed);
       setPromoLoading(false);
       return;
     }
     if (promo.minSubtotal > 0 && subtotal < promo.minSubtotal) {
       setPromoError(
-        `Minimum subtotal: ${formatMoney(promo.minSubtotal, merchant.currency, merchant.numberFormat)}`,
+        `${i.pos.minSubtotal} ${formatMoney(promo.minSubtotal, merchant.currency, merchant.numberFormat)}`,
       );
       setPromoLoading(false);
       return;
@@ -555,7 +559,7 @@ export function POSTerminal({
     discountAmount = Math.min(discountAmount, subtotal);
 
     if (discountAmount <= 0) {
-      setPromoError("No applicable items in cart");
+      setPromoError(i.pos.noApplicableItems);
       setPromoLoading(false);
       return;
     }
@@ -710,7 +714,7 @@ export function POSTerminal({
         });
         finishOrder(localOrder.orderNumber);
       } catch {
-        alert("Failed to save order");
+        alert(i.pos.failedToSaveOrder);
       }
     } finally {
       setProcessing(false);
@@ -755,7 +759,9 @@ export function POSTerminal({
                 className="flex items-center gap-2 px-3 h-11 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 active:scale-95 transition-all shrink-0 text-sm font-semibold cursor-pointer"
               >
                 <IconKey size={18} />
-                <span className="hidden sm:inline">Switch User</span>
+                <span className="hidden sm:inline">
+                  {i.pos.switchUserButton}
+                </span>
               </button>
             ) : (
               <BackButton className="hidden lg:flex" />
@@ -768,7 +774,7 @@ export function POSTerminal({
               <input
                 ref={searchRef}
                 type="text"
-                placeholder="Search products or scan barcode... (F2)"
+                placeholder={i.pos.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
@@ -787,7 +793,7 @@ export function POSTerminal({
               type="button"
               onClick={() => setScannerOpen(true)}
               className="shrink-0 p-3 rounded-xl border-2 border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 active:scale-95 transition-all cursor-pointer"
-              title="Scan barcode with camera"
+              title={i.pos.scanBarcodeCamera}
             >
               <IconCamera size={20} />
             </button>
@@ -803,7 +809,7 @@ export function POSTerminal({
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
-              All
+              {i.common.all}
             </button>
             {categories.map((cat) => (
               <button
@@ -838,7 +844,7 @@ export function POSTerminal({
             <div className="flex items-center justify-center h-full text-slate-400">
               <div className="text-center">
                 <IconBarcode size={48} className="mx-auto mb-3 opacity-40" />
-                <p className="text-sm font-medium">No products found</p>
+                <p className="text-sm font-medium">{i.pos.noProductsFound}</p>
               </div>
             </div>
           ) : (
@@ -906,7 +912,7 @@ export function POSTerminal({
                                 : "text-slate-400"
                           }`}
                         >
-                          {product.stock <= 0 ? "Out" : `${product.stock}`}
+                          {product.stock <= 0 ? i.pos.out : `${product.stock}`}
                         </span>
                       )}
                     </div>
@@ -923,10 +929,10 @@ export function POSTerminal({
         {/* Cart header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <h2 className="text-lg font-bold text-slate-900">Cart</h2>
+            <h2 className="text-lg font-bold text-slate-900">{i.pos.cart}</h2>
             {cart.length > 0 && (
               <Badge variant="info">
-                {cart.reduce((s, i) => s + i.quantity, 0)}
+                {cart.reduce((s, ci) => s + ci.quantity, 0)}
               </Badge>
             )}
           </div>
@@ -935,7 +941,7 @@ export function POSTerminal({
               onClick={clearCart}
               className="text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
             >
-              Clear All
+              {i.pos.clearAll}
             </button>
           )}
         </div>
@@ -957,7 +963,7 @@ export function POSTerminal({
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                 <circle cx="12" cy="7" r="4" />
               </svg>
-              {selectedStaff?.name || "Staff"}
+              {selectedStaff?.name || i.pos.staff}
             </span>
           </div>
           <select
@@ -968,7 +974,7 @@ export function POSTerminal({
             }}
             className="flex-1 text-xs rounded-xl border-2 border-slate-200 px-3 py-2 font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all capitalize"
           >
-            <option value="">Walk-in Customer</option>
+            <option value="">{i.pos.walkinCustomer}</option>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -983,9 +989,9 @@ export function POSTerminal({
             <div className="flex items-center justify-center h-full text-slate-400">
               <div className="text-center">
                 <IconMoney size={40} className="mx-auto mb-2 opacity-40" />
-                <p className="text-sm font-medium">Cart is empty</p>
+                <p className="text-sm font-medium">{i.pos.cartEmpty}</p>
                 <p className="text-xs mt-1 text-slate-300">
-                  Add products to start
+                  {i.pos.addProductsToStart}
                 </p>
               </div>
             </div>
@@ -1012,7 +1018,7 @@ export function POSTerminal({
                         type="button"
                         onClick={() => openLineEdit(item.product.id)}
                         className="flex-1 min-w-0 text-left cursor-pointer"
-                        title="Edit price / discount"
+                        title={i.pos.editPriceDiscountLower}
                       >
                         <p className="text-sm font-semibold text-slate-800 capitalize truncate">
                           {getProductDisplayName(
@@ -1045,7 +1051,7 @@ export function POSTerminal({
                                 merchant.currency,
                                 merchant.numberFormat,
                               )}{" "}
-                              each
+                              {i.pos.each}
                             </span>
                           )}
                           {item.discountValue > 0 && (
@@ -1108,17 +1114,17 @@ export function POSTerminal({
                     {editingLineId === item.product.id && (
                       <div className="px-5 pb-3 space-y-2 bg-slate-50/80 border-t border-dashed border-slate-200">
                         <p className="text-xs font-semibold text-slate-500 pt-2">
-                          Edit Price / Discount
+                          {i.pos.editPriceDiscount}
                           {maxDiscount < 100 && (
                             <span className="text-amber-500 ml-1">
-                              (max {maxDiscount}%)
+                              ({i.pos.max} {maxDiscount}%)
                             </span>
                           )}
                         </p>
                         <div className="flex gap-2">
                           <input
                             type="number"
-                            placeholder="Custom price"
+                            placeholder={i.pos.customPrice}
                             value={linePriceInput}
                             onChange={(e) => setLinePriceInput(e.target.value)}
                             min="0"
@@ -1128,9 +1134,9 @@ export function POSTerminal({
                           <button
                             onClick={() => setLinePriceInput("")}
                             className="text-xs text-slate-400 hover:text-slate-600 px-2 cursor-pointer"
-                            title="Reset price"
+                            title={i.pos.reset}
                           >
-                            Reset
+                            {i.pos.reset}
                           </button>
                         </div>
                         <div className="flex gap-2">
@@ -1148,7 +1154,7 @@ export function POSTerminal({
                           </select>
                           <input
                             type="number"
-                            placeholder="Discount"
+                            placeholder={i.pos.discount}
                             value={lineDiscountInput}
                             onChange={(e) =>
                               setLineDiscountInput(e.target.value)
@@ -1166,13 +1172,13 @@ export function POSTerminal({
                             onClick={() => setEditingLineId(null)}
                             className="flex-1 py-2 text-xs font-semibold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 active:scale-95 cursor-pointer"
                           >
-                            Cancel
+                            {i.pos.cancel}
                           </button>
                           <button
                             onClick={applyLineDiscount}
                             className="flex-1 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 active:scale-95 cursor-pointer"
                           >
-                            Apply
+                            {i.pos.apply}
                           </button>
                         </div>
                       </div>
@@ -1196,7 +1202,7 @@ export function POSTerminal({
                 />
                 <input
                   type="text"
-                  placeholder="Promo code"
+                  placeholder={i.pos.promoCode}
                   value={promoCode}
                   onChange={(e) => {
                     setPromoCode(e.target.value.toUpperCase());
@@ -1211,7 +1217,7 @@ export function POSTerminal({
                 disabled={!promoCode.trim() || promoLoading}
                 className="px-4 py-2 rounded-xl bg-indigo-50 text-indigo-600 text-sm font-semibold hover:bg-indigo-100 active:scale-95 disabled:opacity-40 cursor-pointer transition-all"
               >
-                {promoLoading ? "..." : "Apply"}
+                {promoLoading ? "..." : i.pos.apply}
               </button>
             </div>
           )}
@@ -1242,7 +1248,7 @@ export function POSTerminal({
 
           <div className="space-y-1.5 text-sm">
             <div className="flex justify-between text-slate-500">
-              <span>Subtotal</span>
+              <span>{i.pos.subtotal}</span>
               <span className="tabular-nums">
                 {formatMoney(
                   subtotal,
@@ -1253,7 +1259,9 @@ export function POSTerminal({
             </div>
             {promoDiscount > 0 && (
               <div className="flex justify-between text-emerald-600">
-                <span>Promo ({promoApplied?.code})</span>
+                <span>
+                  {i.pos.promo} ({promoApplied?.code})
+                </span>
                 <span className="tabular-nums font-semibold">
                   -
                   {formatMoney(
@@ -1266,7 +1274,9 @@ export function POSTerminal({
             )}
             {merchant.taxRate > 0 && (
               <div className="flex justify-between text-slate-500">
-                <span>Tax ({merchant.taxRate}%)</span>
+                <span>
+                  {i.pos.tax} ({merchant.taxRate}%)
+                </span>
                 <span className="tabular-nums">
                   {formatMoney(
                     taxAmount,
@@ -1277,7 +1287,7 @@ export function POSTerminal({
               </div>
             )}
             <div className="flex justify-between text-lg font-bold text-slate-900 pt-2 border-t border-slate-100">
-              <span>Total</span>
+              <span>{i.pos.total}</span>
               <span className="tabular-nums">
                 {formatMoney(total, merchant.currency, merchant.numberFormat)}
               </span>
@@ -1306,7 +1316,7 @@ export function POSTerminal({
                   >
                     <Icon size={22} />
                   </span>
-                  <span>{opt.label}</span>
+                  <span>{i.pos[opt.labelKey]}</span>
                 </button>
               );
             })}
@@ -1317,7 +1327,7 @@ export function POSTerminal({
             onClick={() => setCheckoutOpen(true)}
             className="w-full flex items-center justify-between rounded-xl bg-indigo-600 pl-5 pr-3 py-3 text-white font-bold transition-all hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none select-none cursor-pointer shadow-sm shadow-indigo-600/20"
           >
-            <span className="text-sm tracking-wide">Charge</span>
+            <span className="text-sm tracking-wide">{i.pos.charge}</span>
             <span className="flex items-center gap-2">
               <span className="bg-white/20 rounded-lg px-3 py-1 text-sm tabular-nums">
                 {formatMoney(total, merchant.currency, merchant.numberFormat)}
@@ -1332,20 +1342,20 @@ export function POSTerminal({
       <Modal
         open={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
-        title="Complete Sale"
+        title={i.pos.completeSale}
         size="md"
       >
         <div className="space-y-5">
           {/* Order summary */}
           <div className="bg-slate-50 rounded-2xl p-5 space-y-2.5 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-500">Items</span>
+              <span className="text-slate-500">{i.pos.items}</span>
               <span className="font-semibold text-slate-800 tabular-nums">
-                {cart.reduce((s, i) => s + i.quantity, 0)}
+                {cart.reduce((s, ci) => s + ci.quantity, 0)}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Subtotal</span>
+              <span className="text-slate-500">{i.pos.subtotal}</span>
               <span className="font-semibold text-slate-800 tabular-nums">
                 {formatMoney(
                   subtotal,
@@ -1356,7 +1366,9 @@ export function POSTerminal({
             </div>
             {promoDiscount > 0 && (
               <div className="flex justify-between text-emerald-600">
-                <span>Promo ({promoApplied?.code})</span>
+                <span>
+                  {i.pos.promo} ({promoApplied?.code})
+                </span>
                 <span className="font-semibold tabular-nums">
                   -
                   {formatMoney(
@@ -1370,7 +1382,7 @@ export function POSTerminal({
             {merchant.taxRate > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">
-                  Tax ({merchant.taxRate}%)
+                  {i.pos.tax} ({merchant.taxRate}%)
                 </span>
                 <span className="font-semibold text-slate-800 tabular-nums">
                   {formatMoney(
@@ -1382,7 +1394,7 @@ export function POSTerminal({
               </div>
             )}
             <div className="flex justify-between text-lg font-bold border-t border-slate-200 pt-2.5">
-              <span className="text-slate-900">Total</span>
+              <span className="text-slate-900">{i.pos.total}</span>
               <span className="text-slate-900 tabular-nums">
                 {formatMoney(total, merchant.currency, merchant.numberFormat)}
               </span>
@@ -1392,7 +1404,7 @@ export function POSTerminal({
           {/* Payment */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Payment Method
+              {i.pos.paymentMethod}
             </label>
             <div className="grid grid-cols-3 gap-3">
               {PAYMENT_METHOD_OPTIONS.map((opt) => {
@@ -1415,7 +1427,7 @@ export function POSTerminal({
                     >
                       <Icon size={24} />
                     </span>
-                    <span>{opt.label}</span>
+                    <span>{i.pos[opt.labelKey]}</span>
                   </button>
                 );
               })}
@@ -1439,7 +1451,7 @@ export function POSTerminal({
               {parseFloat(paidAmount) > 0 &&
                 parseFloat(paidAmount) >= total && (
                   <p className="text-sm text-emerald-600 mt-1.5 font-semibold">
-                    Change:{" "}
+                    {i.pos.change}{" "}
                     {formatMoney(
                       parseFloat(paidAmount) - total,
                       merchant.currency,
@@ -1449,13 +1461,13 @@ export function POSTerminal({
                 )}
               {parseFloat(paidAmount) > 0 && parseFloat(paidAmount) < total && (
                 <p className="text-sm text-red-600 mt-1.5 font-semibold">
-                  Insufficient:{" "}
+                  {i.pos.insufficient}{" "}
                   {formatMoney(
                     total - parseFloat(paidAmount),
                     merchant.currency,
                     merchant.numberFormat,
                   )}{" "}
-                  remaining
+                  {i.pos.remaining}
                 </p>
               )}
               {/* Quick amount buttons */}
@@ -1464,9 +1476,9 @@ export function POSTerminal({
                   total,
                   Math.ceil(total / 1000) * 1000,
                   Math.ceil(total / 5000) * 5000,
-                ].map((amount, i) => (
+                ].map((amount, idx) => (
                   <button
-                    key={i}
+                    key={idx}
                     onClick={() => setPaidAmount(amount.toString())}
                     className="flex-1 py-2 rounded-xl bg-slate-100 text-xs font-semibold text-slate-600 hover:bg-slate-200 active:scale-95 transition-all tabular-nums cursor-pointer"
                   >
@@ -1484,7 +1496,7 @@ export function POSTerminal({
           {/* Notes */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Notes (optional)
+              {i.pos.notesOptional}
             </label>
             <textarea
               value={orderNotes}
@@ -1497,12 +1509,12 @@ export function POSTerminal({
           {/* Customer & Staff info */}
           <div className="flex gap-4 text-sm text-slate-500">
             <div>
-              <span className="font-semibold">Cashier:</span>{" "}
-              {selectedStaff?.name || "Not assigned"}
+              <span className="font-semibold">{i.pos.cashier}</span>{" "}
+              {selectedStaff?.name || i.pos.notAssigned}
             </div>
             <div>
-              <span className="font-semibold">Customer:</span>{" "}
-              {selectedCustomer?.name || "Walk-in"}
+              <span className="font-semibold">{i.pos.customer}</span>{" "}
+              {selectedCustomer?.name || i.pos.walkin}
             </div>
           </div>
 
@@ -1513,7 +1525,7 @@ export function POSTerminal({
               className="flex-1"
               onClick={() => setCheckoutOpen(false)}
             >
-              Cancel
+              {i.common.cancel}
             </Button>
             <Button
               className="flex-1"
@@ -1526,7 +1538,7 @@ export function POSTerminal({
                 parseFloat(paidAmount) < total
               }
             >
-              Complete Sale
+              {i.pos.completeSale}
             </Button>
           </div>
         </div>
@@ -1539,7 +1551,7 @@ export function POSTerminal({
           setReceiptOpen(false);
           setLastOrder(null);
         }}
-        title="Order Complete"
+        title={i.pos.orderComplete}
         size="sm"
       >
         {lastOrder && (
@@ -1576,7 +1588,7 @@ export function POSTerminal({
             {lastOrder.paymentMethod === "CASH" && lastOrder.change > 0 && (
               <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-3 text-center">
                 <p className="text-sm text-amber-800 font-bold tabular-nums">
-                  Change:{" "}
+                  {i.pos.change}{" "}
                   {formatMoney(
                     lastOrder.change,
                     merchant.currency,
@@ -1598,20 +1610,30 @@ export function POSTerminal({
                 <p className="mt-1">─────────────────</p>
               </div>
 
-              <p>Order: {lastOrder.orderNumber}</p>
               <p>
-                Date:{" "}
+                {i.pos.order} {lastOrder.orderNumber}
+              </p>
+              <p>
+                {i.pos.date}{" "}
                 {formatDateTime(
                   lastOrder.date,
                   merchant.dateFormat,
                   merchant.numberFormat,
                 )}
               </p>
-              {lastOrder.staff && <p>Cashier: {lastOrder.staff.name}</p>}
-              {lastOrder.customer && <p>Customer: {lastOrder.customer.name}</p>}
+              {lastOrder.staff && (
+                <p>
+                  {i.pos.cashier} {lastOrder.staff.name}
+                </p>
+              )}
+              {lastOrder.customer && (
+                <p>
+                  {i.pos.customer} {lastOrder.customer.name}
+                </p>
+              )}
               <p>─────────────────</p>
 
-              {lastOrder.items.map((item, i) => {
+              {lastOrder.items.map((item, idx) => {
                 const effectivePrice = item.unitPrice ?? item.product.price;
                 let lineTotal = effectivePrice * item.quantity;
                 let lineDisc = 0;
@@ -1624,7 +1646,7 @@ export function POSTerminal({
                 lineTotal = Math.max(0, lineTotal - lineDisc);
 
                 return (
-                  <div key={i}>
+                  <div key={idx}>
                     <div className="flex justify-between py-0.5">
                       <span className="truncate mr-2">
                         {item.quantity}x{" "}
@@ -1663,7 +1685,7 @@ export function POSTerminal({
                         {item.discountValue > 0 && (
                           <span>
                             {item.unitPrice !== null ? " · " : ""}
-                            Disc:{" "}
+                            {i.pos.disc}{" "}
                             {item.discountType === "PERCENT"
                               ? `${item.discountValue}%`
                               : formatMoney(
@@ -1681,7 +1703,7 @@ export function POSTerminal({
 
               <p className="mt-1">─────────────────</p>
               <div className="flex justify-between">
-                <span>Subtotal</span>
+                <span>{i.pos.subtotal}</span>
                 <span className="tabular-nums">
                   {formatMoney(
                     lastOrder.subtotal,
@@ -1692,7 +1714,9 @@ export function POSTerminal({
               </div>
               {lastOrder.promoDiscount > 0 && (
                 <div className="flex justify-between">
-                  <span>Promo ({lastOrder.promoCode})</span>
+                  <span>
+                    {i.pos.promo} ({lastOrder.promoCode})
+                  </span>
                   <span className="tabular-nums">
                     -
                     {formatMoney(
@@ -1705,7 +1729,7 @@ export function POSTerminal({
               )}
               {lastOrder.tax > 0 && (
                 <div className="flex justify-between">
-                  <span>Tax</span>
+                  <span>{i.pos.tax}</span>
                   <span className="tabular-nums">
                     {formatMoney(
                       lastOrder.tax,
@@ -1716,7 +1740,7 @@ export function POSTerminal({
                 </div>
               )}
               <div className="flex justify-between font-bold text-sm mt-1">
-                <span>TOTAL</span>
+                <span>{i.pos.total}</span>
                 <span className="tabular-nums">
                   {formatMoney(
                     lastOrder.total,
@@ -1727,7 +1751,8 @@ export function POSTerminal({
               </div>
               <div className="flex justify-between">
                 <span>
-                  Paid ({getPaymentMethodLabel(lastOrder.paymentMethod)})
+                  {i.pos.paid} ({getPaymentMethodLabel(lastOrder.paymentMethod)}
+                  )
                 </span>
                 <span className="tabular-nums">
                   {formatMoney(
@@ -1739,7 +1764,7 @@ export function POSTerminal({
               </div>
               {lastOrder.change > 0 && (
                 <div className="flex justify-between">
-                  <span>Change</span>
+                  <span>{i.pos.change}</span>
                   <span className="tabular-nums">
                     {formatMoney(
                       lastOrder.change,
@@ -1755,7 +1780,7 @@ export function POSTerminal({
                 <div className="flex justify-center mt-2">
                   <QRCodeDisplay value={lastOrder.orderNumber} size={80} />
                 </div>
-                <p className="mt-1">Thank you!</p>
+                <p className="mt-1">{i.pos.thankYou}</p>
               </div>
             </div>
 
@@ -1767,7 +1792,7 @@ export function POSTerminal({
                 onClick={printReceipt}
               >
                 <IconPrinter size={16} />
-                Print
+                {i.pos.print}
               </Button>
               <Button
                 className="flex-1"
@@ -1776,7 +1801,7 @@ export function POSTerminal({
                   setLastOrder(null);
                 }}
               >
-                New Sale
+                {i.pos.newSale}
               </Button>
             </div>
           </div>
@@ -1785,6 +1810,7 @@ export function POSTerminal({
 
       {scannerOpen && (
         <BarcodeScanner
+          language={language}
           onScan={handleCameraScan}
           onClose={() => setScannerOpen(false)}
         />

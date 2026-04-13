@@ -2,11 +2,13 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { getLocalStaff } from "@/lib/offline-sync";
+import { t, type Locale } from "@/lib/i18n";
 
 interface PinPadProps {
   merchantId?: string;
   onSuccess: (staff: { id: string; name: string; role: string }) => void;
   merchantName?: string;
+  language?: string;
 }
 
 async function verifyPinOffline(
@@ -19,7 +21,13 @@ async function verifyPinOffline(
   return { id: match.id, name: match.name, role: match.role };
 }
 
-export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
+export function PinPad({
+  merchantId,
+  onSuccess,
+  merchantName,
+  language = "en",
+}: PinPadProps) {
+  const i = t(language as Locale);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -47,7 +55,7 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
 
   const handleSubmit = useCallback(async () => {
     if (pin.length < 4) {
-      setError("PIN must be at least 4 digits");
+      setError(i.pin.pinMinDigits);
       return;
     }
 
@@ -96,7 +104,7 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
         }
       }
 
-      setError(data.error || "Invalid PIN");
+      setError(data.error || i.pin.invalidPin);
       setPin("");
     } catch {
       // Network completely down · try offline verification
@@ -111,7 +119,7 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
           // IndexedDB also failed
         }
       }
-      setError("Connection error. Please try again.");
+      setError(i.pin.connectionError);
       setPin("");
     } finally {
       setLoading(false);
@@ -153,20 +161,18 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
             <span className="text-2xl font-bold text-white">S</span>
           </div>
           <h1 className="text-xl font-bold text-white">
-            {merchantName || "Shampay POS"}
+            {merchantName || i.pin.title}
           </h1>
-          <p className="text-sm text-indigo-200/70 mt-1">
-            Enter your PIN to start
-          </p>
+          <p className="text-sm text-indigo-200/70 mt-1">{i.pin.enterPin}</p>
         </div>
 
         {/* PIN dots */}
         <div className="flex justify-center gap-3 mb-6">
-          {Array.from({ length: maxLength }).map((_, i) => (
+          {Array.from({ length: maxLength }).map((_, idx) => (
             <div
-              key={i}
+              key={idx}
               className={`w-4 h-4 rounded-full transition-all duration-150 ${
-                i < pin.length
+                idx < pin.length
                   ? "bg-indigo-400 shadow-lg shadow-indigo-400/50 scale-110"
                   : "bg-white/10 border border-white/20"
               }`}
@@ -201,7 +207,7 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
             disabled={loading}
             className="h-16 rounded-xl bg-white/5 border border-white/10 text-red-400 text-sm font-semibold hover:bg-red-500/10 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
-            Clear
+            {i.pin.clear}
           </button>
           <button
             onClick={() => handleDigit("0")}
@@ -259,15 +265,15 @@ export function PinPad({ merchantId, onSuccess, merchantName }: PinPadProps) {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
               </svg>
-              Verifying…
+              {i.pin.verifying}
             </span>
           ) : (
-            "Sign In"
+            i.pin.signIn
           )}
         </button>
 
         <p className="text-center text-xs text-white/30 mt-6">
-          Use your assigned PIN to access the terminal
+          {i.pin.helpText}
         </p>
       </div>
     </div>

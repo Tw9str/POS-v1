@@ -22,6 +22,7 @@ import {
   type DateFormat,
   type NumberFormat,
 } from "@/lib/utils";
+import { t, type Locale } from "@/lib/i18n";
 
 type MetricSnapshot = {
   grossSales: number;
@@ -93,12 +94,15 @@ export function ReportsContent({
   currency,
   numberFormat = "western",
   dateFormat = "long",
+  language = "en",
 }: {
   merchantId: string;
   currency: string;
   numberFormat?: NumberFormat;
   dateFormat?: DateFormat;
+  language?: string;
 }) {
+  const i = t(language as Locale);
   const products = useLocalProducts(merchantId);
   const customers = useLocalCustomers(merchantId);
   const orders = useLocalOrders(merchantId, 500);
@@ -252,89 +256,86 @@ export function ReportsContent({
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Reports"
-        subtitle="Gross sales, refunds, net revenue, and profit analytics"
-      />
+      <PageHeader title={i.reports.title} subtitle={i.reports.subtitle} />
 
       <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
         <StatCard
-          title="Gross Sales"
+          title={i.reports.grossSales}
           value={formatCurrency(
             stats.allTime.grossSales,
             currency,
             numberFormat,
           )}
-          subtitle={`${formatNumber(stats.allTime.orderCount, numberFormat)} non-voided orders`}
+          subtitle={`${formatNumber(stats.allTime.orderCount, numberFormat)} ${i.reports.nonVoidedOrders}`}
           icon={<IconMoney size={24} />}
         />
         <StatCard
-          title="Refunded Revenue"
+          title={i.reports.refundedRevenue}
           value={formatCurrency(
             stats.allTime.refundedRevenue,
             currency,
             numberFormat,
           )}
-          subtitle={`${formatNumber(stats.refundedOrders.length, numberFormat)} refunded orders`}
+          subtitle={`${formatNumber(stats.refundedOrders.length, numberFormat)} ${i.reports.refundedOrders}`}
           icon={<IconOrders size={24} />}
         />
         <StatCard
-          title="Net Revenue"
+          title={i.reports.netRevenue}
           value={formatCurrency(
             stats.allTime.netRevenue,
             currency,
             numberFormat,
           )}
-          subtitle={`${formatCurrency(stats.allTime.avgOrder, currency, numberFormat)} avg order value`}
+          subtitle={`${formatCurrency(stats.allTime.avgOrder, currency, numberFormat)} ${i.reports.avgOrderValue}`}
           icon={<IconCustomers size={24} />}
         />
         <StatCard
-          title="Net COGS"
+          title={i.reports.netCogs}
           value={formatCurrency(stats.allTime.netCogs, currency, numberFormat)}
-          subtitle="Estimated cost of sold goods after returns"
+          subtitle={i.reports.netCogsDesc}
           icon={<IconProducts size={24} />}
         />
         <StatCard
-          title="Gross Profit"
+          title={i.reports.grossProfit}
           value={formatCurrency(
             stats.allTime.grossProfit,
             currency,
             numberFormat,
           )}
-          subtitle={`${stats.allTime.margin.toFixed(1)}% margin`}
+          subtitle={`${stats.allTime.margin.toFixed(1)}% ${i.reports.margin}`}
           icon={<IconMoney size={24} />}
         />
         <StatCard
-          title="Refund Rate"
+          title={i.reports.refundRate}
           value={`${stats.refundRate.toFixed(1)}%`}
-          subtitle={`${formatNumber(stats.voidedOrders.length, numberFormat)} voided orders`}
+          subtitle={`${formatNumber(stats.voidedOrders.length, numberFormat)} ${i.reports.voidedOrders}`}
           icon={<IconOrders size={24} />}
         />
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
-          title="Today Net"
+          title={i.reports.todayNet}
           value={formatCurrency(stats.today.netRevenue, currency, numberFormat)}
-          subtitle={`${formatCurrency(stats.today.grossProfit, currency, numberFormat)} profit`}
+          subtitle={`${formatCurrency(stats.today.grossProfit, currency, numberFormat)} ${i.reports.profit}`}
           icon={<IconMoney size={22} />}
         />
         <StatCard
-          title="This Week Net"
+          title={i.reports.thisWeekNet}
           value={formatCurrency(stats.week.netRevenue, currency, numberFormat)}
-          subtitle={`${formatCurrency(stats.week.grossProfit, currency, numberFormat)} profit`}
+          subtitle={`${formatCurrency(stats.week.grossProfit, currency, numberFormat)} ${i.reports.profit}`}
           icon={<IconOrders size={22} />}
         />
         <StatCard
-          title="This Month Net"
+          title={i.reports.thisMonthNet}
           value={formatCurrency(stats.month.netRevenue, currency, numberFormat)}
-          subtitle={`${formatCurrency(stats.month.grossProfit, currency, numberFormat)} profit`}
+          subtitle={`${formatCurrency(stats.month.grossProfit, currency, numberFormat)} ${i.reports.profit}`}
           icon={<IconCustomers size={22} />}
         />
         <StatCard
-          title="Avg Daily Orders"
+          title={i.reports.avgDailyOrders}
           value={formatNumber(stats.avgDailyOrders, numberFormat)}
-          subtitle={`${formatNumber(stats.today.orderCount, numberFormat)} orders today`}
+          subtitle={`${formatNumber(stats.today.orderCount, numberFormat)} ${i.reports.ordersToday}`}
           icon={<IconProducts size={22} />}
         />
       </div>
@@ -343,13 +344,13 @@ export function ReportsContent({
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Daily Performance (Last 7 Days)
+              {i.reports.dailyPerformanceLast7}
             </h2>
           </div>
           <div className="divide-y divide-slate-50">
             {stats.dailyPerformance.length === 0 ? (
               <div className="px-6 py-10 text-center text-slate-400 text-sm">
-                No sales data yet
+                {i.reports.noSalesData}
               </div>
             ) : (
               stats.dailyPerformance.map((day) => (
@@ -362,13 +363,14 @@ export function ReportsContent({
                       {formatDate(day.date, dateFormat, numberFormat)}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {formatNumber(day.orderCount, numberFormat)} orders ·{" "}
+                      {formatNumber(day.orderCount, numberFormat)}{" "}
+                      {i.reports.orders} ·{" "}
                       {formatCurrency(
                         day.refundedRevenue,
                         currency,
                         numberFormat,
                       )}{" "}
-                      refunds
+                      {i.reports.refunds}
                     </p>
                   </div>
                   <div className="text-right">
@@ -376,7 +378,7 @@ export function ReportsContent({
                       {formatCurrency(day.netRevenue, currency, numberFormat)}
                     </p>
                     <p className="text-xs text-emerald-700 font-semibold">
-                      Profit{" "}
+                      {i.reports.profit}{" "}
                       {formatCurrency(day.grossProfit, currency, numberFormat)}
                     </p>
                   </div>
@@ -389,13 +391,13 @@ export function ReportsContent({
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Top Products
+              {i.reports.topProducts}
             </h2>
           </div>
           <div className="divide-y divide-slate-50">
             {stats.topProducts.length === 0 ? (
               <div className="px-6 py-10 text-center text-slate-400 text-sm">
-                No product data yet
+                {i.reports.noProductData}
               </div>
             ) : (
               stats.topProducts.map((product, index) => (
@@ -412,13 +414,14 @@ export function ReportsContent({
                         {product.name}
                       </p>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        {formatNumber(product.quantity, numberFormat)} units ·{" "}
+                        {formatNumber(product.quantity, numberFormat)}{" "}
+                        {i.reports.units} ·{" "}
                         {formatCurrency(
                           product.grossProfit,
                           currency,
                           numberFormat,
                         )}{" "}
-                        profit
+                        {i.reports.profit}
                       </p>
                     </div>
                   </div>
@@ -436,13 +439,13 @@ export function ReportsContent({
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Top Selling Variants
+              {i.reports.topSellingVariants}
             </h2>
           </div>
           <div className="divide-y divide-slate-50">
             {stats.topVariants.length === 0 ? (
               <div className="px-6 py-10 text-center text-slate-400 text-sm">
-                No variant data yet
+                {i.reports.noVariantData}
               </div>
             ) : (
               stats.topVariants.map((variant, index) => (
@@ -459,13 +462,14 @@ export function ReportsContent({
                         {variant.name}
                       </p>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        {formatNumber(variant.quantity, numberFormat)} units ·{" "}
+                        {formatNumber(variant.quantity, numberFormat)}{" "}
+                        {i.reports.units} ·{" "}
                         {formatCurrency(
                           variant.grossProfit,
                           currency,
                           numberFormat,
                         )}{" "}
-                        profit
+                        {i.reports.profit}
                       </p>
                     </div>
                   </div>
@@ -480,42 +484,44 @@ export function ReportsContent({
 
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-5">
-            Store Overview
+            {i.reports.storeOverview}
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
             <div>
-              <p className="text-sm text-slate-500">Products</p>
+              <p className="text-sm text-slate-500">{i.reports.products}</p>
               <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
                 {formatNumber(stats.productCount, numberFormat)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">Variants</p>
+              <p className="text-sm text-slate-500">{i.reports.variants}</p>
               <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
                 {formatNumber(stats.variantCount, numberFormat)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">Customers</p>
+              <p className="text-sm text-slate-500">{i.reports.customers}</p>
               <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
                 {formatNumber(customers.length, numberFormat)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">Avg Order Value</p>
+              <p className="text-sm text-slate-500">
+                {i.reports.avgOrderValueLabel}
+              </p>
               <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
                 {formatCurrency(stats.allTime.avgOrder, currency, numberFormat)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">Low / Out Stock</p>
+              <p className="text-sm text-slate-500">{i.reports.lowOutStock}</p>
               <p className="text-2xl font-bold text-amber-700 mt-1 tabular-nums">
                 {formatNumber(stats.lowStockCount, numberFormat)} /{" "}
                 {formatNumber(stats.outOfStockCount, numberFormat)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">Refund / Void</p>
+              <p className="text-sm text-slate-500">{i.reports.refundVoid}</p>
               <p className="text-2xl font-bold text-rose-700 mt-1 tabular-nums">
                 {formatNumber(stats.refundedOrders.length, numberFormat)} /{" "}
                 {formatNumber(stats.voidedOrders.length, numberFormat)}

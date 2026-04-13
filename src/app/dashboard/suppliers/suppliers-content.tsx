@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { PageHeader } from "@/components/layout/page-header";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
+import { t, type Locale } from "@/lib/i18n";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 const PAGE_SIZE = 10;
@@ -16,10 +17,13 @@ const PAGE_SIZE = 10;
 export function SuppliersContent({
   merchantId,
   numberFormat = "western",
+  language = "en",
 }: {
   merchantId: string;
   numberFormat?: NumberFormat;
+  language?: string;
 }) {
+  const i = t(language as Locale);
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -100,7 +104,7 @@ export function SuppliersContent({
     if (!result.ok) {
       setFeedback({
         type: "error",
-        text: result.error || "Failed to delete supplier",
+        text: result.error || i.suppliers.failedToDelete,
       });
     } else {
       setSelectedIds((prev) => prev.filter((item) => item !== id));
@@ -146,18 +150,18 @@ export function SuppliersContent({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Suppliers"
-        subtitle={`${formatNumber(suppliers.length, numberFormat)} suppliers`}
+        title={i.suppliers.title}
+        subtitle={`${formatNumber(suppliers.length, numberFormat)} ${i.suppliers.suppliers}`}
       >
-        <SupplierActions merchantId={merchantId} />
+        <SupplierActions merchantId={merchantId} language={language} />
       </PageHeader>
 
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="w-full md:max-w-sm">
           <Input
             id="supplier-search"
-            label="Search suppliers"
-            placeholder="Name, phone, email, address..."
+            label={i.common.search}
+            placeholder={i.suppliers.searchPlaceholder}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -174,7 +178,7 @@ export function SuppliersContent({
               if (editMode) setSelectedIds([]);
             }}
           >
-            {editMode ? "Done" : "Edit"}
+            {editMode ? i.common.done : i.common.edit}
           </Button>
           {editMode && selectedIds.length > 0 && (
             <Button
@@ -184,8 +188,8 @@ export function SuppliersContent({
               onClick={() => setConfirmBulkDelete(true)}
             >
               {bulkDeleting
-                ? "Deleting..."
-                : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+                ? i.common.deleting
+                : `${i.common.deleteSelected} (${formatNumber(selectedIds.length, numberFormat)})`}
             </Button>
           )}
         </div>
@@ -217,11 +221,21 @@ export function SuppliersContent({
                   />
                 </th>
               )}
-              <th className="px-5 py-3.5 text-left font-semibold">Name</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Phone</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Email</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Address</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Notes</th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.name}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.phone}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.email}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.address}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.notes}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -232,8 +246,8 @@ export function SuppliersContent({
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {suppliers.length === 0
-                    ? "No suppliers yet"
-                    : "No suppliers match your search"}
+                    ? i.suppliers.noSuppliersYet
+                    : i.suppliers.noSuppliersMatch}
                 </td>
               </tr>
             ) : (
@@ -281,13 +295,13 @@ export function SuppliersContent({
       {filteredSuppliers.length > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            Showing{" "}
+            {i.common.showing}{" "}
             {formatNumber((currentPage - 1) * PAGE_SIZE + 1, numberFormat)}-
             {formatNumber(
               Math.min(currentPage * PAGE_SIZE, filteredSuppliers.length),
               numberFormat,
             )}{" "}
-            of {formatNumber(filteredSuppliers.length, numberFormat)}
+            {i.common.of} {formatNumber(filteredSuppliers.length, numberFormat)}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -296,10 +310,10 @@ export function SuppliersContent({
               disabled={currentPage === 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             >
-              Previous
+              {i.common.previous}
             </Button>
             <span className="text-sm text-slate-500">
-              Page {formatNumber(currentPage, numberFormat)} /{" "}
+              {i.common.page} {formatNumber(currentPage, numberFormat)} /{" "}
               {formatNumber(totalPages, numberFormat)}
             </span>
             <Button
@@ -308,7 +322,7 @@ export function SuppliersContent({
               disabled={currentPage === totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
-              Next
+              {i.common.next}
             </Button>
           </div>
         </div>
@@ -317,6 +331,7 @@ export function SuppliersContent({
       {editSupplier && (
         <SupplierActions
           merchantId={merchantId}
+          language={language}
           supplier={editSupplier}
           externalOpen
           onExternalClose={() => setEditSupplier(null)}
@@ -337,9 +352,12 @@ export function SuppliersContent({
             setConfirmDelete(null);
           }
         }}
-        title="Delete supplier"
-        message={`Are you sure you want to delete "${confirmDelete?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
+        title={i.suppliers.deleteSupplier}
+        message={i.suppliers.deleteSupplierConfirm.replace(
+          "{name}",
+          confirmDelete?.name ?? "",
+        )}
+        confirmLabel={i.common.delete}
         loading={Boolean(deletingId)}
       />
 
@@ -350,9 +368,12 @@ export function SuppliersContent({
           setConfirmBulkDelete(false);
           handleBulkDelete();
         }}
-        title="Delete selected suppliers"
-        message={`Are you sure you want to delete ${formatNumber(selectedIds.length, numberFormat)} selected suppliers? This action cannot be undone.`}
-        confirmLabel="Delete all"
+        title={i.suppliers.deleteSelectedSuppliers}
+        message={i.suppliers.deleteSelectedConfirm.replace(
+          "{count}",
+          formatNumber(selectedIds.length, numberFormat),
+        )}
+        confirmLabel={i.common.delete}
       />
     </div>
   );

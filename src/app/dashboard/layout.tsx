@@ -6,6 +6,7 @@ import { getAllowedPages, type StaffRole } from "@/lib/staff";
 import { DashboardGate } from "@/components/layout/dashboard-gate";
 import { DashboardHydrator } from "@/components/dashboard-hydrator";
 import { prisma } from "@/lib/db";
+import { getDirection, type Locale } from "@/lib/i18n";
 
 export default async function DashboardLayout({
   children,
@@ -23,7 +24,11 @@ export default async function DashboardLayout({
   // No staff session → show PIN gate
   if (!staffSession || staffSession.merchantId !== merchant.id) {
     return (
-      <DashboardGate merchantId={merchant.id} merchantName={merchant.name} />
+      <DashboardGate
+        merchantId={merchant.id}
+        merchantName={merchant.name}
+        language={merchant.language ?? "en"}
+      />
     );
   }
 
@@ -42,13 +47,21 @@ export default async function DashboardLayout({
     // fallback to "Staff"
   }
 
+  const language = (merchant.language ?? "en") as Locale;
+  const dir = getDirection(language);
+
   return (
-    <div className="h-dvh overflow-hidden bg-slate-50">
+    <div
+      className="h-dvh overflow-hidden bg-slate-50"
+      dir={dir}
+      lang={language}
+    >
       <MerchantSidebar
         merchantName={merchant.name}
         staffName={staffName}
         staffRole={role}
         allowedPages={allowedPages}
+        language={language}
       />
       <main className="h-full overflow-y-auto">
         <div className="max-w-400 mx-auto p-4 pb-[calc(var(--bottom-nav)+1rem)] lg:p-6">

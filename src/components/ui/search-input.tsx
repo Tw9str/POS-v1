@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { IconCamera, IconX } from "@/components/icons";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
+import { t, type Locale } from "@/lib/i18n";
 
 interface SearchInputProps {
   id: string;
@@ -15,6 +16,7 @@ interface SearchInputProps {
   numberFormat?: NumberFormat;
   onScan?: () => void;
   className?: string;
+  language?: string;
 }
 
 export function SearchInput({
@@ -28,7 +30,9 @@ export function SearchInput({
   numberFormat = "western",
   onScan,
   className,
+  language = "en",
 }: SearchInputProps) {
+  const i = t(language as Locale);
   const isFiltered = value.trim().length > 0 || resultCount !== totalCount;
 
   return (
@@ -48,7 +52,7 @@ export function SearchInput({
               type="button"
               onClick={() => onChange("")}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
-              title="Clear search"
+              title={i.common.clearSearch}
             >
               <IconX size={16} />
             </button>
@@ -58,7 +62,7 @@ export function SearchInput({
               type="button"
               onClick={onScan}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer"
-              title="Scan barcode"
+              title={i.common.scanBarcode}
             >
               <IconCamera size={20} />
             </button>
@@ -67,8 +71,8 @@ export function SearchInput({
       </div>
       {isFiltered && (
         <p className="mt-1.5 text-xs font-medium text-slate-500 tabular-nums">
-          {formatNumber(resultCount, numberFormat)} of{" "}
-          {formatNumber(totalCount, numberFormat)} results
+          {formatNumber(resultCount, numberFormat)} {i.common.of}{" "}
+          {formatNumber(totalCount, numberFormat)} {i.common.results}
         </p>
       )}
     </div>

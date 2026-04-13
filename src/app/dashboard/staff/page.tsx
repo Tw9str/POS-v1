@@ -12,6 +12,7 @@ export default async function StaffPage() {
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }
+      language={merchant.language ?? "en"}
     />
   );
 }

@@ -15,6 +15,7 @@ import {
   getProductDisplayName,
   type NumberFormat,
 } from "@/lib/utils";
+import { t, type Locale, type TranslationKeys } from "@/lib/i18n";
 
 interface ProductInsightModalProps {
   open: boolean;
@@ -24,22 +25,26 @@ interface ProductInsightModalProps {
   insight?: InventoryInsight;
   currency: string;
   numberFormat?: NumberFormat;
+  language?: string;
   onEdit?: (product: LocalProduct) => void;
   onAddVariant?: (product: LocalProduct) => void;
   onDelete?: (product: LocalProduct) => void;
   deleting?: boolean;
 }
 
-function getActionLabel(action?: InventoryInsight["action"]) {
+function getActionLabel(
+  action: InventoryInsight["action"] | undefined,
+  pi: TranslationKeys["productInsight"],
+) {
   switch (action) {
     case "reorder":
-      return { text: "Reorder now", variant: "warning" as const };
+      return { text: pi.reorderNow, variant: "warning" as const };
     case "dead":
-      return { text: "Dead stock", variant: "default" as const };
+      return { text: pi.deadStock, variant: "default" as const };
     case "watch":
-      return { text: "Watch closely", variant: "info" as const };
+      return { text: pi.watchClosely, variant: "info" as const };
     default:
-      return { text: "Healthy", variant: "success" as const };
+      return { text: pi.healthy, variant: "success" as const };
   }
 }
 
@@ -51,25 +56,27 @@ export function ProductInsightModal({
   insight,
   currency,
   numberFormat = "western",
+  language = "en",
   onEdit,
   onAddVariant,
   onDelete,
   deleting,
 }: ProductInsightModalProps) {
+  const i = t(language as Locale);
   if (!product) return null;
 
   const title = getProductDisplayName(product.name, product.variantName);
-  const action = getActionLabel(insight?.action);
+  const action = getActionLabel(insight?.action, i.productInsight);
   const margin = metric?.netRevenue
     ? (metric.grossProfit / metric.netRevenue) * 100
     : 0;
   const stockState = !product.trackStock
-    ? { text: "Stock not tracked", variant: "info" as const }
+    ? { text: i.productInsight.stockNotTracked, variant: "info" as const }
     : product.stock <= 0
-      ? { text: "Out of stock", variant: "danger" as const }
+      ? { text: i.productInsight.outOfStock, variant: "danger" as const }
       : product.stock <= Math.max(1, product.lowStockAt || 5)
-        ? { text: "Low stock", variant: "warning" as const }
-        : { text: "In stock", variant: "success" as const };
+        ? { text: i.productInsight.lowStock, variant: "warning" as const }
+        : { text: i.productInsight.inStock, variant: "success" as const };
 
   return (
     <Modal open={open} onClose={onClose} title={title} size="xl">
@@ -78,15 +85,19 @@ export function ProductInsightModal({
           <Badge variant={action.variant}>{action.text}</Badge>
           <Badge variant={stockState.variant}>{stockState.text}</Badge>
           <Badge variant="info">
-            {product.categoryName || "Uncategorized"}
+            {product.categoryName || i.productInsight.uncategorized}
           </Badge>
-          {product.sku && <Badge variant="default">SKU {product.sku}</Badge>}
+          {product.sku && (
+            <Badge variant="default">
+              {i.productInsight.sku} {product.sku}
+            </Badge>
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Sold today
+              {i.productInsight.soldToday}
             </p>
             <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">
               {formatNumber(metric?.soldToday ?? 0, numberFormat)}
@@ -94,7 +105,7 @@ export function ProductInsightModal({
           </div>
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-              Sold 7d
+              {i.productInsight.sold7d}
             </p>
             <p className="mt-2 text-2xl font-bold text-emerald-900 tabular-nums">
               {formatNumber(metric?.sold7d ?? 0, numberFormat)}
@@ -102,7 +113,7 @@ export function ProductInsightModal({
           </div>
           <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
-              Sold 30d
+              {i.productInsight.sold30d}
             </p>
             <p className="mt-2 text-2xl font-bold text-cyan-900 tabular-nums">
               {formatNumber(metric?.sold30d ?? 0, numberFormat)}
@@ -110,7 +121,7 @@ export function ProductInsightModal({
           </div>
           <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
-              Net revenue
+              {i.productInsight.netRevenue}
             </p>
             <p className="mt-2 text-xl font-bold text-indigo-900 tabular-nums">
               {formatCurrency(metric?.netRevenue ?? 0, currency, numberFormat)}
@@ -118,18 +129,19 @@ export function ProductInsightModal({
           </div>
           <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
-              Gross profit
+              {i.productInsight.grossProfit}
             </p>
             <p className="mt-2 text-xl font-bold text-violet-900 tabular-nums">
               {formatCurrency(metric?.grossProfit ?? 0, currency, numberFormat)}
             </p>
             <p className="mt-1 text-xs font-medium text-violet-700">
-              {formatNumber(margin.toFixed(1), numberFormat)}% margin
+              {formatNumber(margin.toFixed(1), numberFormat)}%{" "}
+              {i.productInsight.margin.toLowerCase()}
             </p>
           </div>
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-              Orders / refunds
+              {i.productInsight.ordersRefunds}
             </p>
             <p className="mt-2 text-xl font-bold text-amber-900 tabular-nums">
               {formatNumber(metric?.orderCount ?? 0, numberFormat)} /{" "}
@@ -142,25 +154,25 @@ export function ProductInsightModal({
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
             <div>
               <p className="text-sm font-semibold text-slate-900">
-                Performance summary
+                {i.productInsight.performanceSummary}
               </p>
               <p className="mt-1 text-sm text-slate-600">
                 {metric?.lastSoldAt
-                  ? `Last sold ${formatDateTime(new Date(metric.lastSoldAt), "numeric", numberFormat)}.`
-                  : "This item has not been sold yet."}
+                  ? `${i.productInsight.lastSold} ${formatDateTime(new Date(metric.lastSoldAt), "numeric", numberFormat)}.`
+                  : i.productInsight.notSoldYet}
               </p>
             </div>
             <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
               <p>
-                Current stock:{" "}
+                {i.productInsight.currentStock}{" "}
                 <span className="font-semibold text-slate-900">
                   {product.trackStock
                     ? `${formatNumber(product.stock, numberFormat)} ${product.unit}`
-                    : "Not tracked"}
+                    : i.productInsight.notTracked}
                 </span>
               </p>
               <p>
-                Low alert:{" "}
+                {i.productInsight.lowAlert}{" "}
                 <span className="font-semibold text-slate-900">
                   {formatNumber(
                     Math.max(1, product.lowStockAt || 5),
@@ -170,13 +182,13 @@ export function ProductInsightModal({
                 </span>
               </p>
               <p>
-                Selling price:{" "}
+                {i.productInsight.sellingPrice}{" "}
                 <span className="font-semibold text-slate-900">
                   {formatCurrency(product.price, currency, numberFormat)}
                 </span>
               </p>
               <p>
-                Cost price:{" "}
+                {i.productInsight.costPrice}{" "}
                 <span className="font-semibold text-slate-900">
                   {formatCurrency(product.costPrice, currency, numberFormat)}
                 </span>
@@ -187,28 +199,28 @@ export function ProductInsightModal({
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
             <div>
               <p className="text-sm font-semibold text-slate-900">
-                Recommended action
+                {i.productInsight.recommendedAction}
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                {insight?.reason || "No urgent action is needed right now."}
+                {insight?.reason || i.productInsight.noUrgentAction}
               </p>
             </div>
 
             <div className="space-y-2 text-sm text-slate-600">
               <p>
-                Coverage:{" "}
+                {i.productInsight.coverage}{" "}
                 <span className="font-semibold text-slate-900">
                   {insight?.coverageDays != null
-                    ? `${formatNumber(insight.coverageDays.toFixed(1), numberFormat)} days`
-                    : "Not enough sales history"}
+                    ? `${formatNumber(insight.coverageDays.toFixed(1), numberFormat)} ${i.productInsight.days}`
+                    : i.productInsight.notEnoughHistory}
                 </span>
               </p>
               <p>
-                Suggested reorder:{" "}
+                {i.productInsight.suggestedReorder}{" "}
                 <span className="font-semibold text-slate-900">
                   {insight?.recommendedQty
                     ? `${formatNumber(insight.recommendedQty, numberFormat)} ${product.unit}`
-                    : "No reorder quantity suggested"}
+                    : i.productInsight.noReorderQty}
                 </span>
               </p>
             </div>
@@ -222,7 +234,7 @@ export function ProductInsightModal({
               size="sm"
               onClick={() => onAddVariant(product)}
             >
-              + Variant
+              {i.productInsight.addVariant}
             </Button>
           )}
           {onEdit && (
@@ -231,7 +243,7 @@ export function ProductInsightModal({
               size="sm"
               onClick={() => onEdit(product)}
             >
-              Edit
+              {i.productInsight.editProduct}
             </Button>
           )}
           {onDelete && (
@@ -241,11 +253,13 @@ export function ProductInsightModal({
               disabled={deleting}
               onClick={() => onDelete(product)}
             >
-              {deleting ? "Deleting..." : "Delete"}
+              {deleting
+                ? i.productInsight.deleting
+                : i.productInsight.deleteProduct}
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={onClose}>
-            Close
+            {i.productInsight.close}
           </Button>
         </div>
       </div>

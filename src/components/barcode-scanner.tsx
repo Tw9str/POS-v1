@@ -1,13 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { t, type Locale } from "@/lib/i18n";
 
 interface BarcodeScannerProps {
   onScan: (barcode: string) => void;
   onClose: () => void;
+  language?: string;
 }
 
-export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
+export function BarcodeScanner({
+  onScan,
+  onClose,
+  language = "en",
+}: BarcodeScannerProps) {
+  const i = t(language as Locale);
   const scannerRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
@@ -83,7 +90,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl w-full max-w-md overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-lg font-semibold">Scan Barcode</h3>
+          <h3 className="text-lg font-semibold">{i.scanner.title}</h3>
           <button
             onClick={() => {
               if (scannerRef.current) safeStop(scannerRef.current);
@@ -98,7 +105,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
         <div className="p-4">
           {cameraAvailable && starting && (
             <p className="text-sm text-slate-500 text-center mb-2">
-              Starting camera...
+              {i.scanner.startingCamera}
             </p>
           )}
           {cameraAvailable && (
@@ -109,7 +116,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
                 className="w-full"
               />
               <p className="text-xs text-slate-400 text-center mt-3">
-                Point your camera at a barcode
+                {i.scanner.pointCamera}
               </p>
             </>
           )}
@@ -134,11 +141,9 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
                 </svg>
               </div>
               <p className="text-sm text-slate-600 mb-1 font-semibold">
-                No camera detected
+                {i.scanner.noCamera}
               </p>
-              <p className="text-xs text-slate-400">
-                Type or scan barcode with a USB/Bluetooth scanner
-              </p>
+              <p className="text-xs text-slate-400">{i.scanner.usbHelp}</p>
             </div>
           )}
 
@@ -152,7 +157,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleManualSubmit();
               }}
-              placeholder="Enter barcode manually..."
+              placeholder={i.scanner.enterManually}
               className="flex-1 text-sm border-2 border-slate-200 rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
               autoFocus={!cameraAvailable}
             />
@@ -161,7 +166,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
               disabled={!manualCode.trim()}
               className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
-              Go
+              {i.scanner.go}
             </button>
           </div>
         </div>

@@ -29,6 +29,7 @@ import {
   type DateFormat,
   type NumberFormat,
 } from "@/lib/utils";
+import { t, type Locale } from "@/lib/i18n";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -78,6 +79,7 @@ export function OrdersContent({
   currency,
   numberFormat = "western",
   dateFormat = "long",
+  language = "en",
 }: {
   merchantId: string;
   merchantName: string;
@@ -86,8 +88,10 @@ export function OrdersContent({
   currency: string;
   numberFormat?: NumberFormat;
   dateFormat?: DateFormat;
+  language?: string;
 }) {
   const router = useRouter();
+  const i = t(language as Locale);
   const orders = useLocalOrders(merchantId, 200);
   const [search, setSearch] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -291,15 +295,15 @@ export function OrdersContent({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Orders"
-        subtitle={`${formatNumber(orders.length, numberFormat)} orders`}
+        title={i.orders.title}
+        subtitle={`${formatNumber(orders.length, numberFormat)} ${i.orders.orders}`}
       />
 
       <div className="grid gap-3 xl:grid-cols-5">
         <SearchInput
           id="orders-search"
-          label="Search orders"
-          placeholder="Order #, customer, cashier, item..."
+          label={i.common.search}
+          placeholder={i.orders.searchPlaceholder}
           value={search}
           onChange={(v) => {
             setSearch(v);
@@ -309,35 +313,36 @@ export function OrdersContent({
           totalCount={orders.length}
           numberFormat={numberFormat}
           onScan={() => setScannerOpen(true)}
+          language={language}
         />
         <Select
           id="orders-status-filter"
-          label="Status"
+          label={i.common.status}
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
           options={[
-            { value: "all", label: "All statuses" },
-            { value: "completed", label: "Completed" },
-            { value: "pending_sync", label: "Pending sync" },
-            { value: "sync_failed", label: "Sync failed" },
-            { value: "refunded", label: "Refunded" },
-            { value: "partial", label: "Partially refunded" },
-            { value: "voided", label: "Voided" },
+            { value: "all", label: i.orders.allStatuses },
+            { value: "completed", label: i.orders.completed },
+            { value: "pending_sync", label: i.orders.pendingSync },
+            { value: "sync_failed", label: i.orders.syncFailed },
+            { value: "refunded", label: i.orders.refunded },
+            { value: "partial", label: i.orders.partiallyRefunded },
+            { value: "voided", label: i.orders.voided },
           ]}
         />
         <Select
           id="orders-payment-filter"
-          label="Payment"
+          label={i.orders.payment}
           value={paymentFilter}
           onChange={(e) => {
             setPaymentFilter(e.target.value);
             setPage(1);
           }}
           options={[
-            { value: "all", label: "All methods" },
+            { value: "all", label: i.orders.allMethods },
             { value: "CASH", label: "Cash" },
             { value: "CARD", label: "Card" },
             { value: "TRANSFER", label: "Transfer" },
@@ -348,22 +353,22 @@ export function OrdersContent({
         />
         <Select
           id="orders-date-filter"
-          label="Date range"
+          label={i.orders.dateRange}
           value={dateRange}
           onChange={(e) => {
             setDateRange(e.target.value);
             setPage(1);
           }}
           options={[
-            { value: "all", label: "All time" },
-            { value: "today", label: "Today" },
-            { value: "7d", label: "Last 7 days" },
-            { value: "30d", label: "Last 30 days" },
+            { value: "all", label: i.orders.allTime },
+            { value: "today", label: i.common.today },
+            { value: "7d", label: i.orders.last7d },
+            { value: "30d", label: i.orders.last30d },
           ]}
         />
         <Select
           id="orders-page-size"
-          label="Per page"
+          label={i.common.perPage}
           value={String(pageSize)}
           onChange={(e) => {
             setPageSize(Number(e.target.value));
@@ -371,7 +376,7 @@ export function OrdersContent({
           }}
           options={PAGE_SIZES.map((s) => ({
             value: String(s),
-            label: `${s} rows`,
+            label: `${s} ${i.common.rows}`,
           }))}
         />
       </div>
@@ -391,14 +396,14 @@ export function OrdersContent({
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
         <div className="px-6 py-4 border-b border-slate-100">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-            Order History
+            {i.orders.orderHistory}
           </h2>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
               <SortableTh
-                label="Order #"
+                label={i.orders.orderNumber}
                 sortKey="orderNumber"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -410,7 +415,7 @@ export function OrdersContent({
                 }}
               />
               <SortableTh
-                label="Cashier"
+                label={i.orders.cashierCol}
                 sortKey="cashier"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -422,7 +427,7 @@ export function OrdersContent({
                 }}
               />
               <SortableTh
-                label="Customer"
+                label={i.orders.customerCol}
                 sortKey="customer"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -434,7 +439,7 @@ export function OrdersContent({
                 }}
               />
               <SortableTh
-                label="Items"
+                label={i.orders.itemsCol}
                 sortKey="items"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -446,7 +451,7 @@ export function OrdersContent({
                 }}
               />
               <SortableTh
-                label="Total"
+                label={i.orders.totalCol}
                 sortKey="total"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -457,10 +462,14 @@ export function OrdersContent({
                   setPage(1);
                 }}
               />
-              <th className="px-5 py-3.5 text-left font-semibold">Payment</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Status</th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.orders.payment}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.status}
+              </th>
               <SortableTh
-                label="Date"
+                label={i.orders.date}
                 sortKey="date"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -481,8 +490,8 @@ export function OrdersContent({
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {orders.length === 0
-                    ? "No orders yet"
-                    : "No orders match your current filters"}
+                    ? i.orders.noOrdersYet
+                    : i.orders.noOrdersMatch}
                 </td>
               </tr>
             ) : (
@@ -512,7 +521,7 @@ export function OrdersContent({
                       {o.staffName || "·"}
                     </td>
                     <td className="px-5 py-4 text-slate-500 capitalize">
-                      {o.customerName || "Walk-in"}
+                      {o.customerName || i.pos.walkin}
                     </td>
                     <td className="px-5 py-4 text-slate-500 tabular-nums">
                       {formatNumber(o.items.length, numberFormat)}
@@ -544,13 +553,13 @@ export function OrdersContent({
       {filteredOrders.length > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            Showing{" "}
+            {i.common.showing}{" "}
             {formatNumber((currentPage - 1) * pageSize + 1, numberFormat)}-
             {formatNumber(
               Math.min(currentPage * pageSize, filteredOrders.length),
               numberFormat,
             )}{" "}
-            of {formatNumber(filteredOrders.length, numberFormat)}
+            {i.common.of} {formatNumber(filteredOrders.length, numberFormat)}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -559,10 +568,10 @@ export function OrdersContent({
               disabled={currentPage === 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             >
-              Previous
+              {i.common.previous}
             </Button>
             <span className="text-sm text-slate-500">
-              Page {formatNumber(currentPage, numberFormat)} /{" "}
+              {i.common.page} {formatNumber(currentPage, numberFormat)} /{" "}
               {formatNumber(totalPages, numberFormat)}
             </span>
             <Button
@@ -571,7 +580,7 @@ export function OrdersContent({
               disabled={currentPage === totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
-              Next
+              {i.common.next}
             </Button>
           </div>
         </div>
@@ -581,7 +590,9 @@ export function OrdersContent({
         open={Boolean(selectedOrder)}
         onClose={() => setSelectedOrder(null)}
         title={
-          selectedOrder ? `Order ${selectedOrder.orderNumber}` : "Order details"
+          selectedOrder
+            ? `${i.orders.orderDetails} ${selectedOrder.orderNumber}`
+            : i.orders.orderDetails
         }
         size="lg"
       >
@@ -590,15 +601,15 @@ export function OrdersContent({
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl bg-slate-50 p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">
-                  Customer
+                  {i.orders.customerCol}
                 </p>
                 <p className="mt-1 font-semibold text-slate-900 capitalize">
-                  {selectedOrder.customerName || "Walk-in"}
+                  {selectedOrder.customerName || i.pos.walkin}
                 </p>
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">
-                  Cashier
+                  {i.orders.cashierCol}
                 </p>
                 <p className="mt-1 font-semibold text-slate-900 uppercase">
                   {selectedOrder.staffName || "·"}
@@ -606,7 +617,7 @@ export function OrdersContent({
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">
-                  Payment
+                  {i.orders.payment}
                 </p>
                 <p className="mt-1 font-semibold text-slate-900">
                   {getPaymentMethodLabel(selectedOrder.paymentMethod)}
@@ -614,7 +625,7 @@ export function OrdersContent({
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">
-                  Status
+                  {i.common.status}
                 </p>
                 <div className="mt-1">
                   <Badge variant={statusVariant(displayStatus(selectedOrder))}>
@@ -626,7 +637,7 @@ export function OrdersContent({
 
             <div className="rounded-2xl border border-slate-200 overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-                <h3 className="font-semibold text-slate-900">Items</h3>
+                <h3 className="font-semibold text-slate-900">{i.pos.items}</h3>
               </div>
               <div className="divide-y divide-slate-100">
                 {selectedOrder.items.map((item, index) => (
@@ -656,7 +667,7 @@ export function OrdersContent({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2 rounded-2xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Subtotal</span>
+                  <span className="text-slate-500">{i.orders.subtotal}</span>
                   <span className="font-semibold text-slate-900">
                     {formatCurrency(
                       selectedOrder.subtotal,
@@ -666,7 +677,7 @@ export function OrdersContent({
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Tax</span>
+                  <span className="text-slate-500">{i.orders.tax}</span>
                   <span className="font-semibold text-slate-900">
                     {formatCurrency(
                       selectedOrder.taxAmount,
@@ -676,7 +687,7 @@ export function OrdersContent({
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Paid</span>
+                  <span className="text-slate-500">{i.orders.paid}</span>
                   <span className="font-semibold text-slate-900">
                     {formatCurrency(
                       selectedOrder.paidAmount,
@@ -686,7 +697,7 @@ export function OrdersContent({
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Change</span>
+                  <span className="text-slate-500">{i.orders.changeDue}</span>
                   <span className="font-semibold text-slate-900">
                     {formatCurrency(
                       selectedOrder.changeAmount,
@@ -696,7 +707,9 @@ export function OrdersContent({
                   </span>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-sm">
-                  <span className="font-semibold text-slate-700">Total</span>
+                  <span className="font-semibold text-slate-700">
+                    {i.orders.total}
+                  </span>
                   <span className="text-base font-bold text-slate-900">
                     {formatCurrency(
                       selectedOrder.total,
@@ -710,7 +723,7 @@ export function OrdersContent({
               <div className="space-y-3 rounded-2xl border border-slate-200 p-4">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500">
-                    Date
+                    {i.orders.date}
                   </p>
                   <p className="mt-1 font-medium text-slate-900">
                     {formatDateTime(
@@ -722,7 +735,7 @@ export function OrdersContent({
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500">
-                    Notes
+                    {i.common.notes}
                   </p>
                   <p className="mt-1 text-sm text-slate-700">
                     {selectedOrder.notes || "No notes for this order."}
@@ -744,7 +757,7 @@ export function OrdersContent({
                 onClick={() => window.print()}
               >
                 <IconPrinter size={16} />
-                Print Receipt
+                {i.orders.printReceipt}
               </Button>
             </div>
 
@@ -866,14 +879,14 @@ export function OrdersContent({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Input
                     id="order-action-reason"
-                    label="Reason (optional)"
+                    label={i.orders.reason}
                     placeholder="Why are you changing this order?"
                     value={actionReason}
                     onChange={(e) => setActionReason(e.target.value)}
                   />
                   <Input
                     id="partial-refund-amount"
-                    label="Partial refund amount"
+                    label={i.orders.refundAmount}
                     type="number"
                     min="0"
                     step="0.01"
@@ -891,8 +904,8 @@ export function OrdersContent({
                     disabled={processingAction !== null}
                   >
                     {processingAction === "PARTIAL_REFUND"
-                      ? "Saving..."
-                      : "Partial Refund"}
+                      ? "..."
+                      : i.orders.partialRefund}
                   </Button>
                   <Button
                     variant="secondary"
@@ -900,9 +913,7 @@ export function OrdersContent({
                     onClick={() => setConfirmAction("REFUND")}
                     disabled={processingAction !== null}
                   >
-                    {processingAction === "REFUND"
-                      ? "Refunding..."
-                      : "Refund Order"}
+                    {processingAction === "REFUND" ? "..." : i.orders.refund}
                   </Button>
                   <Button
                     variant="danger"
@@ -910,7 +921,7 @@ export function OrdersContent({
                     onClick={() => setConfirmAction("VOID")}
                     disabled={processingAction !== null}
                   >
-                    {processingAction === "VOID" ? "Voiding..." : "Void Order"}
+                    {processingAction === "VOID" ? "..." : i.orders.voidOrder}
                   </Button>
                 </div>
               </div>
@@ -953,6 +964,7 @@ export function OrdersContent({
 
       {scannerOpen && (
         <BarcodeScanner
+          language={language}
           onScan={(barcode) => {
             setScannerOpen(false);
             const found = orders.find(

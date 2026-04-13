@@ -21,6 +21,7 @@ export default async function AnalyticsPage() {
           | "gregorian"
           | "hijri"
       }
+      language={merchant.language ?? "en"}
     />
   );
 }

@@ -35,6 +35,7 @@ import {
   type DateFormat,
   type NumberFormat,
 } from "@/lib/utils";
+import { t, type Locale, type TranslationKeys } from "@/lib/i18n";
 
 type MetricSnapshot = {
   grossSales: number;
@@ -47,25 +48,32 @@ type MetricSnapshot = {
 
 type AnalyticsRange = "day" | "7d" | "30d" | "90d" | "custom" | "all";
 
-const RANGE_OPTIONS = [
-  { value: "day", label: "Specific day" },
-  { value: "7d", label: "Last 7 days" },
-  { value: "30d", label: "Last 30 days" },
-  { value: "90d", label: "Last 90 days" },
-  { value: "custom", label: "Custom range" },
-  { value: "all", label: "All time" },
+const RANGE_OPTIONS_KEYS: Array<{
+  value: AnalyticsRange;
+  labelKey: keyof TranslationKeys["analytics"];
+}> = [
+  { value: "day", labelKey: "specificDay" },
+  { value: "7d", labelKey: "last7days" },
+  { value: "30d", labelKey: "last30days" },
+  { value: "90d", labelKey: "last90days" },
+  { value: "custom", labelKey: "customRange" },
+  { value: "all", labelKey: "allTime" },
 ];
 
 const RANGE_META: Record<
   AnalyticsRange,
-  { label: string; days: number | null; trendDays: number }
+  {
+    labelKey: keyof TranslationKeys["analytics"];
+    days: number | null;
+    trendDays: number;
+  }
 > = {
-  day: { label: "Selected day", days: null, trendDays: 1 },
-  "7d": { label: "Last 7 days", days: 7, trendDays: 7 },
-  "30d": { label: "Last 30 days", days: 30, trendDays: 10 },
-  "90d": { label: "Last 90 days", days: 90, trendDays: 12 },
-  custom: { label: "Custom range", days: null, trendDays: 10 },
-  all: { label: "All time", days: null, trendDays: 12 },
+  day: { labelKey: "selectedDay", days: null, trendDays: 1 },
+  "7d": { labelKey: "last7days", days: 7, trendDays: 7 },
+  "30d": { labelKey: "last30days", days: 30, trendDays: 10 },
+  "90d": { labelKey: "last90days", days: 90, trendDays: 12 },
+  custom: { labelKey: "customRange", days: null, trendDays: 10 },
+  all: { labelKey: "allTime", days: null, trendDays: 12 },
 };
 
 function getOrderCost(order: Pick<LocalOrder, "items">): number {
@@ -142,12 +150,15 @@ export function AnalyticsContent({
   currency,
   numberFormat = "western",
   dateFormat = "long",
+  language = "en",
 }: {
   merchantId: string;
   currency: string;
   numberFormat?: NumberFormat;
   dateFormat?: DateFormat;
+  language?: string;
 }) {
+  const i = t(language as Locale);
   const [range, setRange] = useState<AnalyticsRange>("30d");
   const [selectedDay, setSelectedDay] = useState(() =>
     formatDateInputValue(new Date()),
@@ -285,7 +296,7 @@ export function AnalyticsContent({
           ? formatDate(selectedDay, dateFormat, numberFormat)
           : range === "custom"
             ? `${formatDate(customStart, dateFormat, numberFormat)} → ${formatDate(customEnd, dateFormat, numberFormat)}`
-            : rangeMeta.label,
+            : i.analytics[rangeMeta.labelKey],
       snapshot: buildSnapshot(filteredOrders),
       activeCustomers: activeCustomers.size,
       paymentMix,
@@ -376,24 +387,24 @@ export function AnalyticsContent({
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Analytics"
-        subtitle="Executive trends, demand signals, and stock intelligence"
-      >
+      <PageHeader title={i.analytics.title} subtitle={i.analytics.subtitle}>
         <div className="flex flex-col gap-3 lg:min-w-105">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <Select
               id="analytics-range"
-              label="Period"
+              label={i.analytics.period}
               className="sm:min-w-44"
               value={range}
               onChange={(event) =>
                 setRange(event.target.value as AnalyticsRange)
               }
-              options={RANGE_OPTIONS}
+              options={RANGE_OPTIONS_KEYS.map((opt) => ({
+                value: opt.value,
+                label: i.analytics[opt.labelKey],
+              }))}
             />
             <Button variant="secondary" onClick={handleExport}>
-              Export CSV
+              {i.analytics.exportCsv}
             </Button>
           </div>
 
@@ -401,7 +412,7 @@ export function AnalyticsContent({
             <div className="space-y-3">
               <Input
                 id="analytics-selected-day"
-                label="Pick a day"
+                label={i.analytics.pickADay}
                 type="date"
                 value={selectedDay}
                 onChange={(event) => setSelectedDay(event.target.value)}
@@ -414,14 +425,14 @@ export function AnalyticsContent({
                     setSelectedDay((current) => shiftDateValue(current, -1))
                   }
                 >
-                  Previous day
+                  {i.analytics.previousDay}
                 </Button>
                 <Button
                   variant="secondary"
                   type="button"
                   onClick={() => setSelectedDay(todayValue)}
                 >
-                  Today
+                  {i.common.today}
                 </Button>
                 <Button
                   variant="outline"
@@ -431,7 +442,7 @@ export function AnalyticsContent({
                     setSelectedDay((current) => shiftDateValue(current, 1))
                   }
                 >
-                  Next day
+                  {i.analytics.nextDay}
                 </Button>
               </div>
             </div>
@@ -441,7 +452,7 @@ export function AnalyticsContent({
             <div className="grid gap-3 sm:grid-cols-2">
               <Input
                 id="analytics-start-date"
-                label="Start date"
+                label={i.analytics.startDate}
                 type="date"
                 value={customStart}
                 onChange={(event) => setCustomStart(event.target.value)}
@@ -449,7 +460,7 @@ export function AnalyticsContent({
               />
               <Input
                 id="analytics-end-date"
-                label="End date"
+                label={i.analytics.endDate}
                 type="date"
                 value={customEnd}
                 onChange={(event) => setCustomEnd(event.target.value)}
@@ -462,64 +473,64 @@ export function AnalyticsContent({
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
-          title="Net Revenue"
+          title={i.analytics.netRevenue}
           value={formatCurrency(
             stats.snapshot.netRevenue,
             currency,
             numberFormat,
           )}
-          subtitle={`${stats.rangeLabel} · ${formatCurrency(stats.snapshot.grossProfit, currency, numberFormat)} profit`}
+          subtitle={`${stats.rangeLabel} · ${formatCurrency(stats.snapshot.grossProfit, currency, numberFormat)} ${i.analytics.profit}`}
           icon={<IconMoney size={24} />}
         />
         <StatCard
-          title="Avg Order"
+          title={i.analytics.avgOrder}
           value={formatCurrency(
             stats.snapshot.avgOrder,
             currency,
             numberFormat,
           )}
-          subtitle={`${formatNumber(stats.snapshot.orderCount, numberFormat)} orders`}
+          subtitle={`${formatNumber(stats.snapshot.orderCount, numberFormat)} ${i.analytics.orders}`}
           icon={<IconOrders size={24} />}
         />
         <StatCard
-          title="Active Customers"
+          title={i.analytics.activeCustomers}
           value={formatNumber(stats.activeCustomers, numberFormat)}
-          subtitle={`${formatNumber(customers.length, numberFormat)} total saved customers`}
+          subtitle={`${formatNumber(customers.length, numberFormat)} ${i.analytics.totalSavedCustomers}`}
           icon={<IconCustomers size={24} />}
         />
         <StatCard
-          title="Refund Rate"
+          title={i.analytics.refundRate}
           value={`${formatNumber(stats.refundRate.toFixed(1), numberFormat)}%`}
-          subtitle={`${formatNumber(stats.reorderCount, numberFormat)} variants need reordering`}
+          subtitle={`${formatNumber(stats.reorderCount, numberFormat)} ${i.analytics.variantsNeedReorder}`}
           icon={<IconActivity size={24} />}
         />
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
-          title="Gross Sales"
+          title={i.analytics.grossSales}
           value={formatCurrency(
             stats.snapshot.grossSales,
             currency,
             numberFormat,
           )}
-          subtitle={`${formatCurrency(stats.snapshot.refundedRevenue, currency, numberFormat)} refunded`}
+          subtitle={`${formatCurrency(stats.snapshot.refundedRevenue, currency, numberFormat)} ${i.reports.refunded}`}
           icon={<IconMoney size={22} />}
         />
         <StatCard
-          title="Products / Variants"
+          title={i.analytics.productsVariants}
           value={`${formatNumber(stats.productCount, numberFormat)} / ${formatNumber(stats.variantCount, numberFormat)}`}
-          subtitle="Catalog depth"
+          subtitle={i.analytics.catalogDepth}
           icon={<IconProducts size={22} />}
         />
         <StatCard
-          title="Fast movers"
+          title={i.analytics.fastMovers}
           value={formatNumber(stats.fastMovingCount, numberFormat)}
-          subtitle={`${formatNumber(stats.deadStockCount, numberFormat)} dead-stock variants`}
+          subtitle={`${formatNumber(stats.deadStockCount, numberFormat)} ${i.analytics.deadStockVariants}`}
           icon={<IconInventory size={22} />}
         />
         <StatCard
-          title="Reorder alerts"
+          title={i.analytics.reorderAlerts}
           value={formatNumber(stats.reorderCount, numberFormat)}
           subtitle={stats.rangeLabel}
           icon={<IconInventory size={22} />}
@@ -530,7 +541,7 @@ export function AnalyticsContent({
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Revenue Trend
+              {i.analytics.revenueTrend}
             </h2>
           </div>
           <div className="p-6 space-y-4">
@@ -553,9 +564,10 @@ export function AnalyticsContent({
                   />
                 </div>
                 <p className="text-xs text-slate-400">
-                  {formatNumber(day.orderCount, numberFormat)} orders ·{" "}
+                  {formatNumber(day.orderCount, numberFormat)}{" "}
+                  {i.analytics.orders} ·{" "}
                   {formatCurrency(day.grossProfit, currency, numberFormat)}{" "}
-                  profit
+                  {i.analytics.profit}
                 </p>
               </div>
             ))}
@@ -565,14 +577,12 @@ export function AnalyticsContent({
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Payment Mix
+              {i.analytics.paymentMix}
             </h2>
           </div>
           <div className="p-6 space-y-4">
             {stats.paymentMix.length === 0 ? (
-              <p className="text-sm text-slate-400">
-                No payments recorded yet.
-              </p>
+              <p className="text-sm text-slate-400">{i.analytics.noPayments}</p>
             ) : (
               stats.paymentMix.map((method) => (
                 <div key={method.method} className="space-y-1.5">
@@ -593,7 +603,8 @@ export function AnalyticsContent({
                     />
                   </div>
                   <p className="text-xs text-slate-400">
-                    {formatNumber(method.count, numberFormat)} orders
+                    {formatNumber(method.count, numberFormat)}{" "}
+                    {i.analytics.orders}
                   </p>
                 </div>
               ))
@@ -606,13 +617,13 @@ export function AnalyticsContent({
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Top Variants
+              {i.analytics.topVariants}
             </h2>
           </div>
           <div className="divide-y divide-slate-50">
             {stats.topVariants.length === 0 ? (
               <div className="px-6 py-10 text-center text-sm text-slate-400">
-                No variant performance yet.
+                {i.analytics.noVariantPerf}
               </div>
             ) : (
               stats.topVariants.map(({ product, metric }) => (
@@ -621,13 +632,14 @@ export function AnalyticsContent({
                     {getProductDisplayName(product.name, product.variantName)}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {formatNumber(metric?.sold30d ?? 0, numberFormat)} sold ·{" "}
+                    {formatNumber(metric?.sold30d ?? 0, numberFormat)}{" "}
+                    {i.analytics.sold} ·{" "}
                     {formatCurrency(
                       metric?.netRevenue ?? 0,
                       currency,
                       numberFormat,
                     )}{" "}
-                    net
+                    {i.analytics.net}
                   </p>
                 </div>
               ))
@@ -638,13 +650,13 @@ export function AnalyticsContent({
         <div className="bg-white rounded-2xl border border-amber-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-amber-100 bg-amber-50/70">
             <h2 className="text-sm font-bold text-amber-900 uppercase tracking-wide">
-              Reorder Watchlist
+              {i.analytics.reorderWatch}
             </h2>
           </div>
           <div className="divide-y divide-amber-50">
             {stats.reorderList.length === 0 ? (
               <div className="px-6 py-10 text-center text-sm text-slate-400">
-                No urgent replenishment alerts.
+                {i.analytics.noReorderAlerts}
               </div>
             ) : (
               stats.reorderList.map((item) => {
@@ -681,13 +693,13 @@ export function AnalyticsContent({
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              Dead Stock Watch
+              {i.analytics.deadStockDetection}
             </h2>
           </div>
           <div className="divide-y divide-slate-50">
             {stats.deadStockList.length === 0 ? (
               <div className="px-6 py-10 text-center text-sm text-slate-400">
-                No dead-stock risks right now.
+                {i.analytics.noDeadStock}
               </div>
             ) : (
               stats.deadStockList.map((item) => {

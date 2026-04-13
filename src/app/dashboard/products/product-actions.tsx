@@ -49,6 +49,7 @@ interface ProductActionsProps {
   initialBarcode?: string;
   externalOpen?: boolean;
   onExternalClose?: () => void;
+  language?: string;
 }
 
 export function ProductActions({
@@ -60,6 +61,7 @@ export function ProductActions({
   initialBarcode,
   externalOpen,
   onExternalClose,
+  language = "en",
 }: ProductActionsProps) {
   const router = useRouter();
   const isEdit = Boolean(product);
@@ -654,6 +656,7 @@ export function ProductActions({
 
       {scannerOpen && (
         <BarcodeScanner
+          language={language}
           onScan={handleBarcodeScan}
           onClose={() => setScannerOpen(false)}
         />

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { PageHeader } from "@/components/layout/page-header";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
+import { t, type Locale } from "@/lib/i18n";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 const PAGE_SIZE = 10;
@@ -23,10 +24,13 @@ function formatStaffRoleLabel(role: string) {
 export function StaffContent({
   merchantId,
   numberFormat = "western",
+  language = "en",
 }: {
   merchantId: string;
   numberFormat?: NumberFormat;
+  language?: string;
 }) {
+  const i = t(language as Locale);
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -102,7 +106,7 @@ export function StaffContent({
     if (!result.ok) {
       setFeedback({
         type: "error",
-        text: result.error || "Failed to delete staff member",
+        text: result.error || i.staff.failedToDelete,
       });
     } else {
       setSelectedIds((prev) => prev.filter((item) => item !== id));
@@ -129,12 +133,12 @@ export function StaffContent({
     if (!result.ok) {
       setFeedback({
         type: "error",
-        text: result.error || "Failed to update staff status",
+        text: result.error || i.staff.failedToUpdate,
       });
     } else {
       setFeedback({
         type: "success",
-        text: `${name} has been ${currentActive ? "deactivated" : "activated"}.`,
+        text: `${name} ${currentActive ? i.staff.deactivated : i.staff.activated}.`,
       });
       router.refresh();
     }
@@ -176,18 +180,18 @@ export function StaffContent({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Staff"
-        subtitle={`${formatNumber(staff.length, numberFormat)} team members`}
+        title={i.staff.title}
+        subtitle={`${formatNumber(staff.length, numberFormat)} ${i.staff.teamMembers}`}
       >
-        <StaffActions merchantId={merchantId} />
+        <StaffActions merchantId={merchantId} language={language} />
       </PageHeader>
 
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="w-full md:max-w-sm">
           <Input
             id="staff-search"
-            label="Search staff"
-            placeholder="Name or role..."
+            label={i.common.search}
+            placeholder={i.staff.searchPlaceholder}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -204,7 +208,7 @@ export function StaffContent({
               if (editMode) setSelectedIds([]);
             }}
           >
-            {editMode ? "Done" : "Edit"}
+            {editMode ? i.common.done : i.common.edit}
           </Button>
           {editMode && selectedIds.length > 0 && (
             <Button
@@ -214,8 +218,8 @@ export function StaffContent({
               onClick={() => setConfirmBulkDelete(true)}
             >
               {bulkDeleting
-                ? "Deleting..."
-                : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+                ? i.common.deleting
+                : `${i.common.deleteSelected} (${formatNumber(selectedIds.length, numberFormat)})`}
             </Button>
           )}
         </div>
@@ -247,10 +251,18 @@ export function StaffContent({
                   />
                 </th>
               )}
-              <th className="px-5 py-3.5 text-left font-semibold">Name</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Role</th>
-              <th className="px-5 py-3.5 text-left font-semibold">PIN</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Status</th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.name}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.staff.role}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.staff.pin}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.status}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -261,8 +273,8 @@ export function StaffContent({
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {staff.length === 0
-                    ? "No staff yet"
-                    : "No staff match your search"}
+                    ? i.staff.noStaffYet
+                    : i.staff.noStaffMatch}
                 </td>
               </tr>
             ) : (
@@ -319,7 +331,7 @@ export function StaffContent({
                       <span
                         className={`text-xs font-medium ${s.isActive ? "text-green-700" : "text-slate-500"}`}
                       >
-                        {s.isActive ? "Active" : "Inactive"}
+                        {s.isActive ? i.common.active : i.common.inactive}
                       </span>
                     </button>
                   </td>
@@ -333,13 +345,13 @@ export function StaffContent({
       {filteredStaff.length > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            Showing{" "}
+            {i.common.showing}{" "}
             {formatNumber((currentPage - 1) * PAGE_SIZE + 1, numberFormat)}-
             {formatNumber(
               Math.min(currentPage * PAGE_SIZE, filteredStaff.length),
               numberFormat,
             )}{" "}
-            of {formatNumber(filteredStaff.length, numberFormat)}
+            {i.common.of} {formatNumber(filteredStaff.length, numberFormat)}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -348,10 +360,10 @@ export function StaffContent({
               disabled={currentPage === 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             >
-              Previous
+              {i.common.previous}
             </Button>
             <span className="text-sm text-slate-500">
-              Page {formatNumber(currentPage, numberFormat)} /{" "}
+              {i.common.page} {formatNumber(currentPage, numberFormat)} /{" "}
               {formatNumber(totalPages, numberFormat)}
             </span>
             <Button
@@ -360,7 +372,7 @@ export function StaffContent({
               disabled={currentPage === totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
-              Next
+              {i.common.next}
             </Button>
           </div>
         </div>
@@ -369,6 +381,7 @@ export function StaffContent({
       {editStaff && (
         <StaffActions
           merchantId={merchantId}
+          language={language}
           staff={editStaff}
           externalOpen
           onExternalClose={() => setEditStaff(null)}
@@ -389,9 +402,12 @@ export function StaffContent({
             setConfirmDelete(null);
           }
         }}
-        title="Delete staff member"
-        message={`Are you sure you want to delete "${confirmDelete?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
+        title={i.staff.deleteStaff}
+        message={i.staff.deleteStaffConfirm.replace(
+          "{name}",
+          confirmDelete?.name ?? "",
+        )}
+        confirmLabel={i.common.delete}
         loading={Boolean(deletingId)}
       />
 
@@ -402,9 +418,12 @@ export function StaffContent({
           setConfirmBulkDelete(false);
           handleBulkDelete();
         }}
-        title="Delete selected staff"
-        message={`Are you sure you want to delete ${formatNumber(selectedIds.length, numberFormat)} selected staff members? This action cannot be undone.`}
-        confirmLabel="Delete all"
+        title={i.staff.deleteSelectedStaff}
+        message={i.staff.deleteSelectedConfirm.replace(
+          "{count}",
+          formatNumber(selectedIds.length, numberFormat),
+        )}
+        confirmLabel={i.common.delete}
       />
     </div>
   );

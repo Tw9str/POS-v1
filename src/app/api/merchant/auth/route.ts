@@ -33,6 +33,7 @@ export async function POST(req: Request) {
         address: true,
         numberFormat: true,
         dateFormat: true,
+        language: true,
       },
     });
 
@@ -61,6 +62,7 @@ export async function POST(req: Request) {
       address: merchant.address,
       numberFormat: merchant.numberFormat ?? "western",
       dateFormat: merchant.dateFormat ?? "long",
+      language: merchant.language ?? "en",
     });
 
     return NextResponse.json({

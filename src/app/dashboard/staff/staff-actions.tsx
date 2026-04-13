@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { IconPlus } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { offlineFetch } from "@/lib/offline-fetch";
+import { t, type Locale } from "@/lib/i18n";
 
 interface EditableStaff {
   id: string;
@@ -23,6 +24,7 @@ interface StaffActionsProps {
   externalOpen?: boolean;
   onExternalClose?: () => void;
   onDelete?: () => void;
+  language?: string;
 }
 
 export function StaffActions({
@@ -31,7 +33,9 @@ export function StaffActions({
   externalOpen,
   onExternalClose,
   onDelete,
+  language = "en",
 }: StaffActionsProps) {
+  const i = t(language as Locale);
   const router = useRouter();
   const isEdit = Boolean(staff);
   const [open, setOpen] = useState(false);
@@ -74,7 +78,8 @@ export function StaffActions({
 
       if (!result.ok) {
         setError(
-          result.error || `Failed to ${isEdit ? "update" : "add"} staff`,
+          result.error ||
+            (isEdit ? i.staff.failedToUpdate : i.staff.failedToAdd),
         );
         return;
       }
@@ -83,7 +88,7 @@ export function StaffActions({
       setForm({ name: "", pin: "", role: "CASHIER" });
       router.refresh();
     } catch {
-      setError("Something went wrong");
+      setError(i.common.somethingWentWrong);
     } finally {
       setLoading(false);
     }
@@ -98,26 +103,26 @@ export function StaffActions({
           size={isEdit ? "sm" : "md"}
         >
           {!isEdit && <IconPlus size={18} />}
-          {isEdit ? "Edit" : "Add Staff"}
+          {isEdit ? i.common.edit : i.staff.addStaff}
         </Button>
       )}
 
       <Modal
         open={isModalOpen}
         onClose={closeModal}
-        title={isEdit ? "Edit Staff Member" : "Add Staff Member"}
+        title={isEdit ? i.staff.editStaff : i.staff.addStaffMember}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             id="name"
-            label="Full name"
+            label={i.staff.fullName}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
           />
           <Input
             id="pin"
-            label="PIN code (4-6 digits)"
+            label={i.staff.pinCode}
             type="text"
             pattern="[0-9]{4,6}"
             maxLength={6}
@@ -129,14 +134,14 @@ export function StaffActions({
           />
           <Select
             id="role"
-            label="Role"
+            label={i.staff.roleLabel}
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value })}
             options={[
-              { value: "CASHIER", label: "Cashier" },
-              { value: "MANAGER", label: "Manager" },
-              { value: "STOCK_CLERK", label: "Stock Clerk" },
-              { value: "OWNER", label: "Owner" },
+              { value: "CASHIER", label: i.roles.CASHIER },
+              { value: "MANAGER", label: i.roles.MANAGER },
+              { value: "STOCK_CLERK", label: i.roles.STOCK_CLERK },
+              { value: "OWNER", label: i.roles.OWNER },
             ]}
           />
 
@@ -156,15 +161,15 @@ export function StaffActions({
                   onDelete();
                 }}
               >
-                Delete
+                {i.common.delete}
               </Button>
             )}
             <div className="ml-auto flex gap-3">
               <Button variant="secondary" type="button" onClick={closeModal}>
-                Cancel
+                {i.common.cancel}
               </Button>
               <Button type="submit" loading={loading}>
-                {isEdit ? "Save Changes" : "Add Staff"}
+                {isEdit ? i.common.save : i.staff.addStaff}
               </Button>
             </div>
           </div>

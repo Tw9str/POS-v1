@@ -34,6 +34,7 @@ import {
   useSortToggle,
   type SortDirection,
 } from "@/components/ui/sortable-th";
+import { t, type Locale } from "@/lib/i18n";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -41,12 +42,15 @@ export function ProductsContent({
   merchantId,
   currency,
   numberFormat = "western",
+  language = "en",
 }: {
   merchantId: string;
   currency: string;
   numberFormat?: NumberFormat;
+  language?: string;
 }) {
   const router = useRouter();
+  const i = t(language as Locale);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [search, setSearch] = useState("");
@@ -256,7 +260,7 @@ export function ProductsContent({
     if (!result.ok) {
       setFeedback({
         type: "error",
-        text: result.error || "Failed to delete product",
+        text: result.error || i.products.failedToDelete,
       });
     } else {
       setSelectedIds((prev) => prev.filter((item) => item !== id));
@@ -316,18 +320,19 @@ export function ProductsContent({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Products"
-        subtitle={`${formatNumber(productSummary.productCount, numberFormat)} products · ${formatNumber(productSummary.variantCount, numberFormat)} variants`}
+        title={i.products.title}
+        subtitle={`${formatNumber(productSummary.productCount, numberFormat)} ${i.products.products} · ${formatNumber(productSummary.variantCount, numberFormat)} ${i.products.variants}`}
       >
         <div className="flex flex-wrap gap-2">
           <ProductActions
             categories={categories}
             currency={currency}
             merchantId={merchantId}
+            language={language}
           />
           <Button variant="secondary" onClick={() => setScannerOpen(true)}>
             <IconCamera size={18} />
-            Scan
+            {i.common.scan}
           </Button>
         </div>
       </PageHeader>
@@ -335,7 +340,7 @@ export function ProductsContent({
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-5">
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
-            Products
+            {i.products.title}
           </p>
           <p className="mt-2 text-2xl font-bold text-indigo-900 tabular-nums">
             {formatNumber(productSummary.productCount, numberFormat)}
@@ -343,7 +348,7 @@ export function ProductsContent({
         </div>
         <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
-            Sold today
+            {i.products.soldToday}
           </p>
           <p className="mt-2 text-2xl font-bold text-violet-900 tabular-nums">
             {formatNumber(productSummary.unitsSoldToday, numberFormat)}
@@ -351,7 +356,7 @@ export function ProductsContent({
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-            Units sold 7d
+            {i.products.unitsSold7d}
           </p>
           <p className="mt-2 text-2xl font-bold text-emerald-900 tabular-nums">
             {formatNumber(productSummary.totalSold7d, numberFormat)}
@@ -359,7 +364,7 @@ export function ProductsContent({
         </div>
         <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
-            Fast movers
+            {i.products.fastMovers}
           </p>
           <p className="mt-2 text-2xl font-bold text-cyan-900 tabular-nums">
             {formatNumber(productSummary.fastMoving, numberFormat)}
@@ -367,7 +372,7 @@ export function ProductsContent({
         </div>
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
-            Top seller 30d
+            {i.products.topSeller30d}
           </p>
           <p className="mt-2 text-sm font-bold text-red-900 line-clamp-2">
             {productSummary.topSellerName}
@@ -379,8 +384,8 @@ export function ProductsContent({
         <div className="flex flex-1 flex-col gap-3 md:flex-row">
           <SearchInput
             id="product-search"
-            label="Search products"
-            placeholder="Name, variant, SKU, barcode..."
+            label={i.common.search}
+            placeholder={i.products.searchPlaceholder}
             value={search}
             onChange={(v) => {
               setSearch(v);
@@ -390,39 +395,40 @@ export function ProductsContent({
             totalCount={products.length}
             numberFormat={numberFormat}
             onScan={() => setScannerOpen(true)}
+            language={language}
             className="w-full md:max-w-sm"
           />
           <Select
             id="product-category-filter"
-            label="Category"
+            label={i.products.category}
             value={categoryFilter}
             onChange={(e) => {
               setCategoryFilter(e.target.value);
               setPage(1);
             }}
             options={[
-              { value: "all", label: "All categories" },
+              { value: "all", label: i.products.allCategories },
               ...categories.map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
           <Select
             id="product-stock-filter"
-            label="Stock"
+            label={i.products.stock}
             value={stockFilter}
             onChange={(e) => {
               setStockFilter(e.target.value);
               setPage(1);
             }}
             options={[
-              { value: "all", label: "All stock" },
-              { value: "in", label: "In stock" },
-              { value: "low", label: "Low stock" },
-              { value: "out", label: "Out of stock" },
+              { value: "all", label: i.products.allStock },
+              { value: "in", label: i.products.inStock },
+              { value: "low", label: i.products.lowStock },
+              { value: "out", label: i.products.outOfStock },
             ]}
           />
           <Select
             id="product-page-size"
-            label="Per page"
+            label={i.common.perPage}
             value={String(pageSize)}
             onChange={(e) => {
               setPageSize(Number(e.target.value));
@@ -430,7 +436,7 @@ export function ProductsContent({
             }}
             options={PAGE_SIZES.map((s) => ({
               value: String(s),
-              label: `${s} rows`,
+              label: `${s} ${i.common.rows}`,
             }))}
           />
         </div>
@@ -443,7 +449,7 @@ export function ProductsContent({
               if (editMode) setSelectedIds([]);
             }}
           >
-            {editMode ? "Done" : "Edit"}
+            {editMode ? i.common.done : i.common.edit}
           </Button>
           {editMode && selectedIds.length > 0 && (
             <Button
@@ -453,8 +459,8 @@ export function ProductsContent({
               onClick={() => setConfirmBulkDelete(true)}
             >
               {bulkDeleting
-                ? "Deleting..."
-                : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+                ? i.common.deleting
+                : `${i.common.deleteSelected} (${formatNumber(selectedIds.length, numberFormat)})`}
             </Button>
           )}
         </div>
@@ -487,7 +493,7 @@ export function ProductsContent({
                 </th>
               )}
               <SortableTh
-                label="Product"
+                label={i.products.product}
                 sortKey="name"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -499,7 +505,7 @@ export function ProductsContent({
                 }}
               />
               <SortableTh
-                label="Category"
+                label={i.products.category}
                 sortKey="category"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -511,7 +517,7 @@ export function ProductsContent({
                 }}
               />
               <SortableTh
-                label="SKU"
+                label={i.products.sku}
                 sortKey="sku"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -523,7 +529,7 @@ export function ProductsContent({
                 }}
               />
               <SortableTh
-                label="Price"
+                label={i.products.price}
                 sortKey="price"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -535,7 +541,7 @@ export function ProductsContent({
                 }}
               />
               <SortableTh
-                label="Cost"
+                label={i.products.cost}
                 sortKey="cost"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -547,7 +553,7 @@ export function ProductsContent({
                 }}
               />
               <SortableTh
-                label="Sold 7d"
+                label={i.products.sold7d}
                 sortKey="sold7d"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -559,7 +565,7 @@ export function ProductsContent({
                 }}
               />
               <SortableTh
-                label="Created"
+                label={i.products.created}
                 sortKey="created"
                 currentSort={sortKey}
                 currentDirection={sortDir}
@@ -580,8 +586,8 @@ export function ProductsContent({
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {products.length === 0
-                    ? "No products yet"
-                    : "No products match your search"}
+                    ? i.products.noProductsYet
+                    : i.products.noProductsMatch}
                 </td>
               </tr>
             ) : (
@@ -630,7 +636,11 @@ export function ProductsContent({
                       {formatNumber(metric?.sold7d ?? 0, numberFormat)}
                     </td>
                     <td className="px-5 py-4 text-slate-500 whitespace-nowrap">
-                      {formatDateTime(new Date(p.createdAt), "long", numberFormat)}
+                      {formatDateTime(
+                        new Date(p.createdAt),
+                        "long",
+                        numberFormat,
+                      )}
                     </td>
                   </tr>
                 );
@@ -643,13 +653,13 @@ export function ProductsContent({
       {filteredProducts.length > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            Showing{" "}
+            {i.common.showing}{" "}
             {formatNumber((currentPage - 1) * pageSize + 1, numberFormat)}-
             {formatNumber(
               Math.min(currentPage * pageSize, filteredProducts.length),
               numberFormat,
             )}{" "}
-            of {formatNumber(filteredProducts.length, numberFormat)}
+            {i.common.of} {formatNumber(filteredProducts.length, numberFormat)}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -658,10 +668,10 @@ export function ProductsContent({
               disabled={currentPage === 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             >
-              Previous
+              {i.common.previous}
             </Button>
             <span className="text-sm text-slate-500">
-              Page {formatNumber(currentPage, numberFormat)} /{" "}
+              {i.common.page} {formatNumber(currentPage, numberFormat)} /{" "}
               {formatNumber(totalPages, numberFormat)}
             </span>
             <Button
@@ -670,7 +680,7 @@ export function ProductsContent({
               disabled={currentPage === totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
-              Next
+              {i.common.next}
             </Button>
           </div>
         </div>
@@ -680,6 +690,7 @@ export function ProductsContent({
         open={Boolean(selectedInsightProduct)}
         onClose={() => setSelectedInsightProduct(null)}
         product={selectedInsightProduct}
+        language={language}
         metric={
           selectedInsightProduct
             ? performance.get(selectedInsightProduct.id)
@@ -719,6 +730,7 @@ export function ProductsContent({
           categories={categories}
           currency={currency}
           merchantId={merchantId}
+          language={language}
           product={editProduct}
           externalOpen
           onExternalClose={() => setEditProduct(null)}
@@ -730,6 +742,7 @@ export function ProductsContent({
           categories={categories}
           currency={currency}
           merchantId={merchantId}
+          language={language}
           prefillProduct={{
             name: addVariantProduct.name,
             categoryId: addVariantProduct.categoryId,
@@ -753,9 +766,12 @@ export function ProductsContent({
             setConfirmDelete(null);
           }
         }}
-        title="Delete product"
-        message={`Are you sure you want to delete "${confirmDelete?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
+        title={i.products.deleteProduct}
+        message={i.products.deleteProductConfirm.replace(
+          "{name}",
+          confirmDelete?.name || "",
+        )}
+        confirmLabel={i.common.delete}
         loading={Boolean(deletingId)}
       />
 
@@ -766,13 +782,17 @@ export function ProductsContent({
           setConfirmBulkDelete(false);
           handleBulkDelete();
         }}
-        title="Delete selected products"
-        message={`Are you sure you want to delete ${formatNumber(selectedIds.length, numberFormat)} selected products? This action cannot be undone.`}
-        confirmLabel="Delete all"
+        title={i.products.deleteSelectedProducts}
+        message={i.products.deleteSelectedConfirm.replace(
+          "{count}",
+          formatNumber(selectedIds.length, numberFormat),
+        )}
+        confirmLabel={i.products.deleteAll}
       />
 
       {scannerOpen && (
         <BarcodeScanner
+          language={language}
           onScan={handleBarcodeScan}
           onClose={() => setScannerOpen(false)}
         />
@@ -783,6 +803,7 @@ export function ProductsContent({
           categories={categories}
           currency={currency}
           merchantId={merchantId}
+          language={language}
           initialBarcode={scannedBarcode}
           externalOpen
           onExternalClose={() => setScannedBarcode(null)}

@@ -21,6 +21,7 @@ import {
   formatNumber,
   type NumberFormat,
 } from "@/lib/utils";
+import { t, type Locale } from "@/lib/i18n";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -47,6 +48,7 @@ interface PromosContentProps {
   merchantId: string;
   currency: string;
   numberFormat?: NumberFormat;
+  language?: string;
 }
 
 const emptyForm = {
@@ -69,7 +71,9 @@ export function PromosContent({
   merchantId,
   currency,
   numberFormat = "western",
+  language = "en",
 }: PromosContentProps) {
+  const i = t(language as Locale);
   const [promos, setPromos] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -167,14 +171,14 @@ export function PromosContent({
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || "Failed to save");
+        setError(data.error || i.promos.failedToSave);
         return;
       }
 
       setModalOpen(false);
       fetchPromos();
     } catch {
-      setError("Something went wrong");
+      setError(i.common.somethingWentWrong);
     } finally {
       setSaving(false);
     }
@@ -194,15 +198,16 @@ export function PromosContent({
   }
 
   function getStatusBadge(p: Promotion) {
-    if (!p.isActive) return <Badge variant="default">Inactive</Badge>;
+    if (!p.isActive)
+      return <Badge variant="default">{i.promos.inactive}</Badge>;
     const now = new Date();
     if (p.startsAt && now < new Date(p.startsAt))
-      return <Badge variant="warning">Scheduled</Badge>;
+      return <Badge variant="warning">{i.promos.scheduled}</Badge>;
     if (p.endsAt && now > new Date(p.endsAt))
-      return <Badge variant="danger">Expired</Badge>;
+      return <Badge variant="danger">{i.promos.expired}</Badge>;
     if (p.maxUses && p.usedCount >= p.maxUses)
-      return <Badge variant="danger">Exhausted</Badge>;
-    return <Badge variant="success">Active</Badge>;
+      return <Badge variant="danger">{i.promos.exhausted}</Badge>;
+    return <Badge variant="success">{i.promos.active}</Badge>;
   }
 
   function getStatusKey(p: Promotion): string {
@@ -223,11 +228,11 @@ export function PromosContent({
   function formatScope(p: Promotion) {
     switch (p.scope) {
       case "ORDER":
-        return "Whole order";
+        return i.promos.wholeOrder;
       case "PRODUCT":
-        return "Specific product";
+        return i.promos.specificProduct;
       case "CATEGORY":
-        return "Category";
+        return i.promos.categoryScope;
       default:
         return p.scope;
     }
@@ -297,19 +302,19 @@ export function PromosContent({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Promotions"
-        subtitle={`${formatNumber(promos.length, numberFormat)} promo codes`}
+        title={i.promos.title}
+        subtitle={`${formatNumber(promos.length, numberFormat)} ${i.promos.promoCodes}`}
       >
         <Button onClick={openCreate}>
           <IconPlus size={18} />
-          Add Promo
+          {i.promos.addPromo}
         </Button>
       </PageHeader>
 
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-            Active
+            {i.promos.activeCount}
           </p>
           <p className="mt-2 text-2xl font-bold text-emerald-900 tabular-nums">
             {formatNumber(promoSummary.active, numberFormat)}
@@ -317,7 +322,7 @@ export function PromosContent({
         </div>
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
-            Expired / Exhausted
+            {i.promos.expiredExhausted}
           </p>
           <p className="mt-2 text-2xl font-bold text-red-900 tabular-nums">
             {formatNumber(promoSummary.expired, numberFormat)}
@@ -325,7 +330,7 @@ export function PromosContent({
         </div>
         <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
-            Total uses
+            {i.promos.totalUses}
           </p>
           <p className="mt-2 text-2xl font-bold text-violet-900 tabular-nums">
             {formatNumber(promoSummary.totalUses, numberFormat)}
@@ -336,8 +341,8 @@ export function PromosContent({
       <div className="grid gap-3 xl:grid-cols-3">
         <SearchInput
           id="promo-search"
-          label="Search promos"
-          placeholder="Code, scope..."
+          label={i.common.search}
+          placeholder={i.promos.searchPlaceholder}
           value={search}
           onChange={(v) => {
             setSearch(v);
@@ -346,27 +351,28 @@ export function PromosContent({
           resultCount={filteredPromos.length}
           totalCount={promos.length}
           numberFormat={numberFormat}
+          language={language}
         />
         <Select
           id="promo-status-filter"
-          label="Status"
+          label={i.common.status}
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
           options={[
-            { value: "all", label: "All statuses" },
-            { value: "active", label: "Active" },
-            { value: "inactive", label: "Inactive" },
-            { value: "expired", label: "Expired" },
-            { value: "exhausted", label: "Exhausted" },
-            { value: "scheduled", label: "Scheduled" },
+            { value: "all", label: i.promos.allStatuses },
+            { value: "active", label: i.promos.active },
+            { value: "inactive", label: i.promos.inactive },
+            { value: "expired", label: i.promos.expired },
+            { value: "exhausted", label: i.promos.exhausted },
+            { value: "scheduled", label: i.promos.scheduled },
           ]}
         />
         <Select
           id="promo-page-size"
-          label="Per page"
+          label={i.common.perPage}
           value={String(pageSize)}
           onChange={(e) => {
             setPageSize(Number(e.target.value));
@@ -374,20 +380,22 @@ export function PromosContent({
           }}
           options={PAGE_SIZES.map((s) => ({
             value: String(s),
-            label: `${s} rows`,
+            label: `${s} ${i.common.rows}`,
           }))}
         />
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-slate-400">Loading...</div>
+        <div className="text-center py-12 text-slate-400">
+          {i.common.loading}
+        </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
               <tr>
                 <SortableTh
-                  label="Code"
+                  label={i.promos.code}
                   sortKey="code"
                   currentSort={sortKey}
                   currentDirection={sortDir}
@@ -399,7 +407,7 @@ export function PromosContent({
                   }}
                 />
                 <SortableTh
-                  label="Discount"
+                  label={i.promos.discountCol}
                   sortKey="value"
                   currentSort={sortKey}
                   currentDirection={sortDir}
@@ -411,7 +419,7 @@ export function PromosContent({
                   }}
                 />
                 <SortableTh
-                  label="Scope"
+                  label={i.promos.scope}
                   sortKey="scope"
                   currentSort={sortKey}
                   currentDirection={sortDir}
@@ -422,9 +430,11 @@ export function PromosContent({
                     setPage(1);
                   }}
                 />
-                <th className="px-5 py-3.5 text-left font-semibold">Status</th>
+                <th className="px-5 py-3.5 text-left font-semibold">
+                  {i.common.status}
+                </th>
                 <SortableTh
-                  label="Usage"
+                  label={i.promos.usage}
                   sortKey="usage"
                   currentSort={sortKey}
                   currentDirection={sortDir}
@@ -436,7 +446,7 @@ export function PromosContent({
                   }}
                 />
                 <SortableTh
-                  label="Created"
+                  label={i.promos.createdCol}
                   sortKey="created"
                   currentSort={sortKey}
                   currentDirection={sortDir}
@@ -458,8 +468,8 @@ export function PromosContent({
                     className="px-5 py-12 text-center text-slate-400"
                   >
                     {promos.length === 0
-                      ? "No promotions yet"
-                      : "No promos match your search"}
+                      ? i.promos.noPromosYet
+                      : i.promos.noPromosMatch}
                   </td>
                 </tr>
               ) : (
@@ -504,7 +514,7 @@ export function PromosContent({
                           setDeleteConfirm({ id: p.id, code: p.code })
                         }
                       >
-                        Delete
+                        {i.common.delete}
                       </Button>
                     </td>
                   </tr>
@@ -518,13 +528,13 @@ export function PromosContent({
       {filteredPromos.length > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            Showing{" "}
+            {i.common.showing}{" "}
             {formatNumber((currentPage - 1) * pageSize + 1, numberFormat)}-
             {formatNumber(
               Math.min(currentPage * pageSize, filteredPromos.length),
               numberFormat,
             )}{" "}
-            of {formatNumber(filteredPromos.length, numberFormat)}
+            {i.common.of} {formatNumber(filteredPromos.length, numberFormat)}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -533,10 +543,10 @@ export function PromosContent({
               disabled={currentPage === 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             >
-              Previous
+              {i.common.previous}
             </Button>
             <span className="text-sm text-slate-500">
-              Page {formatNumber(currentPage, numberFormat)} /{" "}
+              {i.common.page} {formatNumber(currentPage, numberFormat)} /{" "}
               {formatNumber(totalPages, numberFormat)}
             </span>
             <Button
@@ -545,7 +555,7 @@ export function PromosContent({
               disabled={currentPage === totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
-              Next
+              {i.common.next}
             </Button>
           </div>
         </div>
@@ -554,15 +564,15 @@ export function PromosContent({
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingId ? "Edit Promotion" : "Create Promotion"}
+        title={editingId ? i.promos.editPromotion : i.promos.createPromotion}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               id="code"
-              label="Promo code"
-              placeholder="e.g. SUMMER20"
+              label={i.promos.promoCodeLabel}
+              placeholder={i.promos.promoCodePlaceholder}
               value={form.code}
               onChange={(e) =>
                 setForm({
@@ -574,7 +584,7 @@ export function PromosContent({
             />
             <Select
               id="type"
-              label="Discount type"
+              label={i.promos.discountType}
               value={form.type}
               onChange={(e) =>
                 setForm({
@@ -583,16 +593,19 @@ export function PromosContent({
                 })
               }
               options={[
-                { value: "PERCENT", label: "Percentage (%)" },
-                { value: "FIXED", label: `Fixed amount (${currency})` },
+                { value: "PERCENT", label: i.promos.percentage },
+                {
+                  value: "FIXED",
+                  label: `${i.promos.fixedAmount} (${currency})`,
+                },
               ]}
             />
             <Input
               id="value"
               label={
                 form.type === "PERCENT"
-                  ? "Discount (%)"
-                  : `Discount (${currency})`
+                  ? `${i.promos.discountLabel} (%)`
+                  : `${i.promos.discountLabel} (${currency})`
               }
               type="number"
               min="0"
@@ -605,7 +618,7 @@ export function PromosContent({
             />
             <Select
               id="scope"
-              label="Applies to"
+              label={i.promos.appliesTo}
               value={form.scope}
               onChange={(e) =>
                 setForm({
@@ -614,16 +627,20 @@ export function PromosContent({
                 })
               }
               options={[
-                { value: "ORDER", label: "Whole order" },
-                { value: "PRODUCT", label: "Specific product" },
-                { value: "CATEGORY", label: "Category" },
+                { value: "ORDER", label: i.promos.wholeOrder },
+                { value: "PRODUCT", label: i.promos.specificProduct },
+                { value: "CATEGORY", label: i.promos.categoryScope },
               ]}
             />
             {form.scope !== "ORDER" && (
               <Input
                 id="scopeTargetId"
-                label={form.scope === "PRODUCT" ? "Product ID" : "Category ID"}
-                placeholder="Paste ID"
+                label={
+                  form.scope === "PRODUCT"
+                    ? i.promos.productId
+                    : i.promos.categoryId
+                }
+                placeholder={i.promos.pasteId}
                 value={form.scopeTargetId}
                 onChange={(e) =>
                   setForm({ ...form, scopeTargetId: e.target.value })
@@ -632,11 +649,11 @@ export function PromosContent({
             )}
             <Input
               id="minSubtotal"
-              label={`Minimum subtotal (${currency})`}
+              label={`${i.promos.minSubtotal} (${currency})`}
               type="number"
               min="0"
               step="0.01"
-              placeholder="0 = no minimum"
+              placeholder={i.promos.noMinimum}
               value={form.minSubtotal}
               onChange={(e) =>
                 setForm({ ...form, minSubtotal: e.target.value })
@@ -644,11 +661,11 @@ export function PromosContent({
             />
             <Input
               id="maxDiscount"
-              label={`Max discount cap (${currency})`}
+              label={`${i.promos.maxDiscountCap} (${currency})`}
               type="number"
               min="0"
               step="0.01"
-              placeholder="No cap"
+              placeholder={i.promos.noCap}
               value={form.maxDiscount}
               onChange={(e) =>
                 setForm({ ...form, maxDiscount: e.target.value })
@@ -656,19 +673,19 @@ export function PromosContent({
             />
             <Input
               id="maxUses"
-              label="Total usage limit"
+              label={i.promos.totalUsageLimit}
               type="number"
               min="1"
-              placeholder="Unlimited"
+              placeholder={i.promos.unlimited}
               value={form.maxUses}
               onChange={(e) => setForm({ ...form, maxUses: e.target.value })}
             />
             <Input
               id="maxUsesPerCustomer"
-              label="Per customer limit"
+              label={i.promos.perCustomerLimit}
               type="number"
               min="1"
-              placeholder="Unlimited"
+              placeholder={i.promos.unlimited}
               value={form.maxUsesPerCustomer}
               onChange={(e) =>
                 setForm({ ...form, maxUsesPerCustomer: e.target.value })
@@ -676,14 +693,14 @@ export function PromosContent({
             />
             <Input
               id="startsAt"
-              label="Starts at"
+              label={i.promos.startsAt}
               type="datetime-local"
               value={form.startsAt}
               onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
             />
             <Input
               id="endsAt"
-              label="Ends at"
+              label={i.promos.endsAt}
               type="datetime-local"
               value={form.endsAt}
               onChange={(e) => setForm({ ...form, endsAt: e.target.value })}
@@ -702,7 +719,7 @@ export function PromosContent({
                 htmlFor="stackable"
                 className="text-sm text-slate-700 font-medium"
               >
-                Stackable with other codes
+                {i.promos.stackable}
               </label>
             </div>
             <div className="flex items-center gap-3 pt-6">
@@ -719,7 +736,7 @@ export function PromosContent({
                 htmlFor="isActive"
                 className="text-sm text-slate-700 font-medium"
               >
-                Active
+                {i.promos.activeCheckbox}
               </label>
             </div>
           </div>
@@ -736,10 +753,10 @@ export function PromosContent({
               type="button"
               onClick={() => setModalOpen(false)}
             >
-              Cancel
+              {i.common.cancel}
             </Button>
             <Button type="submit" loading={saving}>
-              {editingId ? "Save Changes" : "Create Promo"}
+              {editingId ? i.promos.saveChanges : i.promos.createPromo}
             </Button>
           </div>
         </form>
@@ -754,9 +771,12 @@ export function PromosContent({
             setDeleteConfirm(null);
           }
         }}
-        title="Delete promotion"
-        message={`Delete promo code "${deleteConfirm?.code}"? This cannot be undone.`}
-        confirmLabel="Delete"
+        title={i.promos.deletePromotion}
+        message={i.promos.deletePromoConfirm.replace(
+          "{code}",
+          deleteConfirm?.code ?? "",
+        )}
+        confirmLabel={i.common.delete}
       />
     </div>
   );

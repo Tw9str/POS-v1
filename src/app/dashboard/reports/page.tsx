@@ -21,6 +21,7 @@ export default async function ReportsPage() {
           | "gregorian"
           | "hijri"
       }
+      language={merchant.language ?? "en"}
     />
   );
 }

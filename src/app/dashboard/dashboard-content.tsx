@@ -23,6 +23,7 @@ import {
   IconPromo,
 } from "@/components/icons";
 import { formatCurrency, formatNumber, type NumberFormat } from "@/lib/utils";
+import { t, type Locale } from "@/lib/i18n";
 import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,73 +31,73 @@ import { useRouter } from "next/navigation";
 const NAV_CARDS = [
   {
     href: "/dashboard/pos",
-    label: "POS Terminal",
+    labelKey: "pos" as const,
     icon: IconPOS,
     color: "bg-indigo-500",
-    description: "Process sales",
+    descKey: "processSales" as const,
   },
   {
     href: "/dashboard/products",
-    label: "Products",
+    labelKey: "products" as const,
     icon: IconProducts,
     color: "bg-blue-500",
-    description: "Manage catalog",
+    descKey: "manageCatalog" as const,
   },
   {
     href: "/dashboard/orders",
-    label: "Orders",
+    labelKey: "orders" as const,
     icon: IconOrders,
     color: "bg-emerald-500",
-    description: "View transactions",
+    descKey: "viewTransactions" as const,
   },
   {
     href: "/dashboard/inventory",
-    label: "Inventory",
+    labelKey: "inventory" as const,
     icon: IconInventory,
     color: "bg-amber-500",
-    description: "Stock levels",
+    descKey: "stockLevels" as const,
   },
   {
     href: "/dashboard/promos",
-    label: "Promos",
+    labelKey: "promos" as const,
     icon: IconPromo,
     color: "bg-rose-500",
-    description: "Discount codes",
+    descKey: "discountCodes" as const,
   },
   {
     href: "/dashboard/customers",
-    label: "Customers",
+    labelKey: "customers" as const,
     icon: IconCustomers,
     color: "bg-purple-500",
-    description: "Customer data",
+    descKey: "customerData" as const,
   },
   {
     href: "/dashboard/suppliers",
-    label: "Suppliers",
+    labelKey: "suppliers" as const,
     icon: IconSuppliers,
     color: "bg-orange-500",
-    description: "Manage suppliers",
+    descKey: "manageSuppliers" as const,
   },
   {
     href: "/dashboard/staff",
-    label: "Staff",
+    labelKey: "staff" as const,
     icon: IconStaff,
     color: "bg-pink-500",
-    description: "Team members",
+    descKey: "teamMembers" as const,
   },
   {
     href: "/dashboard/reports",
-    label: "Reports",
+    labelKey: "reports" as const,
     icon: IconReports,
     color: "bg-cyan-500",
-    description: "Sales analytics",
+    descKey: "salesAnalytics" as const,
   },
   {
     href: "/dashboard/analytics",
-    label: "Analytics",
+    labelKey: "analytics" as const,
     icon: IconActivity,
     color: "bg-violet-500",
-    description: "Demand insights",
+    descKey: "demandInsights" as const,
   },
 ];
 
@@ -124,6 +125,7 @@ export function DashboardContent({
   merchantName,
   currency,
   numberFormat = "western",
+  language = "en",
   staffRole,
   allowedPages,
 }: {
@@ -131,10 +133,12 @@ export function DashboardContent({
   merchantName: string;
   currency: string;
   numberFormat?: NumberFormat;
+  language?: string;
   staffRole: string;
   allowedPages: string[];
 }) {
   const router = useRouter();
+  const i = t(language as Locale);
   const products = useLocalProducts(merchantId);
   const customers = useLocalCustomers(merchantId);
   const orders = useLocalOrders(merchantId, 200);
@@ -243,8 +247,10 @@ export function DashboardContent({
               {merchantName}
             </h1>
             <p className="text-slate-500 text-sm mt-0.5">
-              Today {formatCurrency(stats.todayNet, currency, numberFormat)} ·{" "}
-              {formatNumber(stats.todayOrderCount, numberFormat)} orders
+              {i.common.today}{" "}
+              {formatCurrency(stats.todayNet, currency, numberFormat)} ·{" "}
+              {formatNumber(stats.todayOrderCount, numberFormat)}{" "}
+              {i.dashboard.orders}
             </p>
           </div>
         </div>
@@ -255,7 +261,7 @@ export function DashboardContent({
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 active:scale-[0.98] transition-all"
             >
               <IconSettings size={18} />
-              Settings
+              {i.nav.settings}
             </Link>
           )}
           <button
@@ -263,14 +269,14 @@ export function DashboardContent({
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-amber-600 hover:bg-amber-50 active:scale-[0.98] transition-all cursor-pointer"
           >
             <IconKey size={18} />
-            Switch User
+            {i.common.switchUser}
           </button>
           <button
             onClick={handleSignOut}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 active:scale-[0.98] transition-all cursor-pointer"
           >
             <IconLogout size={18} />
-            Sign Out
+            {i.common.signOut}
           </button>
         </div>
       </div>
@@ -281,7 +287,9 @@ export function DashboardContent({
             <IconOrders size={20} />
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-medium">Refunded Today</p>
+            <p className="text-xs text-slate-400 font-medium">
+              {i.dashboard.refundedToday}
+            </p>
             <p className="text-lg font-bold text-slate-900 tabular-nums">
               {formatCurrency(stats.todayRefunds, currency, numberFormat)}
             </p>
@@ -292,7 +300,9 @@ export function DashboardContent({
             <IconMoney size={20} />
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-medium">Net Today</p>
+            <p className="text-xs text-slate-400 font-medium">
+              {i.dashboard.netToday}
+            </p>
             <p className="text-lg font-bold text-slate-900 tabular-nums">
               {formatCurrency(stats.todayNet, currency, numberFormat)}
             </p>
@@ -303,12 +313,14 @@ export function DashboardContent({
             <IconMoney size={20} />
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-medium">Profit Today</p>
+            <p className="text-xs text-slate-400 font-medium">
+              {i.dashboard.profitToday}
+            </p>
             <p className="text-lg font-bold text-slate-900 tabular-nums">
               {formatCurrency(stats.todayProfit, currency, numberFormat)}
             </p>
             <p className="text-[11px] text-indigo-600 font-semibold">
-              {stats.profitMargin.toFixed(1)}% margin
+              {stats.profitMargin.toFixed(1)}% {i.dashboard.margin}
             </p>
           </div>
         </div>
@@ -317,7 +329,9 @@ export function DashboardContent({
             <IconOrders size={20} />
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-medium">Orders Today</p>
+            <p className="text-xs text-slate-400 font-medium">
+              {i.dashboard.ordersToday}
+            </p>
             <p className="text-lg font-bold text-slate-900 tabular-nums">
               {formatNumber(stats.todayOrderCount, numberFormat)}
             </p>
@@ -337,8 +351,12 @@ export function DashboardContent({
             >
               <card.icon size={28} className="text-white" />
             </div>
-            <h3 className="font-bold text-slate-900 text-base">{card.label}</h3>
-            <p className="text-xs text-slate-400 mt-1">{card.description}</p>
+            <h3 className="font-bold text-slate-900 text-base">
+              {i.nav[card.labelKey]}
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">
+              {i.dashboard[card.descKey]}
+            </p>
           </Link>
         ))}
       </div>

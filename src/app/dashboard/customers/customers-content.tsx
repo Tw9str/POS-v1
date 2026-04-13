@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { formatCurrency, formatNumber, type NumberFormat } from "@/lib/utils";
+import { t, type Locale } from "@/lib/i18n";
 import { PageHeader } from "@/components/layout/page-header";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 
@@ -17,11 +18,14 @@ export function CustomersContent({
   merchantId,
   currency,
   numberFormat = "western",
+  language = "en",
 }: {
   merchantId: string;
   currency: string;
   numberFormat?: NumberFormat;
+  language?: string;
 }) {
+  const i = t(language as Locale);
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -102,7 +106,7 @@ export function CustomersContent({
     if (!result.ok) {
       setFeedback({
         type: "error",
-        text: result.error || "Failed to delete customer",
+        text: result.error || i.customers.failedToDelete,
       });
     } else {
       setSelectedIds((prev) => prev.filter((item) => item !== id));
@@ -148,18 +152,18 @@ export function CustomersContent({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Customers"
-        subtitle={`${formatNumber(customers.length, numberFormat)} customers`}
+        title={i.customers.title}
+        subtitle={`${formatNumber(customers.length, numberFormat)} ${i.customers.customers}`}
       >
-        <CustomerActions merchantId={merchantId} />
+        <CustomerActions merchantId={merchantId} language={language} />
       </PageHeader>
 
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="w-full md:max-w-sm">
           <Input
             id="customer-search"
-            label="Search customers"
-            placeholder="Name, phone, email, address..."
+            label={i.common.search}
+            placeholder={i.customers.searchPlaceholder}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -176,7 +180,7 @@ export function CustomersContent({
               if (editMode) setSelectedIds([]);
             }}
           >
-            {editMode ? "Done" : "Edit"}
+            {editMode ? i.common.done : i.common.edit}
           </Button>
           {editMode && selectedIds.length > 0 && (
             <Button
@@ -186,8 +190,8 @@ export function CustomersContent({
               onClick={() => setConfirmBulkDelete(true)}
             >
               {bulkDeleting
-                ? "Deleting..."
-                : `Delete Selected (${formatNumber(selectedIds.length, numberFormat)})`}
+                ? i.common.deleting
+                : `${i.common.deleteSelected} (${formatNumber(selectedIds.length, numberFormat)})`}
             </Button>
           )}
         </div>
@@ -219,14 +223,24 @@ export function CustomersContent({
                   />
                 </th>
               )}
-              <th className="px-5 py-3.5 text-left font-semibold">Name</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Phone</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Email</th>
               <th className="px-5 py-3.5 text-left font-semibold">
-                Total Spent
+                {i.common.name}
               </th>
-              <th className="px-5 py-3.5 text-left font-semibold">Visits</th>
-              <th className="px-5 py-3.5 text-left font-semibold">Notes</th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.phone}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.email}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.customers.totalSpent}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.customers.visits}
+              </th>
+              <th className="px-5 py-3.5 text-left font-semibold">
+                {i.common.notes}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -237,8 +251,8 @@ export function CustomersContent({
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {customers.length === 0
-                    ? "No customers yet"
-                    : "No customers match your search"}
+                    ? i.customers.noCustomersYet
+                    : i.customers.noCustomersMatch}
                 </td>
               </tr>
             ) : (
@@ -289,13 +303,13 @@ export function CustomersContent({
       {filteredCustomers.length > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            Showing{" "}
+            {i.common.showing}{" "}
             {formatNumber((currentPage - 1) * PAGE_SIZE + 1, numberFormat)}-
             {formatNumber(
               Math.min(currentPage * PAGE_SIZE, filteredCustomers.length),
               numberFormat,
             )}{" "}
-            of {formatNumber(filteredCustomers.length, numberFormat)}
+            {i.common.of} {formatNumber(filteredCustomers.length, numberFormat)}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -304,10 +318,10 @@ export function CustomersContent({
               disabled={currentPage === 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             >
-              Previous
+              {i.common.previous}
             </Button>
             <span className="text-sm text-slate-500">
-              Page {formatNumber(currentPage, numberFormat)} /{" "}
+              {i.common.page} {formatNumber(currentPage, numberFormat)} /{" "}
               {formatNumber(totalPages, numberFormat)}
             </span>
             <Button
@@ -316,7 +330,7 @@ export function CustomersContent({
               disabled={currentPage === totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
-              Next
+              {i.common.next}
             </Button>
           </div>
         </div>
@@ -325,6 +339,7 @@ export function CustomersContent({
       {editCustomer && (
         <CustomerActions
           merchantId={merchantId}
+          language={language}
           customer={editCustomer}
           externalOpen
           onExternalClose={() => setEditCustomer(null)}
@@ -345,9 +360,12 @@ export function CustomersContent({
             setConfirmDelete(null);
           }
         }}
-        title="Delete customer"
-        message={`Are you sure you want to delete "${confirmDelete?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
+        title={i.customers.deleteCustomer}
+        message={i.customers.deleteCustomerConfirm.replace(
+          "{name}",
+          confirmDelete?.name ?? "",
+        )}
+        confirmLabel={i.common.delete}
         loading={Boolean(deletingId)}
       />
 
@@ -358,9 +376,12 @@ export function CustomersContent({
           setConfirmBulkDelete(false);
           handleBulkDelete();
         }}
-        title="Delete selected customers"
-        message={`Are you sure you want to delete ${formatNumber(selectedIds.length, numberFormat)} selected customers? This action cannot be undone.`}
-        confirmLabel="Delete all"
+        title={i.customers.deleteSelectedCustomers}
+        message={i.customers.deleteSelectedConfirm.replace(
+          "{count}",
+          formatNumber(selectedIds.length, numberFormat),
+        )}
+        confirmLabel={i.common.delete}
       />
     </div>
   );

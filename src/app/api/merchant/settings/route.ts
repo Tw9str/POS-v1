@@ -16,6 +16,7 @@ const settingsSchema = z.object({
     .enum(["long", "numeric", "arabic", "gregorian", "hijri"])
     .optional()
     .default("long"),
+  language: z.enum(["en", "ar"]).optional().default("en"),
   taxRate: z.number().min(0).max(100),
 });
 
@@ -47,6 +48,7 @@ export async function PUT(req: Request) {
         currency: parsed.data.currency,
         numberFormat: parsed.data.numberFormat,
         dateFormat: normalizeDateFormat(parsed.data.dateFormat),
+        language: parsed.data.language,
         taxRate: parsed.data.taxRate,
       },
     });
@@ -60,6 +62,7 @@ export async function PUT(req: Request) {
       address: updated.address,
       numberFormat: updated.numberFormat ?? "western",
       dateFormat: updated.dateFormat ?? "long",
+      language: updated.language ?? "en",
     });
 
     await prisma.activityLog
