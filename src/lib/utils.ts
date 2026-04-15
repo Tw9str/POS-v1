@@ -188,6 +188,7 @@ export const SUPPORTED_PAYMENT_METHODS = [
   "CASH",
   "MOBILE_MONEY",
   "CARD",
+  "CREDIT",
 ] as const;
 
 export type SupportedPaymentMethod = (typeof SUPPORTED_PAYMENT_METHODS)[number];
@@ -203,6 +204,8 @@ export function getPaymentMethodLabel(method?: string | null): string {
       return "ShamCash";
     case "TRANSFER":
       return "Transfer";
+    case "CREDIT":
+      return "Credit";
     case "SPLIT":
       return "Split";
     case "OTHER":

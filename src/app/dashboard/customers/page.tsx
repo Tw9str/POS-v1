@@ -16,6 +16,14 @@ export default async function CustomersPage() {
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }
+      dateFormat={
+        (merchant.dateFormat ?? "long") as
+          | "long"
+          | "numeric"
+          | "arabic"
+          | "gregorian"
+          | "hijri"
+      }
       language={merchant.language ?? "en"}
     />
   );

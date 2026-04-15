@@ -27,6 +27,7 @@ export default async function DashboardPage() {
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }
       language={merchant.language ?? "en"}
+      dateFormat={merchant.dateFormat ?? "long"}
       staffRole={role}
       allowedPages={allowedPages}
     />

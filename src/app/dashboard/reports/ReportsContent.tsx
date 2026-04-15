@@ -253,8 +253,15 @@ export function ReportsContent({
         saleOrders.length > 0
           ? (refundedOrders.length / saleOrders.length) * 100
           : 0,
+      // Credit / Receivables
+      totalOutstanding: customers.reduce((sum, c) => sum + (c.balance || 0), 0),
+      debtors: customers.filter((c) => (c.balance || 0) > 0),
+      creditOrders: saleOrders.filter(
+        (o) =>
+          o.paymentStatus === "credit" || o.paymentStatus === "partial_credit",
+      ),
     };
-  }, [orders, products, now]);
+  }, [orders, products, customers, now]);
 
   return (
     <div className="space-y-8">
@@ -582,6 +589,70 @@ export function ReportsContent({
               </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Credit / Receivables */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+            {i.reports.creditReport}
+          </h2>
+          <div className="flex items-center gap-4">
+            <div className="text-end">
+              <p className="text-xs text-slate-400">
+                {i.reports.totalOutstanding}
+              </p>
+              <p className="text-lg font-bold text-amber-700 tabular-nums">
+                {formatCurrency(
+                  stats.totalOutstanding,
+                  currency,
+                  numberFormat,
+                  currencyFormat,
+                )}
+              </p>
+            </div>
+            <div className="text-end">
+              <p className="text-xs text-slate-400">{i.reports.debtors}</p>
+              <p className="text-lg font-bold text-slate-900 tabular-nums">
+                {formatNumber(stats.debtors.length, numberFormat)}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="divide-y divide-slate-50">
+          {stats.debtors.length === 0 ? (
+            <div className="px-6 py-10 text-center text-slate-400 text-sm">
+              {i.reports.noDebtors}
+            </div>
+          ) : (
+            stats.debtors
+              .sort((a, b) => (b.balance || 0) - (a.balance || 0))
+              .slice(0, 10)
+              .map((debtor) => (
+                <div
+                  key={debtor.id}
+                  className="px-6 py-3.5 flex items-center justify-between gap-4"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 capitalize">
+                      {debtor.name}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {debtor.phone || debtor.email || ""}
+                    </p>
+                  </div>
+                  <span className="text-sm font-bold text-amber-700 tabular-nums">
+                    {formatCurrency(
+                      debtor.balance || 0,
+                      currency,
+                      numberFormat,
+                      currencyFormat,
+                    )}
+                  </span>
+                </div>
+              ))
+          )}
         </div>
       </div>
     </div>

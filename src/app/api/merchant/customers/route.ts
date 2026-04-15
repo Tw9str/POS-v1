@@ -38,6 +38,7 @@ export async function GET() {
         notes: true,
         totalSpent: true,
         visitCount: true,
+        balance: true,
         createdAt: true,
       },
     });

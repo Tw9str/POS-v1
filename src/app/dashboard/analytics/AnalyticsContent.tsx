@@ -270,6 +270,7 @@ export function AnalyticsContent({
 
       return {
         label: formatDate(date, dateFormat, numberFormat),
+        shortLabel: `${date.getDate()}/${date.getMonth() + 1}`,
         ...snapshot,
       };
     });
@@ -345,10 +346,28 @@ export function AnalyticsContent({
     customEnd,
   ]);
 
-  const maxNetDay =
+  const rawMaxNetDay =
     Math.max(...stats.dailyTrend.map((day) => day.netRevenue), 0) || 1;
-  const totalPayment =
-    stats.paymentMix.reduce((sum, method) => sum + method.total, 0) || 1;
+
+  // Round up to a nice number for gridline scale
+  const niceMax = (() => {
+    const magnitude = Math.pow(10, Math.floor(Math.log10(rawMaxNetDay)));
+    const normalized = rawMaxNetDay / magnitude;
+    const nice =
+      normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+    return nice * magnitude;
+  })();
+
+  const gridTicks = [0, 0.25, 0.5, 0.75, 1];
+  const rawMaxPayment =
+    Math.max(...stats.paymentMix.map((m) => m.total), 0) || 1;
+  const niceMaxPayment = (() => {
+    const magnitude = Math.pow(10, Math.floor(Math.log10(rawMaxPayment)));
+    const normalized = rawMaxPayment / magnitude;
+    const nice =
+      normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+    return nice * magnitude;
+  })();
   const todayValue = formatDateInputValue(new Date());
   const canGoNextDay = selectedDay < todayValue;
 
@@ -549,43 +568,99 @@ export function AnalyticsContent({
               {i.analytics.revenueTrend}
             </h2>
           </div>
-          <div className="p-6 space-y-4">
-            {stats.dailyTrend.map((day) => (
-              <div key={day.label} className="space-y-1.5">
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="font-medium text-slate-700">
-                    {day.label}
-                  </span>
-                  <span className="font-semibold text-slate-900 tabular-nums">
+          <div className="p-6">
+            {/* Y-axis scale + bars area */}
+            <div className="flex gap-2">
+              {/* Y-axis labels */}
+              <div className="flex flex-col justify-between h-48 py-0.5 shrink-0">
+                {[...gridTicks].reverse().map((tick) => (
+                  <span
+                    key={tick}
+                    className="text-[10px] text-slate-400 tabular-nums text-right leading-none"
+                  >
                     {formatCurrency(
-                      day.netRevenue,
+                      niceMax * tick,
                       currency,
                       numberFormat,
                       currencyFormat,
                     )}
                   </span>
-                </div>
-                <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-indigo-500"
-                    style={{
-                      width: `${Math.max(8, (day.netRevenue / maxNetDay) * 100)}%`,
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-slate-400">
-                  {formatNumber(day.orderCount, numberFormat)}{" "}
-                  {i.analytics.orders} ·{" "}
-                  {formatCurrency(
-                    day.grossProfit,
-                    currency,
-                    numberFormat,
-                    currencyFormat,
-                  )}{" "}
-                  {i.analytics.profit}
-                </p>
+                ))}
               </div>
-            ))}
+
+              {/* Chart area */}
+              <div className="flex-1 min-w-0">
+                {/* Gridlines + bars */}
+                <div className="relative h-48 border-b border-l border-slate-200">
+                  {/* Horizontal gridlines */}
+                  {gridTicks.slice(1).map((tick) => (
+                    <div
+                      key={tick}
+                      className="absolute left-0 right-0 h-px bg-slate-100"
+                      style={{ bottom: `${tick * 100}%` }}
+                    />
+                  ))}
+
+                  {/* Bars */}
+                  <div className="absolute inset-0 flex items-end gap-1 px-1">
+                    {stats.dailyTrend.map((day) => {
+                      const pct =
+                        day.netRevenue > 0
+                          ? Math.max(2, (day.netRevenue / niceMax) * 100)
+                          : 0;
+                      return (
+                        <div
+                          key={day.label}
+                          className="flex-1 min-w-0 group relative"
+                          style={{ height: "100%" }}
+                        >
+                          <div
+                            className="absolute bottom-0 left-0.5 right-0.5 rounded-t bg-indigo-500 hover:bg-indigo-600 transition-colors"
+                            style={{ height: `${pct}%` }}
+                          />
+                          {/* Tooltip on hover */}
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                            <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
+                              <p className="font-semibold">{day.label}</p>
+                              <p>
+                                {formatCurrency(
+                                  day.netRevenue,
+                                  currency,
+                                  numberFormat,
+                                  currencyFormat,
+                                )}
+                              </p>
+                              <p className="text-slate-300">
+                                {formatNumber(day.orderCount, numberFormat)}{" "}
+                                {i.analytics.orders} ·{" "}
+                                {formatCurrency(
+                                  day.grossProfit,
+                                  currency,
+                                  numberFormat,
+                                  currencyFormat,
+                                )}{" "}
+                                {i.analytics.profit}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* X-axis labels */}
+                <div className="flex gap-1 px-1 mt-1.5">
+                  {stats.dailyTrend.map((day) => (
+                    <div key={day.label} className="flex-1 min-w-0 text-center">
+                      <span className="text-[10px] text-slate-400 tabular-nums truncate block">
+                        {day.shortLabel}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -595,39 +670,98 @@ export function AnalyticsContent({
               {i.analytics.paymentMix}
             </h2>
           </div>
-          <div className="p-6 space-y-4">
+          <div className="p-6">
             {stats.paymentMix.length === 0 ? (
               <p className="text-sm text-slate-400">{i.analytics.noPayments}</p>
             ) : (
-              stats.paymentMix.map((method) => (
-                <div key={method.method} className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="font-medium text-slate-700">
-                      {getPaymentMethodLabel(method.method)}
-                    </span>
-                    <span className="font-semibold text-slate-900 tabular-nums">
+              <div className="flex gap-2">
+                {/* Y-axis labels */}
+                <div className="flex flex-col justify-between h-48 py-0.5 shrink-0">
+                  {[...gridTicks].reverse().map((tick) => (
+                    <span
+                      key={tick}
+                      className="text-[10px] text-slate-400 tabular-nums text-right leading-none"
+                    >
                       {formatCurrency(
-                        method.total,
+                        niceMaxPayment * tick,
                         currency,
                         numberFormat,
                         currencyFormat,
                       )}
                     </span>
-                  </div>
-                  <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-emerald-500"
-                      style={{
-                        width: `${Math.max(10, (method.total / totalPayment) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    {formatNumber(method.count, numberFormat)}{" "}
-                    {i.analytics.orders}
-                  </p>
+                  ))}
                 </div>
-              ))
+
+                {/* Chart area */}
+                <div className="flex-1 min-w-0">
+                  <div className="relative h-48 border-b border-l border-slate-200">
+                    {/* Horizontal gridlines */}
+                    {gridTicks.slice(1).map((tick) => (
+                      <div
+                        key={tick}
+                        className="absolute left-0 right-0 h-px bg-slate-100"
+                        style={{ bottom: `${tick * 100}%` }}
+                      />
+                    ))}
+
+                    {/* Bars */}
+                    <div className="absolute inset-0 flex items-end justify-center gap-4 px-4">
+                      {stats.paymentMix.map((method) => {
+                        const pct =
+                          method.total > 0
+                            ? Math.max(2, (method.total / niceMaxPayment) * 100)
+                            : 0;
+                        return (
+                          <div
+                            key={method.method}
+                            className="w-12 max-w-[3rem] group relative"
+                            style={{ height: "100%" }}
+                          >
+                            <div
+                              className="absolute bottom-0 left-1 right-1 rounded-t bg-emerald-500 hover:bg-emerald-600 transition-colors"
+                              style={{ height: `${pct}%` }}
+                            />
+                            {/* Tooltip */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                              <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
+                                <p className="font-semibold">
+                                  {getPaymentMethodLabel(method.method)}
+                                </p>
+                                <p>
+                                  {formatCurrency(
+                                    method.total,
+                                    currency,
+                                    numberFormat,
+                                    currencyFormat,
+                                  )}
+                                </p>
+                                <p className="text-slate-300">
+                                  {formatNumber(method.count, numberFormat)}{" "}
+                                  {i.analytics.orders}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* X-axis labels */}
+                  <div className="flex justify-center gap-4 px-4 mt-1.5">
+                    {stats.paymentMix.map((method) => (
+                      <div
+                        key={method.method}
+                        className="w-12 max-w-[3rem] text-center"
+                      >
+                        <span className="text-[10px] text-slate-400 truncate block">
+                          {getPaymentMethodLabel(method.method)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>

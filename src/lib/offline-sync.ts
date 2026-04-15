@@ -110,7 +110,9 @@ export async function hydrateOrders(
       taxAmount: o.taxAmount as number,
       total: o.total as number,
       paidAmount: o.paidAmount as number,
+      creditAmount: (o.creditAmount as number) ?? 0,
       changeAmount: o.changeAmount as number,
+      paymentStatus: (o.paymentStatus as string) ?? "paid",
       status: (o.status as string) ?? "COMPLETED",
       notes: (o.notes as string) ?? null,
       createdAt: new Date(o.createdAt as string).getTime(),
@@ -205,6 +207,7 @@ export interface CreateOfflineOrderInput {
   taxAmount: number;
   total: number;
   paidAmount: number;
+  creditAmount?: number;
   notes: string | null;
 }
 
@@ -224,7 +227,15 @@ export async function saveOrderLocally(
   input: SaveLocalOrderInput,
 ): Promise<LocalOrder> {
   const localId = input.localId ?? generateLocalId();
-  const changeAmount = Math.max(0, input.paidAmount - input.total);
+  const creditAmt = input.creditAmount ?? 0;
+  const changeAmount =
+    creditAmt > 0 ? 0 : Math.max(0, input.paidAmount - input.total);
+  const paymentStatus =
+    creditAmt > 0 && input.paidAmount > 0
+      ? "partial_credit"
+      : creditAmt > 0
+        ? "credit"
+        : "paid";
 
   const order: LocalOrder = {
     localId,
@@ -240,7 +251,9 @@ export async function saveOrderLocally(
     taxAmount: input.taxAmount,
     total: input.total,
     paidAmount: input.paidAmount,
+    creditAmount: creditAmt,
     changeAmount,
+    paymentStatus,
     status: input.status ?? "COMPLETED",
     notes: input.notes,
     createdAt: input.createdAt ?? Date.now(),
@@ -340,6 +353,7 @@ export async function syncOrders(merchantId: string): Promise<SyncResult> {
           staffId: order.staffId,
           paymentMethod: order.paymentMethod,
           paidAmount: order.paidAmount,
+          creditAmount: order.creditAmount ?? 0,
           notes: order.notes,
           subtotal: order.subtotal,
           taxAmount: order.taxAmount,

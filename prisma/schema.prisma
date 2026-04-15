@@ -42,6 +42,7 @@ enum PaymentMethod {
   CARD
   TRANSFER
   MOBILE_MONEY
+  CREDIT
   SPLIT
   OTHER
 }
@@ -179,6 +180,7 @@ model Merchant {
   shifts       Shift[]
   activityLogs ActivityLog[]
   promotions   Promotion[]
+  payments     Payment[]
 
   @@map("merchants")
 }
@@ -314,11 +316,13 @@ model Customer {
   notes      String?
   totalSpent Float    @default(0)
   visitCount Int      @default(0)
+  balance    Float    @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   orders   Order[]
+  payments Payment[]
 
   @@index([merchantId])
   @@map("customers")
@@ -343,8 +347,10 @@ model Order {
   promoDiscount  Float         @default(0)
   total          Float
   paidAmount     Float         @default(0)
+  creditAmount   Float         @default(0)
   changeAmount   Float         @default(0)
   paymentMethod  PaymentMethod @default(CASH)
+  paymentStatus  String        @default("paid")
   notes          String?
   syncStatus     SyncStatus    @default(PENDING)
   localId        String?
@@ -355,6 +361,7 @@ model Order {
   staff     Staff?      @relation(fields: [staffId], references: [id], onDelete: SetNull)
   customer  Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items     OrderItem[]
+  payments  Payment[]
   promotion Promotion? @relation(fields: [promoId], references: [id], onDelete: SetNull)
 
   @@unique([merchantId, orderNumber])
@@ -465,6 +472,30 @@ model InventoryAdjustment {
   @@index([merchantId])
   @@index([productId])
   @@map("inventory_adjustments")
+}
+
+// ─────────────────────────────────────────────
+// PAYMENTS (credit collection)
+// ─────────────────────────────────────────────
+
+model Payment {
+  id         String   @id @default(cuid())
+  merchantId String
+  customerId String
+  orderId    String?
+  amount     Float
+  method     PaymentMethod @default(CASH)
+  note       String?
+  createdAt  DateTime @default(now())
+
+  merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  customer Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order    Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([merchantId])
+  @@index([customerId])
+  @@index([orderId])
+  @@map("payments")
 }
 
 // ─────────────────────────────────────────────

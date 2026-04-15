@@ -232,6 +232,7 @@ async function applyToLocalDB(
         notes: (body.notes as string) ?? existing?.notes ?? null,
         totalSpent: existing?.totalSpent ?? 0,
         visitCount: existing?.visitCount ?? 0,
+        balance: existing?.balance ?? 0,
         createdAt: existing?.createdAt ?? new Date().toISOString(),
       };
       await db.customers.put(customer);

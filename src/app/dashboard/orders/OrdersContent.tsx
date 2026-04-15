@@ -16,6 +16,7 @@ import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { IconCamera, IconPrinter } from "@/components/Icons";
 import { QRCodeDisplay } from "@/components/QrCode";
 import { SearchInput } from "@/components/ui/SearchInput";
+import { db } from "@/lib/offlineDb";
 import {
   SortableTh,
   useSortToggle,
@@ -52,6 +53,20 @@ const displayStatus = (order: { status?: string; syncStatus: string }) => {
   if (order.syncStatus === "pending") return "PENDING SYNC";
   if (order.syncStatus === "failed") return "SYNC FAILED";
   return order.status ?? "COMPLETED";
+};
+
+const paymentStatusVariant = (ps: string) => {
+  switch (ps) {
+    case "paid":
+    case "settled":
+      return "success" as const;
+    case "credit":
+      return "danger" as const;
+    case "partial_credit":
+      return "warning" as const;
+    default:
+      return "success" as const;
+  }
 };
 
 function matchesDateRange(createdAt: number, range: string) {
@@ -99,6 +114,7 @@ export function OrdersContent({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
   const [dateRange, setDateRange] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
@@ -111,6 +127,7 @@ export function OrdersContent({
   >(null);
   const [actionReason, setActionReason] = useState("");
   const [partialRefundAmount, setPartialRefundAmount] = useState("");
+  const [collectLoading, setCollectLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -148,10 +165,15 @@ export function OrdersContent({
       const matchesPayment =
         paymentFilter === "all" || order.paymentMethod === paymentFilter;
 
+      const matchesPaymentStatus =
+        paymentStatusFilter === "all" ||
+        (order.paymentStatus || "paid") === paymentStatusFilter;
+
       return (
         matchesSearch &&
         matchesStatus &&
         matchesPayment &&
+        matchesPaymentStatus &&
         matchesDateRange(order.createdAt, dateRange)
       );
     });
@@ -188,6 +210,7 @@ export function OrdersContent({
     search,
     statusFilter,
     paymentFilter,
+    paymentStatusFilter,
     dateRange,
     sortKey,
     sortDir,
@@ -294,6 +317,53 @@ export function OrdersContent({
     setProcessingAction(null);
   }
 
+  async function handleCollectFullPayment() {
+    if (
+      !selectedOrder ||
+      !selectedOrder.customerId ||
+      selectedOrder.creditAmount <= 0
+    )
+      return;
+    setCollectLoading(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/merchant/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: selectedOrder.customerId,
+          orderId: selectedOrder.localId,
+          amount: selectedOrder.creditAmount,
+          method: "CASH",
+        }),
+      });
+      if (res.ok) {
+        // Update IndexedDB
+        const customer = await db.customers.get(selectedOrder.customerId);
+        if (customer) {
+          await db.customers.update(selectedOrder.customerId, {
+            balance: Math.max(0, customer.balance - selectedOrder.creditAmount),
+          });
+        }
+        setSelectedOrder((prev) =>
+          prev ? { ...prev, creditAmount: 0, paymentStatus: "settled" } : prev,
+        );
+        setFeedback({ type: "success", text: i.customers.paymentCollected });
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({ error: "Unknown" }));
+        setFeedback({
+          type: "error",
+          text: data.error || i.customers.failedToCollect,
+        });
+      }
+    } catch {
+      setFeedback({ type: "error", text: i.customers.failedToCollect });
+    } finally {
+      setCollectLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -301,7 +371,7 @@ export function OrdersContent({
         subtitle={`${formatNumber(orders.length, numberFormat)} ${i.orders.orders}`}
       />
 
-      <div className="grid gap-3 xl:grid-cols-5">
+      <div className="grid gap-3 xl:grid-cols-6">
         <SearchInput
           id="orders-search"
           label={i.common.search}
@@ -347,10 +417,27 @@ export function OrdersContent({
             { value: "all", label: i.orders.allMethods },
             { value: "CASH", label: i.pos.cash },
             { value: "CARD", label: i.pos.card },
+            { value: "CREDIT", label: i.pos.credit },
             { value: "TRANSFER", label: i.pos.transfer },
             { value: "MOBILE_MONEY", label: i.pos.mobileMoney },
             { value: "SPLIT", label: i.pos.split },
             { value: "OTHER", label: i.pos.other },
+          ]}
+        />
+        <Select
+          id="orders-payment-status-filter"
+          label={i.orders.paymentStatus}
+          value={paymentStatusFilter}
+          onChange={(e) => {
+            setPaymentStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          options={[
+            { value: "all", label: i.orders.allPaymentStatuses },
+            { value: "paid", label: i.orders.statusPaid },
+            { value: "credit", label: i.orders.statusCredit },
+            { value: "partial_credit", label: i.orders.statusPartialCredit },
+            { value: "settled", label: i.orders.statusSettled },
           ]}
         />
         <Select
@@ -468,6 +555,9 @@ export function OrdersContent({
                 {i.orders.payment}
               </th>
               <th className="px-5 py-3.5 text-start font-semibold">
+                {i.orders.paymentStatus}
+              </th>
+              <th className="px-5 py-3.5 text-start font-semibold">
                 {i.common.status}
               </th>
               <SortableTh
@@ -488,7 +578,7 @@ export function OrdersContent({
             {filteredOrders.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {orders.length === 0
@@ -538,6 +628,21 @@ export function OrdersContent({
                     </td>
                     <td className="px-5 py-4 text-slate-500">
                       {getPaymentMethodLabel(o.paymentMethod)}
+                    </td>
+                    <td className="px-5 py-4">
+                      <Badge
+                        variant={paymentStatusVariant(
+                          o.paymentStatus || "paid",
+                        )}
+                      >
+                        {o.paymentStatus === "credit"
+                          ? i.orders.statusCredit
+                          : o.paymentStatus === "partial_credit"
+                            ? i.orders.statusPartialCredit
+                            : o.paymentStatus === "settled"
+                              ? i.orders.statusSettled
+                              : i.orders.statusPaid}
+                      </Badge>
                     </td>
                     <td className="px-5 py-4">
                       <Badge variant={statusVariant(status)}>{status}</Badge>
@@ -605,7 +710,7 @@ export function OrdersContent({
       >
         {selectedOrder && (
           <div className="space-y-5">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <div className="rounded-xl bg-slate-50 p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">
                   {i.orders.customerCol}
@@ -637,6 +742,26 @@ export function OrdersContent({
                 <div className="mt-1">
                   <Badge variant={statusVariant(displayStatus(selectedOrder))}>
                     {displayStatus(selectedOrder)}
+                  </Badge>
+                </div>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">
+                  {i.orders.paymentStatus}
+                </p>
+                <div className="mt-1">
+                  <Badge
+                    variant={paymentStatusVariant(
+                      selectedOrder.paymentStatus || "paid",
+                    )}
+                  >
+                    {selectedOrder.paymentStatus === "credit"
+                      ? i.orders.statusCredit
+                      : selectedOrder.paymentStatus === "partial_credit"
+                        ? i.orders.statusPartialCredit
+                        : selectedOrder.paymentStatus === "settled"
+                          ? i.orders.statusSettled
+                          : i.orders.statusPaid}
                   </Badge>
                 </div>
               </div>
@@ -723,6 +848,21 @@ export function OrdersContent({
                     )}
                   </span>
                 </div>
+                {selectedOrder.creditAmount > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-amber-600 font-medium">
+                      {i.orders.remainingCredit}
+                    </span>
+                    <span className="font-semibold text-amber-700 tabular-nums">
+                      {formatCurrency(
+                        selectedOrder.creditAmount,
+                        currency,
+                        numberFormat,
+                        currencyFormat,
+                      )}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-sm">
                   <span className="font-semibold text-slate-700">
                     {i.orders.total}
@@ -768,7 +908,24 @@ export function OrdersContent({
             </div>
 
             {/* Print button */}
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-3">
+              {selectedOrder.creditAmount > 0 && selectedOrder.customerId && (
+                <Button
+                  variant="primary"
+                  type="button"
+                  loading={collectLoading}
+                  onClick={handleCollectFullPayment}
+                >
+                  {i.orders.collectPayment} (
+                  {formatCurrency(
+                    selectedOrder.creditAmount,
+                    currency,
+                    numberFormat,
+                    currencyFormat,
+                  )}
+                  )
+                </Button>
+              )}
               <Button
                 variant="outline"
                 type="button"

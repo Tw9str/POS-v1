@@ -42,6 +42,7 @@ export interface LocalCustomer {
   notes: string | null;
   totalSpent: number;
   visitCount: number;
+  balance: number;
   createdAt: string | null;
 }
 
@@ -110,7 +111,9 @@ export interface LocalOrder {
   taxAmount: number;
   total: number;
   paidAmount: number;
+  creditAmount: number;
   changeAmount: number;
+  paymentStatus: string;
   status?: string;
   notes: string | null;
   createdAt: number;
@@ -123,6 +126,17 @@ export interface LocalMeta {
   key: string;
   value: string;
   updatedAt: number;
+}
+
+export interface LocalPayment {
+  id: string;
+  merchantId: string;
+  customerId: string;
+  orderId: string | null;
+  amount: number;
+  method: string;
+  note: string | null;
+  createdAt: string;
 }
 
 export interface PendingMutation {
@@ -159,6 +173,7 @@ class ShampayDB extends Dexie {
   suppliers!: Table<LocalSupplier, string>;
   promotions!: Table<LocalPromotion, string>;
   orders!: Table<LocalOrder, string>;
+  payments!: Table<LocalPayment, string>;
   mutations!: Table<PendingMutation, string>;
   meta!: Table<LocalMeta, string>;
 
@@ -197,6 +212,21 @@ class ShampayDB extends Dexie {
       promotions: "id, merchantId, code, [merchantId+code]",
       orders:
         "localId, merchantId, syncStatus, createdAt, [merchantId+syncStatus]",
+      mutations:
+        "id, merchantId, syncStatus, createdAt, [merchantId+syncStatus]",
+      meta: "key",
+    });
+
+    this.version(4).stores({
+      products: "id, merchantId, barcode, categoryId, [merchantId+barcode]",
+      categories: "id, merchantId, sortOrder",
+      customers: "id, merchantId",
+      staff: "id, merchantId",
+      suppliers: "id, merchantId",
+      promotions: "id, merchantId, code, [merchantId+code]",
+      orders:
+        "localId, merchantId, syncStatus, createdAt, [merchantId+syncStatus]",
+      payments: "id, merchantId, customerId, orderId",
       mutations:
         "id, merchantId, syncStatus, createdAt, [merchantId+syncStatus]",
       meta: "key",

@@ -19,6 +19,7 @@ import {
   IconCamera,
   IconKey,
   IconPromo,
+  IconClock,
 } from "@/components/Icons";
 import { BackButton } from "@/components/layout/PageHeader";
 import { useRouter } from "next/navigation";
@@ -44,6 +45,7 @@ import {
   useLocalStaff,
   useLocalPromotions,
 } from "@/hooks/useLocalData";
+import { db } from "@/lib/offlineDb";
 
 // ─────────────────────────────────────────────
 // Types
@@ -75,6 +77,7 @@ interface POSCustomer {
   id: string;
   name: string;
   phone: string | null;
+  balance: number;
 }
 
 interface POSStaff {
@@ -126,7 +129,7 @@ function formatMoney(
 
 const PAYMENT_METHOD_OPTIONS: Array<{
   value: SupportedPaymentMethod;
-  labelKey: "cash" | "shamcash" | "card";
+  labelKey: "cash" | "shamcash" | "card" | "credit";
   icon: React.ComponentType<{ size?: number; className?: string }>;
   activeRing: string;
   activeBg: string;
@@ -154,6 +157,14 @@ const PAYMENT_METHOD_OPTIONS: Array<{
     icon: IconCardPayment,
     activeRing: "ring-sky-500",
     activeBg: "bg-sky-50",
+    idleIconBg: "bg-slate-100 text-slate-500",
+  },
+  {
+    value: "CREDIT",
+    labelKey: "credit",
+    icon: IconClock,
+    activeRing: "ring-amber-500",
+    activeBg: "bg-amber-50",
     idleIconBg: "bg-slate-100 text-slate-500",
   },
 ];
@@ -190,6 +201,13 @@ export function POSTerminal({
   const [selectedCustomer, setSelectedCustomer] = useState<POSCustomer | null>(
     null,
   );
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddName, setQuickAddName] = useState("");
+  const [quickAddPhone, setQuickAddPhone] = useState("");
+  const [quickAddLoading, setQuickAddLoading] = useState(false);
+  const customerPickerRef = useRef<HTMLDivElement>(null);
   const selectedStaff = useMemo(
     () => staff.find((s) => s.id === currentStaffId) ?? null,
     [staff, currentStaffId],
@@ -210,6 +228,7 @@ export function POSTerminal({
     total: number;
     paid: number;
     change: number;
+    creditAmount: number;
     paymentMethod: string;
     customer: POSCustomer | null;
     staff: POSStaff | null;
@@ -242,6 +261,81 @@ export function POSTerminal({
   useEffect(() => {
     searchRef.current?.focus();
   }, []);
+
+  // Close customer dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        customerPickerRef.current &&
+        !customerPickerRef.current.contains(e.target as Node)
+      ) {
+        setCustomerDropdownOpen(false);
+      }
+    }
+    if (customerDropdownOpen)
+      document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [customerDropdownOpen]);
+
+  // Filtered customers for picker
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return customers;
+    const q = customerSearch.toLowerCase();
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q),
+    );
+  }, [customers, customerSearch]);
+
+  // Quick-add customer inline
+  async function handleQuickAddCustomer() {
+    const name = quickAddName.trim();
+    if (!name) return;
+    setQuickAddLoading(true);
+    try {
+      const res = await fetch("/api/merchant/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          phone: quickAddPhone.trim() || undefined,
+        }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        const newCustomer: POSCustomer = {
+          id: created.id,
+          name: created.name,
+          phone: created.phone ?? null,
+          balance: 0,
+        };
+        // Write to IndexedDB so useLiveQuery picks it up immediately
+        await db.customers.put({
+          id: created.id,
+          merchantId: merchant.id,
+          name: created.name,
+          phone: created.phone ?? null,
+          email: created.email ?? null,
+          address: created.address ?? null,
+          notes: created.notes ?? null,
+          totalSpent: 0,
+          visitCount: 0,
+          balance: 0,
+          createdAt: created.createdAt ?? new Date().toISOString(),
+        });
+        setSelectedCustomer(newCustomer);
+        setQuickAddOpen(false);
+        setQuickAddName("");
+        setQuickAddPhone("");
+        setCustomerSearch("");
+        setCustomerDropdownOpen(false);
+      }
+    } catch {
+      // silently fail — customer just won't be added
+    } finally {
+      setQuickAddLoading(false);
+    }
+  }
 
   // Keyboard shortcut: F2 = focus search, F9 = checkout
   useEffect(() => {
@@ -589,10 +683,19 @@ export function POSTerminal({
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
+
+    // Credit requires a customer
+    if (paymentMethod === "CREDIT" && !selectedCustomer) {
+      alert(i.pos.creditRequiresCustomer);
+      return;
+    }
+
     setProcessing(true);
 
-    const paid = parseFloat(paidAmount) || total;
-    const change = Math.max(0, paid - total);
+    const paid =
+      paymentMethod === "CREDIT" ? 0 : parseFloat(paidAmount) || total;
+    const creditAmt = paymentMethod === "CREDIT" ? total : 0;
+    const change = paymentMethod === "CREDIT" ? 0 : Math.max(0, paid - total);
 
     const orderItems = cart.map((item) => ({
       productId: item.product.id,
@@ -617,6 +720,7 @@ export function POSTerminal({
         total,
         paid,
         change,
+        creditAmount: creditAmt,
         paymentMethod,
         customer: selectedCustomer,
         staff: selectedStaff,
@@ -644,6 +748,7 @@ export function POSTerminal({
             staffId: selectedStaff?.id || null,
             paymentMethod,
             paidAmount: paid,
+            creditAmount: creditAmt,
             notes: orderNotes || null,
             subtotal,
             taxAmount,
@@ -674,6 +779,7 @@ export function POSTerminal({
             taxAmount,
             total,
             paidAmount: paid,
+            creditAmount: creditAmt,
             notes: orderNotes || null,
             status: "COMPLETED",
             syncStatus: "synced",
@@ -696,6 +802,7 @@ export function POSTerminal({
         taxAmount,
         total,
         paidAmount: paid,
+        creditAmount: creditAmt,
         notes: orderNotes || null,
       });
 
@@ -713,6 +820,7 @@ export function POSTerminal({
           taxAmount,
           total,
           paidAmount: paid,
+          creditAmount: creditAmt,
           notes: orderNotes || null,
         });
         finishOrder(localOrder.orderNumber);
@@ -970,21 +1078,204 @@ export function POSTerminal({
               {selectedStaff?.name || i.pos.staff}
             </span>
           </div>
-          <select
-            value={selectedCustomer?.id || ""}
-            onChange={(e) => {
-              const found = customers.find((cu) => cu.id === e.target.value);
-              setSelectedCustomer(found || null);
-            }}
-            className="flex-1 text-xs rounded-xl border-2 border-slate-200 px-3 py-2 font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all capitalize"
-          >
-            <option value="">{i.pos.walkinCustomer}</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex-1 relative" ref={customerPickerRef}>
+            <div
+              className="flex items-center text-xs rounded-xl border-2 border-slate-200 px-3 py-2 font-medium text-slate-600 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all cursor-text bg-white"
+              onClick={() => setCustomerDropdownOpen(true)}
+            >
+              {selectedCustomer && !customerDropdownOpen ? (
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  <span className="truncate capitalize">
+                    {selectedCustomer.name}
+                  </span>
+                  {selectedCustomer.balance > 0 && (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full tabular-nums shrink-0">
+                      {formatMoney(
+                        selectedCustomer.balance,
+                        merchant.currency,
+                        merchant.numberFormat,
+                        merchant.currencyFormat,
+                      )}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCustomer(null);
+                      setCustomerSearch("");
+                    }}
+                    className="shrink-0 p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                  >
+                    <IconX size={12} />
+                  </button>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={customerSearch}
+                  onChange={(e) => {
+                    setCustomerSearch(e.target.value);
+                    setCustomerDropdownOpen(true);
+                  }}
+                  onFocus={() => setCustomerDropdownOpen(true)}
+                  placeholder={
+                    selectedCustomer
+                      ? selectedCustomer.name
+                      : i.pos.searchOrAddCustomer
+                  }
+                  className="flex-1 bg-transparent outline-none text-xs text-slate-600 placeholder-slate-400 min-w-0"
+                />
+              )}
+              <svg
+                className={`shrink-0 w-3.5 h-3.5 text-slate-400 transition-transform ${customerDropdownOpen ? "rotate-180" : ""}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </div>
+
+            {customerDropdownOpen && (
+              <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
+                {/* Walk-in option */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomer(null);
+                    setCustomerSearch("");
+                    setCustomerDropdownOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 text-xs text-left hover:bg-slate-50 transition-colors ${
+                    !selectedCustomer
+                      ? "bg-indigo-50 text-indigo-700 font-medium"
+                      : "text-slate-600"
+                  }`}
+                >
+                  {i.pos.walkinCustomer}
+                </button>
+
+                {/* Filtered customer list */}
+                {filteredCustomers.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCustomer(c);
+                      setCustomerSearch("");
+                      setCustomerDropdownOpen(false);
+                    }}
+                    className={`w-full px-3 py-2 text-xs text-left hover:bg-slate-50 transition-colors capitalize ${
+                      selectedCustomer?.id === c.id
+                        ? "bg-indigo-50 text-indigo-700 font-medium"
+                        : "text-slate-700"
+                    }`}
+                  >
+                    <span className="flex items-center justify-between gap-1.5">
+                      <span className="truncate">{c.name}</span>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        {c.phone && (
+                          <span className="text-slate-400">{c.phone}</span>
+                        )}
+                        {c.balance > 0 && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full tabular-nums">
+                            {i.customers.owes}{" "}
+                            {formatMoney(
+                              c.balance,
+                              merchant.currency,
+                              merchant.numberFormat,
+                              merchant.currencyFormat,
+                            )}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+
+                {filteredCustomers.length === 0 && customerSearch.trim() && (
+                  <div className="px-3 py-2 text-xs text-slate-400">
+                    {i.customers.noCustomersMatch}
+                  </div>
+                )}
+
+                {/* Add new customer option */}
+                <div className="border-t border-slate-100">
+                  {!quickAddOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickAddOpen(true);
+                        setQuickAddName(customerSearch.trim());
+                      }}
+                      className="w-full flex items-center gap-1.5 px-3 py-2.5 text-xs text-indigo-600 font-semibold hover:bg-indigo-50 transition-colors"
+                    >
+                      <IconPlus size={14} />
+                      {i.pos.addNewCustomer}
+                    </button>
+                  ) : (
+                    <div className="p-3 space-y-2">
+                      <p className="text-xs font-semibold text-slate-700">
+                        {i.pos.quickAddCustomer}
+                      </p>
+                      <input
+                        autoFocus
+                        type="text"
+                        value={quickAddName}
+                        onChange={(e) => setQuickAddName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleQuickAddCustomer();
+                          }
+                          if (e.key === "Escape") setQuickAddOpen(false);
+                        }}
+                        placeholder={i.common.name}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      />
+                      <input
+                        type="text"
+                        value={quickAddPhone}
+                        onChange={(e) => setQuickAddPhone(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleQuickAddCustomer();
+                          }
+                          if (e.key === "Escape") setQuickAddOpen(false);
+                        }}
+                        placeholder={i.common.phone}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuickAddOpen(false);
+                            setQuickAddName("");
+                            setQuickAddPhone("");
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-colors"
+                        >
+                          {i.common.cancel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleQuickAddCustomer}
+                          disabled={!quickAddName.trim() || quickAddLoading}
+                          className="px-2.5 py-1 text-[11px] font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                        >
+                          {quickAddLoading ? "..." : i.common.save}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Cart items */}
@@ -1435,7 +1726,7 @@ export function POSTerminal({
             <label className="block text-sm font-semibold text-slate-700 mb-2">
               {i.pos.paymentMethod}
             </label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-2.5">
               {PAYMENT_METHOD_OPTIONS.map((opt) => {
                 const selected = paymentMethod === opt.value;
                 const Icon = opt.icon;
@@ -1583,6 +1874,39 @@ export function POSTerminal({
             />
           </div>
 
+          {/* CREDIT: Pay Later info */}
+          {paymentMethod === "CREDIT" && (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 space-y-2">
+              {!selectedCustomer ? (
+                <p className="text-sm text-amber-700 font-medium">
+                  {i.pos.creditRequiresCustomer}
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <IconClock size={18} className="text-amber-600" />
+                    <p className="text-sm font-semibold text-amber-800">
+                      {i.pos.creditPayLater}
+                    </p>
+                  </div>
+                  <p className="text-xs text-amber-600">
+                    {i.pos.creditAmount}:{" "}
+                    <span className="font-bold text-amber-800 tabular-nums">
+                      {formatMoney(
+                        total,
+                        merchant.currency,
+                        merchant.numberFormat,
+                        merchant.currencyFormat,
+                      )}
+                    </span>
+                    {" → "}
+                    <span className="capitalize">{selectedCustomer.name}</span>
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Customer & Staff info */}
           <div className="flex gap-4 text-sm text-slate-500">
             <div>
@@ -1610,9 +1934,10 @@ export function POSTerminal({
               loading={processing}
               onClick={handleCheckout}
               disabled={
-                paymentMethod === "CASH" &&
-                parseFloat(paidAmount) > 0 &&
-                parseFloat(paidAmount) < total
+                (paymentMethod === "CASH" &&
+                  parseFloat(paidAmount) > 0 &&
+                  parseFloat(paidAmount) < total) ||
+                (paymentMethod === "CREDIT" && !selectedCustomer)
               }
             >
               {i.pos.completeSale}

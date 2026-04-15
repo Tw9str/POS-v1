@@ -59,6 +59,7 @@ const orderSchema = z.object({
   staffId: z.string().nullable().optional(),
   paymentMethod: z.enum(SUPPORTED_PAYMENT_METHODS),
   paidAmount: z.number().min(0),
+  creditAmount: z.number().min(0).default(0),
   notes: z.string().nullable().optional(),
   subtotal: z.number().min(0),
   taxAmount: z.number().min(0),
@@ -98,6 +99,7 @@ export async function POST(req: Request) {
       staffId,
       paymentMethod,
       paidAmount,
+      creditAmount,
       notes,
       subtotal,
       taxAmount,
@@ -120,6 +122,22 @@ export async function POST(req: Request) {
     const changeAmount = Math.max(0, paidAmount - total);
     const orderNumber = generateOrderNumber();
 
+    // Determine payment status
+    const paymentStatus =
+      creditAmount > 0 && paidAmount > 0
+        ? "partial_credit"
+        : creditAmount > 0
+          ? "credit"
+          : "paid";
+
+    // Credit requires a customer
+    if (creditAmount > 0 && !customerId) {
+      return NextResponse.json(
+        { error: "Credit requires a selected customer" },
+        { status: 400 },
+      );
+    }
+
     // Use a transaction to create order + update stock + update customer
     const order = await prisma.$transaction(async (tx) => {
       // Create order
@@ -134,10 +152,16 @@ export async function POST(req: Request) {
           taxAmount,
           total,
           paidAmount,
+          creditAmount,
           changeAmount,
+          paymentStatus,
           localId: localId || null,
           syncStatus: localId ? "SYNCED" : "SYNCED",
-          paymentMethod: paymentMethod as "CASH" | "CARD" | "MOBILE_MONEY",
+          paymentMethod: paymentMethod as
+            | "CASH"
+            | "CARD"
+            | "MOBILE_MONEY"
+            | "CREDIT",
           notes: notes || null,
           items: {
             create: items.map((item) => ({
@@ -175,12 +199,16 @@ export async function POST(req: Request) {
 
       // Update customer stats if attached
       if (customerId) {
+        const customerUpdate: Record<string, unknown> = {
+          totalSpent: { increment: total },
+          visitCount: { increment: 1 },
+        };
+        if (creditAmount > 0) {
+          customerUpdate.balance = { increment: creditAmount };
+        }
         await tx.customer.update({
           where: { id: customerId },
-          data: {
-            totalSpent: { increment: total },
-            visitCount: { increment: 1 },
-          },
+          data: customerUpdate,
         });
       }
 
