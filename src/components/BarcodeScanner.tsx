@@ -22,7 +22,31 @@ export function BarcodeScanner({
   const [manualCode, setManualCode] = useState("");
   const [cameraAvailable, setCameraAvailable] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const stoppedRef = useRef(false);
+
+  // Persisted preferences
+  const PREFS_KEY = "shampay-scanner-prefs";
+  const savedPrefs = useRef(() => {
+    try {
+      return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  });
+
+  const savePrefs = useCallback(
+    (patch: Record<string, unknown>) => {
+      try {
+        const current = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
+        const updated = { ...current, ...patch };
+        localStorage.setItem(PREFS_KEY, JSON.stringify(updated));
+      } catch {
+        // storage unavailable
+      }
+    },
+    [PREFS_KEY],
+  );
 
   // Camera feature states
   const [torchOn, setTorchOn] = useState(false);
@@ -30,9 +54,9 @@ export function BarcodeScanner({
   const [zoomSupported, setZoomSupported] = useState(false);
   const [zoomRange, setZoomRange] = useState({ min: 1, max: 1, step: 0.1 });
   const [zoomValue, setZoomValue] = useState(1);
-  const [cameras, setCameras] = useState<
-    Array<{ id: string; label: string }>
-  >([]);
+  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>(
+    [],
+  );
   const [activeCameraIndex, setActiveCameraIndex] = useState(0);
 
   const safeStop = useCallback(
@@ -55,21 +79,33 @@ export function BarcodeScanner({
     (scanner: import("html5-qrcode").Html5Qrcode) => {
       try {
         const caps = scanner.getRunningTrackCameraCapabilities();
+        const prefs = savedPrefs.current();
 
         // Torch
         const torch = caps.torchFeature();
-        setTorchSupported(torch.isSupported());
+        const hasTorch = torch.isSupported();
+        setTorchSupported(hasTorch);
+        if (hasTorch && prefs.torchOn) {
+          torch
+            .apply(true)
+            .then(() => setTorchOn(true))
+            .catch(() => {});
+        }
 
         // Zoom
         const zoom = caps.zoomFeature();
         if (zoom.isSupported()) {
           setZoomSupported(true);
-          setZoomRange({
-            min: zoom.min(),
-            max: zoom.max(),
-            step: zoom.step() || 0.1,
-          });
-          setZoomValue(zoom.min());
+          const min = zoom.min();
+          const max = zoom.max();
+          const step = zoom.step() || 0.1;
+          setZoomRange({ min, max, step });
+          const restored =
+            prefs.zoom != null ? Math.min(max, Math.max(min, prefs.zoom)) : min;
+          setZoomValue(restored);
+          if (restored > min) {
+            zoom.apply(restored).catch(() => {});
+          }
         }
       } catch {
         // capabilities not available
@@ -178,10 +214,11 @@ export function BarcodeScanner({
       const next = !torchOn;
       await torch.apply(next);
       setTorchOn(next);
+      savePrefs({ torchOn: next });
     } catch {
       // torch failed
     }
-  }, [torchOn]);
+  }, [torchOn, savePrefs]);
 
   const handleZoomChange = useCallback(
     async (val: number) => {
@@ -193,11 +230,12 @@ export function BarcodeScanner({
         const clamped = Math.min(zoomRange.max, Math.max(zoomRange.min, val));
         await zoom.apply(clamped);
         setZoomValue(clamped);
+        savePrefs({ zoom: clamped });
       } catch {
         // zoom failed
       }
     },
-    [zoomRange],
+    [zoomRange, savePrefs],
   );
 
   const handleSwitchCamera = useCallback(async () => {
@@ -235,6 +273,25 @@ export function BarcodeScanner({
       onScan(code);
     }
   };
+
+  const handleImageUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        const scanner = new Html5Qrcode("barcode-scanner-region-file");
+        const result = await scanner.scanFile(file, false);
+        if (scannerRef.current) safeStop(scannerRef.current);
+        onScan(result);
+      } catch {
+        setError(i.scanner.noCamera);
+      }
+      // Reset input so same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+    [onScan, safeStop, i.scanner.noCamera],
+  );
 
   const hasControls = torchSupported || zoomSupported || cameras.length > 1;
 
@@ -405,6 +462,36 @@ export function BarcodeScanner({
               {i.scanner.go}
             </button>
           </div>
+
+          {/* Upload image */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            {i.scanner.uploadImage}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+          <div id="barcode-scanner-region-file" className="hidden" />
         </div>
       </div>
     </div>

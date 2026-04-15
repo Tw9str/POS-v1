@@ -770,6 +770,7 @@ const en = {
     torch: "Flashlight",
     zoomLabel: "Zoom",
     switchCamera: "Switch Camera",
+    uploadImage: "Upload Image",
   },
 
   // ─── Product Insight Modal ───
@@ -1571,6 +1572,7 @@ const ar: DeepStringify<typeof en> = {
     torch: "الإضاءة",
     zoomLabel: "تكبير",
     switchCamera: "تبديل الكاميرا",
+    uploadImage: "رفع صورة",
   },
 
   // ─── Product Insight Modal ───
