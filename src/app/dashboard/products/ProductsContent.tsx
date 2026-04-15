@@ -635,7 +635,7 @@ export function ProductsContent({
                         p.price,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </td>
                     <td className="px-5 py-4 text-slate-500 tabular-nums">
@@ -643,7 +643,7 @@ export function ProductsContent({
                         p.costPrice,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </td>
                     <td className="px-5 py-4 tabular-nums text-slate-600">

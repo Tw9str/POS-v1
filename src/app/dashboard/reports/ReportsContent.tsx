@@ -274,7 +274,7 @@ export function ReportsContent({
             stats.allTime.grossSales,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
           subtitle={`${formatNumber(stats.allTime.orderCount, numberFormat)} ${i.reports.nonVoidedOrders}`}
           icon={<IconMoney size={24} />}
@@ -285,7 +285,7 @@ export function ReportsContent({
             stats.allTime.refundedRevenue,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
           subtitle={`${formatNumber(stats.refundedOrders.length, numberFormat)} ${i.reports.refundedOrders}`}
           icon={<IconOrders size={24} />}
@@ -296,9 +296,9 @@ export function ReportsContent({
             stats.allTime.netRevenue,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
-          subtitle={`${formatCurrency(stats.allTime.avgOrder, currency, numberFormat, currencyFormat)} ${i.reports.avgOrderValue}`}
+          subtitle={`${formatCurrency(stats.allTime.avgOrder, currency, numberFormat, currencyFormat, language)} ${i.reports.avgOrderValue}`}
           icon={<IconCustomers size={24} />}
         />
         <StatCard
@@ -307,7 +307,7 @@ export function ReportsContent({
             stats.allTime.netCogs,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
           subtitle={i.reports.netCogsDesc}
           icon={<IconProducts size={24} />}
@@ -318,7 +318,7 @@ export function ReportsContent({
             stats.allTime.grossProfit,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
           subtitle={`${stats.allTime.margin.toFixed(1)}% ${i.reports.margin}`}
           icon={<IconMoney size={24} />}
@@ -338,9 +338,9 @@ export function ReportsContent({
             stats.today.netRevenue,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
-          subtitle={`${formatCurrency(stats.today.grossProfit, currency, numberFormat, currencyFormat)} ${i.reports.profit}`}
+          subtitle={`${formatCurrency(stats.today.grossProfit, currency, numberFormat, currencyFormat, language)} ${i.reports.profit}`}
           icon={<IconMoney size={22} />}
         />
         <StatCard
@@ -349,9 +349,9 @@ export function ReportsContent({
             stats.week.netRevenue,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
-          subtitle={`${formatCurrency(stats.week.grossProfit, currency, numberFormat, currencyFormat)} ${i.reports.profit}`}
+          subtitle={`${formatCurrency(stats.week.grossProfit, currency, numberFormat, currencyFormat, language)} ${i.reports.profit}`}
           icon={<IconOrders size={22} />}
         />
         <StatCard
@@ -360,9 +360,9 @@ export function ReportsContent({
             stats.month.netRevenue,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
-          subtitle={`${formatCurrency(stats.month.grossProfit, currency, numberFormat, currencyFormat)} ${i.reports.profit}`}
+          subtitle={`${formatCurrency(stats.month.grossProfit, currency, numberFormat, currencyFormat, language)} ${i.reports.profit}`}
           icon={<IconCustomers size={22} />}
         />
         <StatCard
@@ -402,7 +402,7 @@ export function ReportsContent({
                         day.refundedRevenue,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}{" "}
                       {i.reports.refunds}
                     </p>
@@ -413,7 +413,7 @@ export function ReportsContent({
                         day.netRevenue,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </p>
                     <p className="text-xs text-emerald-700 font-semibold">
@@ -422,7 +422,7 @@ export function ReportsContent({
                         day.grossProfit,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </p>
                   </div>
@@ -464,7 +464,7 @@ export function ReportsContent({
                           product.grossProfit,
                           currency,
                           numberFormat,
-                          currencyFormat,
+                          currencyFormat, language,
                         )}{" "}
                         {i.reports.profit}
                       </p>
@@ -475,7 +475,7 @@ export function ReportsContent({
                       product.netRevenue,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>
@@ -518,7 +518,7 @@ export function ReportsContent({
                           variant.grossProfit,
                           currency,
                           numberFormat,
-                          currencyFormat,
+                          currencyFormat, language,
                         )}{" "}
                         {i.reports.profit}
                       </p>
@@ -529,7 +529,7 @@ export function ReportsContent({
                       variant.netRevenue,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>
@@ -570,7 +570,7 @@ export function ReportsContent({
                   stats.allTime.avgOrder,
                   currency,
                   numberFormat,
-                  currencyFormat,
+                  currencyFormat, language,
                 )}
               </p>
             </div>
@@ -608,7 +608,7 @@ export function ReportsContent({
                   stats.totalOutstanding,
                   currency,
                   numberFormat,
-                  currencyFormat,
+                  currencyFormat, language,
                 )}
               </p>
             </div>
@@ -647,7 +647,7 @@ export function ReportsContent({
                       debtor.balance || 0,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>

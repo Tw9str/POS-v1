@@ -499,9 +499,9 @@ export function AnalyticsContent({
             stats.snapshot.netRevenue,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
-          subtitle={`${stats.rangeLabel} · ${formatCurrency(stats.snapshot.grossProfit, currency, numberFormat, currencyFormat)} ${i.analytics.profit}`}
+          subtitle={`${stats.rangeLabel} · ${formatCurrency(stats.snapshot.grossProfit, currency, numberFormat, currencyFormat, language)} ${i.analytics.profit}`}
           icon={<IconMoney size={24} />}
         />
         <StatCard
@@ -510,7 +510,7 @@ export function AnalyticsContent({
             stats.snapshot.avgOrder,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
           subtitle={`${formatNumber(stats.snapshot.orderCount, numberFormat)} ${i.analytics.orders}`}
           icon={<IconOrders size={24} />}
@@ -536,9 +536,9 @@ export function AnalyticsContent({
             stats.snapshot.grossSales,
             currency,
             numberFormat,
-            currencyFormat,
+            currencyFormat, language,
           )}
-          subtitle={`${formatCurrency(stats.snapshot.refundedRevenue, currency, numberFormat, currencyFormat)} ${i.reports.refunded}`}
+          subtitle={`${formatCurrency(stats.snapshot.refundedRevenue, currency, numberFormat, currencyFormat, language)} ${i.reports.refunded}`}
           icon={<IconMoney size={22} />}
         />
         <StatCard
@@ -582,7 +582,7 @@ export function AnalyticsContent({
                       niceMax * tick,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 ))}
@@ -627,7 +627,7 @@ export function AnalyticsContent({
                                   day.netRevenue,
                                   currency,
                                   numberFormat,
-                                  currencyFormat,
+                                  currencyFormat, language,
                                 )}
                               </p>
                               <p className="text-slate-300">
@@ -637,7 +637,7 @@ export function AnalyticsContent({
                                   day.grossProfit,
                                   currency,
                                   numberFormat,
-                                  currencyFormat,
+                                  currencyFormat, language,
                                 )}{" "}
                                 {i.analytics.profit}
                               </p>
@@ -686,7 +686,7 @@ export function AnalyticsContent({
                         niceMaxPayment * tick,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </span>
                   ))}
@@ -732,7 +732,7 @@ export function AnalyticsContent({
                                     method.total,
                                     currency,
                                     numberFormat,
-                                    currencyFormat,
+                                    currencyFormat, language,
                                   )}
                                 </p>
                                 <p className="text-slate-300">
@@ -792,7 +792,7 @@ export function AnalyticsContent({
                       metric?.netRevenue ?? 0,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}{" "}
                     {i.analytics.net}
                   </p>

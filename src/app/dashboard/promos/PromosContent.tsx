@@ -224,7 +224,7 @@ export function PromosContent({
   function formatValue(p: Promotion) {
     return p.type === "PERCENT"
       ? `${formatNumber(p.value, numberFormat)}%`
-      : formatCurrency(p.value, currency, numberFormat, currencyFormat);
+      : formatCurrency(p.value, currency, numberFormat, currencyFormat, language);
   }
 
   function formatScope(p: Promotion) {

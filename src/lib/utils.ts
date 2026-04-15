@@ -89,6 +89,7 @@ export function formatCurrency(
   currency = "USD",
   numberFormat: NumberFormat = "western",
   currencyFormat: CurrencyFormat = "symbol",
+  language?: string,
 ): string {
   const num = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 0,
@@ -99,11 +100,20 @@ export function formatCurrency(
 
   if (currencyFormat === "none") return formatted;
 
-  if (currencyFormat === "code") return `${formatted} ${currency}`;
+  const isRtl = language === "ar" || numberFormat === "eastern";
 
-  // "symbol" — prefix with the currency symbol
+  // Use LTR mark (\u200E) to isolate the number+symbol group so the
+  // browser bidi algorithm doesn't reorder them in RTL contexts.
+  const LRM = "\u200E";
+
+  if (currencyFormat === "code")
+    return isRtl
+      ? `${LRM}${formatted} ${currency}`
+      : `${formatted} ${currency}`;
+
+  // "symbol"
   const sym = getCurrencySymbol(currency);
-  return `${sym} ${formatted}`;
+  return isRtl ? `${LRM}${formatted} ${sym}` : `${sym}${formatted}`;
 }
 
 export function formatNumber(

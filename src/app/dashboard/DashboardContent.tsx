@@ -150,6 +150,7 @@ export function DashboardContent({
 
   // Quick settings
   const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
+  const [quickSettingsLoading, setQuickSettingsLoading] = useState(false);
   const quickSettingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -168,14 +169,19 @@ export function DashboardContent({
 
   const handleQuickSetting = useCallback(
     async (field: string, value: string) => {
-      await offlineFetch({
-        url: "/api/merchant/settings",
-        method: "PUT",
-        body: { [field]: value },
-        entity: "settings",
-        merchantId,
-      });
-      router.refresh();
+      setQuickSettingsLoading(true);
+      try {
+        await offlineFetch({
+          url: "/api/merchant/settings",
+          method: "PUT",
+          body: { [field]: value },
+          entity: "settings",
+          merchantId,
+        });
+        router.refresh();
+      } finally {
+        setQuickSettingsLoading(false);
+      }
     },
     [merchantId, router],
   );
@@ -274,7 +280,7 @@ export function DashboardContent({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between relative z-50">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-linear-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
             <span className="text-2xl font-bold text-white">
@@ -292,8 +298,9 @@ export function DashboardContent({
                 currency,
                 numberFormat,
                 currencyFormat,
+                language,
               )}{" "}
-              · {formatNumber(stats.todayOrderCount, numberFormat)}{" "}
+              · <bdi>{formatNumber(stats.todayOrderCount, numberFormat)}</bdi>{" "}
               {i.dashboard.orders}
             </p>
           </div>
@@ -311,6 +318,11 @@ export function DashboardContent({
 
               {quickSettingsOpen && (
                 <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 p-4 space-y-4">
+                  {quickSettingsLoading && (
+                    <div className="absolute inset-0 bg-white/70 rounded-2xl flex items-center justify-center z-10">
+                      <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
                   {/* Language */}
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -453,6 +465,7 @@ export function DashboardContent({
                 currency,
                 numberFormat,
                 currencyFormat,
+                language,
               )}
             </p>
           </div>
@@ -471,6 +484,7 @@ export function DashboardContent({
                 currency,
                 numberFormat,
                 currencyFormat,
+                language,
               )}
             </p>
           </div>
@@ -489,6 +503,7 @@ export function DashboardContent({
                 currency,
                 numberFormat,
                 currencyFormat,
+                language,
               )}
             </p>
             <p className="text-[11px] text-indigo-600 font-semibold">
@@ -527,6 +542,7 @@ export function DashboardContent({
                   currency,
                   numberFormat,
                   currencyFormat,
+                  language,
                 )}
               </p>
               <p className="text-[11px] text-amber-600 font-semibold">
@@ -550,7 +566,13 @@ export function DashboardContent({
                 {i.dashboard.outstanding}
               </p>
               <p className="text-lg font-bold text-emerald-600 tabular-nums">
-                {formatCurrency(0, currency, numberFormat, currencyFormat)}
+                {formatCurrency(
+                  0,
+                  currency,
+                  numberFormat,
+                  currencyFormat,
+                  language,
+                )}
               </p>
             </div>
           </Link>

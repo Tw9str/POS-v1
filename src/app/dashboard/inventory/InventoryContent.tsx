@@ -714,7 +714,7 @@ export function InventoryContent({
                         metric?.netRevenue ?? 0,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </td>
                     <td className="px-5 py-4">

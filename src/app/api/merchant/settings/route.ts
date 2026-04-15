@@ -7,22 +7,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const settingsSchema = z.object({
-  name: z.string().min(1).max(200),
-  phone: z.string().max(30).optional().default(""),
-  address: z.string().max(500).optional().default(""),
-  currency: z.string().min(3).max(3),
-  currencyFormat: z
-    .enum(["symbol", "code", "none"])
-    .optional()
-    .default("symbol"),
-  numberFormat: z.enum(["western", "eastern"]).optional().default("western"),
+  name: z.string().min(1).max(200).optional(),
+  phone: z.string().max(30).optional(),
+  address: z.string().max(500).optional(),
+  currency: z.string().min(3).max(3).optional(),
+  currencyFormat: z.enum(["symbol", "code", "none"]).optional(),
+  numberFormat: z.enum(["western", "eastern"]).optional(),
   dateFormat: z
     .enum(["long", "numeric", "arabic", "gregorian", "hijri"])
-    .optional()
-    .default("long"),
-  language: z.enum(["en", "ar"]).optional().default("en"),
-  taxRate: z.number().min(0).max(100),
-  shamcashId: z.string().max(100).optional().default(""),
+    .optional(),
+  language: z.enum(["en", "ar"]).optional(),
+  taxRate: z.number().min(0).max(100).optional(),
+  shamcashId: z.string().max(100).optional(),
 });
 
 export async function PUT(req: Request) {
@@ -44,20 +40,28 @@ export async function PUT(req: Request) {
       );
     }
 
+    const data: Record<string, unknown> = {};
+    if (parsed.data.name !== undefined) data.name = parsed.data.name;
+    if (parsed.data.phone !== undefined) data.phone = parsed.data.phone || null;
+    if (parsed.data.address !== undefined)
+      data.address = parsed.data.address || null;
+    if (parsed.data.currency !== undefined)
+      data.currency = parsed.data.currency;
+    if (parsed.data.currencyFormat !== undefined)
+      data.currencyFormat = parsed.data.currencyFormat;
+    if (parsed.data.numberFormat !== undefined)
+      data.numberFormat = parsed.data.numberFormat;
+    if (parsed.data.dateFormat !== undefined)
+      data.dateFormat = normalizeDateFormat(parsed.data.dateFormat);
+    if (parsed.data.language !== undefined)
+      data.language = parsed.data.language;
+    if (parsed.data.taxRate !== undefined) data.taxRate = parsed.data.taxRate;
+    if (parsed.data.shamcashId !== undefined)
+      data.shamcashId = parsed.data.shamcashId || null;
+
     const updated = await prisma.merchant.update({
       where: { id: merchant.id },
-      data: {
-        name: parsed.data.name,
-        phone: parsed.data.phone || null,
-        address: parsed.data.address || null,
-        currency: parsed.data.currency,
-        currencyFormat: parsed.data.currencyFormat,
-        numberFormat: parsed.data.numberFormat,
-        dateFormat: normalizeDateFormat(parsed.data.dateFormat),
-        language: parsed.data.language,
-        taxRate: parsed.data.taxRate,
-        shamcashId: parsed.data.shamcashId || null,
-      },
+      data,
     });
 
     await setMerchantSession({

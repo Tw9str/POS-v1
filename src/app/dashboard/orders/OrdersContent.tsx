@@ -623,7 +623,7 @@ export function OrdersContent({
                         o.total,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </td>
                     <td className="px-5 py-4 text-slate-500">
@@ -785,7 +785,7 @@ export function OrdersContent({
                           item.price,
                           currency,
                           numberFormat,
-                          currencyFormat,
+                          currencyFormat, language,
                         )}
                       </p>
                     </div>
@@ -794,7 +794,7 @@ export function OrdersContent({
                         item.price * item.quantity - item.discount,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </p>
                   </div>
@@ -811,7 +811,7 @@ export function OrdersContent({
                       selectedOrder.subtotal,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>
@@ -822,7 +822,7 @@ export function OrdersContent({
                       selectedOrder.taxAmount,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>
@@ -833,7 +833,7 @@ export function OrdersContent({
                       selectedOrder.paidAmount,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>
@@ -844,7 +844,7 @@ export function OrdersContent({
                       selectedOrder.changeAmount,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>
@@ -858,7 +858,7 @@ export function OrdersContent({
                         selectedOrder.creditAmount,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </span>
                   </div>
@@ -872,7 +872,7 @@ export function OrdersContent({
                       selectedOrder.total,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>
@@ -921,7 +921,7 @@ export function OrdersContent({
                     selectedOrder.creditAmount,
                     currency,
                     numberFormat,
-                    currencyFormat,
+                    currencyFormat, language,
                   )}
                   )
                 </Button>
@@ -973,7 +973,7 @@ export function OrdersContent({
                         item.price * item.quantity - item.discount,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </span>
                   </div>
@@ -987,7 +987,7 @@ export function OrdersContent({
                       selectedOrder.subtotal,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>
@@ -999,7 +999,7 @@ export function OrdersContent({
                         selectedOrder.taxAmount,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </span>
                   </div>
@@ -1011,7 +1011,7 @@ export function OrdersContent({
                       selectedOrder.total,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>
@@ -1024,7 +1024,7 @@ export function OrdersContent({
                       selectedOrder.paidAmount,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </span>
                 </div>
@@ -1036,7 +1036,7 @@ export function OrdersContent({
                         selectedOrder.changeAmount,
                         currency,
                         numberFormat,
-                        currencyFormat,
+                        currencyFormat, language,
                       )}
                     </span>
                   </div>

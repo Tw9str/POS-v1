@@ -458,7 +458,7 @@ export function CustomersContent({
                       c.totalSpent,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </td>
                   <td className="px-5 py-4">
@@ -480,7 +480,7 @@ export function CustomersContent({
                             c.balance,
                             currency,
                             numberFormat,
-                            currencyFormat,
+                            currencyFormat, language,
                           )}
                         </button>
                       )}
@@ -616,7 +616,7 @@ export function CustomersContent({
                   collectCustomer.balance,
                   currency,
                   numberFormat,
-                  currencyFormat,
+                  currencyFormat, language,
                 )}
               </p>
             </div>
@@ -652,7 +652,7 @@ export function CustomersContent({
                       amount,
                       currency,
                       numberFormat,
-                      currencyFormat,
+                      currencyFormat, language,
                     )}
                   </button>
                 ))}
@@ -814,7 +814,7 @@ export function CustomersContent({
                                 entry.debit,
                                 currency,
                                 numberFormat,
-                                currencyFormat,
+                                currencyFormat, language,
                               )}
                             </span>
                           ) : (
@@ -828,7 +828,7 @@ export function CustomersContent({
                                 entry.credit,
                                 currency,
                                 numberFormat,
-                                currencyFormat,
+                                currencyFormat, language,
                               )}
                             </span>
                           ) : (
@@ -849,7 +849,7 @@ export function CustomersContent({
                               Math.abs(running),
                               currency,
                               numberFormat,
-                              currencyFormat,
+                              currencyFormat, language,
                             )}
                           </span>
                         </td>

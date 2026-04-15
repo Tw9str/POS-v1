@@ -123,8 +123,15 @@ function formatMoney(
   currency: string,
   numberFormat: NumberFormat = "western",
   currencyFormat: "symbol" | "code" | "none" = "symbol",
+  language?: string,
 ) {
-  return formatCurrency(amount, currency, numberFormat, currencyFormat);
+  return formatCurrency(
+    amount,
+    currency,
+    numberFormat,
+    currencyFormat,
+    language,
+  );
 }
 
 const PAYMENT_METHOD_OPTIONS: Array<{
@@ -615,7 +622,7 @@ export function POSTerminal({
     }
     if (promo.minSubtotal > 0 && subtotal < promo.minSubtotal) {
       setPromoError(
-        `${i.pos.minSubtotal} ${formatMoney(promo.minSubtotal, merchant.currency, merchant.numberFormat, merchant.currencyFormat)}`,
+        `${i.pos.minSubtotal} ${formatMoney(promo.minSubtotal, merchant.currency, merchant.numberFormat, merchant.currencyFormat, language)}`,
       );
       setPromoLoading(false);
       return;
@@ -1012,6 +1019,7 @@ export function POSTerminal({
                           merchant.currency,
                           merchant.numberFormat,
                           merchant.currencyFormat,
+                          language,
                         )}
                       </span>
                       {product.trackStock && (
@@ -1095,6 +1103,7 @@ export function POSTerminal({
                         merchant.currency,
                         merchant.numberFormat,
                         merchant.currencyFormat,
+                        language,
                       )}
                     </span>
                   )}
@@ -1187,6 +1196,7 @@ export function POSTerminal({
                               merchant.currency,
                               merchant.numberFormat,
                               merchant.currencyFormat,
+                              language,
                             )}
                           </span>
                         )}
@@ -1330,6 +1340,7 @@ export function POSTerminal({
                                   merchant.currency,
                                   merchant.numberFormat,
                                   merchant.currencyFormat,
+                                  language,
                                 )}
                               </span>
                               <span className="text-xs text-indigo-600 font-semibold">
@@ -1338,6 +1349,7 @@ export function POSTerminal({
                                   merchant.currency,
                                   merchant.numberFormat,
                                   merchant.currencyFormat,
+                                  language,
                                 )}
                               </span>
                             </>
@@ -1348,6 +1360,7 @@ export function POSTerminal({
                                 merchant.currency,
                                 merchant.numberFormat,
                                 merchant.currencyFormat,
+                                language,
                               )}{" "}
                               {i.pos.each}
                             </span>
@@ -1359,7 +1372,7 @@ export function POSTerminal({
                             >
                               {item.discountType === "PERCENT"
                                 ? `-${formatNumber(item.discountValue, merchant.numberFormat)}%`
-                                : `-${formatMoney(item.discountValue, merchant.currency, merchant.numberFormat, merchant.currencyFormat)}`}
+                                : `-${formatMoney(item.discountValue, merchant.currency, merchant.numberFormat, merchant.currencyFormat, language)}`}
                             </Badge>
                           )}
                         </div>
@@ -1398,6 +1411,7 @@ export function POSTerminal({
                             merchant.currency,
                             merchant.numberFormat,
                             merchant.currencyFormat,
+                            language,
                           )}
                         </span>
                         <button
@@ -1533,7 +1547,7 @@ export function POSTerminal({
                 <Badge variant="success" className="text-[10px]">
                   {promoApplied.type === "PERCENT"
                     ? `-${formatNumber(promoApplied.value, merchant.numberFormat)}%`
-                    : `-${formatMoney(promoApplied.value, merchant.currency, merchant.numberFormat, merchant.currencyFormat)}`}
+                    : `-${formatMoney(promoApplied.value, merchant.currency, merchant.numberFormat, merchant.currencyFormat, language)}`}
                 </Badge>
               </div>
               <button
@@ -1554,6 +1568,7 @@ export function POSTerminal({
                   merchant.currency,
                   merchant.numberFormat,
                   merchant.currencyFormat,
+                  language,
                 )}
               </span>
             </div>
@@ -1569,6 +1584,7 @@ export function POSTerminal({
                     merchant.currency,
                     merchant.numberFormat,
                     merchant.currencyFormat,
+                    language,
                   )}
                 </span>
               </div>
@@ -1584,6 +1600,7 @@ export function POSTerminal({
                     merchant.currency,
                     merchant.numberFormat,
                     merchant.currencyFormat,
+                    language,
                   )}
                 </span>
               </div>
@@ -1596,6 +1613,7 @@ export function POSTerminal({
                   merchant.currency,
                   merchant.numberFormat,
                   merchant.currencyFormat,
+                  language,
                 )}
               </span>
             </div>
@@ -1642,6 +1660,7 @@ export function POSTerminal({
                   merchant.currency,
                   merchant.numberFormat,
                   merchant.currencyFormat,
+                  language,
                 )}
               </span>
               <kbd className="text-[10px] font-medium opacity-50">F9</kbd>
@@ -1674,6 +1693,7 @@ export function POSTerminal({
                   merchant.currency,
                   merchant.numberFormat,
                   merchant.currencyFormat,
+                  language,
                 )}
               </span>
             </div>
@@ -1689,6 +1709,7 @@ export function POSTerminal({
                     merchant.currency,
                     merchant.numberFormat,
                     merchant.currencyFormat,
+                    language,
                   )}
                 </span>
               </div>
@@ -1704,6 +1725,7 @@ export function POSTerminal({
                     merchant.currency,
                     merchant.numberFormat,
                     merchant.currencyFormat,
+                    language,
                   )}
                 </span>
               </div>
@@ -1716,6 +1738,7 @@ export function POSTerminal({
                   merchant.currency,
                   merchant.numberFormat,
                   merchant.currencyFormat,
+                  language,
                 )}
               </span>
             </div>
@@ -1777,6 +1800,7 @@ export function POSTerminal({
                       merchant.currency,
                       merchant.numberFormat,
                       merchant.currencyFormat,
+                      language,
                     )}
                   </p>
                 )}
@@ -1788,6 +1812,7 @@ export function POSTerminal({
                     merchant.currency,
                     merchant.numberFormat,
                     merchant.currencyFormat,
+                    language,
                   )}{" "}
                   {i.pos.remaining}
                 </p>
@@ -1809,6 +1834,7 @@ export function POSTerminal({
                       merchant.currency,
                       merchant.numberFormat,
                       merchant.currencyFormat,
+                      language,
                     )}
                   </button>
                 ))}
@@ -1841,6 +1867,7 @@ export function POSTerminal({
                         merchant.currency,
                         merchant.numberFormat,
                         merchant.currencyFormat,
+                        language,
                       )}
                     </p>
                   </div>
@@ -1897,6 +1924,7 @@ export function POSTerminal({
                         merchant.currency,
                         merchant.numberFormat,
                         merchant.currencyFormat,
+                        language,
                       )}
                     </span>
                     {" → "}
@@ -1981,6 +2009,7 @@ export function POSTerminal({
                   merchant.currency,
                   merchant.numberFormat,
                   merchant.currencyFormat,
+                  language,
                 )}
               </p>
               <p className="text-sm text-slate-500 mt-0.5">
@@ -1997,6 +2026,7 @@ export function POSTerminal({
                     merchant.currency,
                     merchant.numberFormat,
                     merchant.currencyFormat,
+                    language,
                   )}
                 </p>
               </div>
@@ -2065,6 +2095,7 @@ export function POSTerminal({
                           merchant.currency,
                           merchant.numberFormat,
                           merchant.currencyFormat,
+                          language,
                         )}
                       </span>
                     </div>
@@ -2078,6 +2109,7 @@ export function POSTerminal({
                                 merchant.currency,
                                 merchant.numberFormat,
                                 merchant.currencyFormat,
+                                language,
                               )}
                             </span>
                             {" → "}
@@ -2086,6 +2118,7 @@ export function POSTerminal({
                               merchant.currency,
                               merchant.numberFormat,
                               merchant.currencyFormat,
+                              language,
                             )}
                           </span>
                         )}
@@ -2100,6 +2133,7 @@ export function POSTerminal({
                                   merchant.currency,
                                   merchant.numberFormat,
                                   merchant.currencyFormat,
+                                  language,
                                 )}
                           </span>
                         )}
@@ -2118,6 +2152,7 @@ export function POSTerminal({
                     merchant.currency,
                     merchant.numberFormat,
                     merchant.currencyFormat,
+                    language,
                   )}
                 </span>
               </div>
@@ -2133,6 +2168,7 @@ export function POSTerminal({
                       merchant.currency,
                       merchant.numberFormat,
                       merchant.currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
@@ -2146,6 +2182,7 @@ export function POSTerminal({
                       merchant.currency,
                       merchant.numberFormat,
                       merchant.currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
@@ -2158,6 +2195,7 @@ export function POSTerminal({
                     merchant.currency,
                     merchant.numberFormat,
                     merchant.currencyFormat,
+                    language,
                   )}
                 </span>
               </div>
@@ -2172,6 +2210,7 @@ export function POSTerminal({
                     merchant.currency,
                     merchant.numberFormat,
                     merchant.currencyFormat,
+                    language,
                   )}
                 </span>
               </div>
@@ -2184,6 +2223,7 @@ export function POSTerminal({
                       merchant.currency,
                       merchant.numberFormat,
                       merchant.currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
