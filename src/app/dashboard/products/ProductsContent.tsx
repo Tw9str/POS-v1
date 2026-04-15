@@ -289,7 +289,7 @@ export function ProductsContent({
       });
 
       if (!result.ok) {
-        failures.push(result.error || "Delete failed");
+        failures.push(result.error || i.common.deleteFailed);
       }
     }
 
@@ -635,7 +635,8 @@ export function ProductsContent({
                         p.price,
                         currency,
                         numberFormat,
-                        currencyFormat, language,
+                        currencyFormat,
+                        language,
                       )}
                     </td>
                     <td className="px-5 py-4 text-slate-500 tabular-nums">
@@ -643,7 +644,8 @@ export function ProductsContent({
                         p.costPrice,
                         currency,
                         numberFormat,
-                        currencyFormat, language,
+                        currencyFormat,
+                        language,
                       )}
                     </td>
                     <td className="px-5 py-4 tabular-nums text-slate-600">

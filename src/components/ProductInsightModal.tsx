@@ -15,7 +15,12 @@ import {
   getProductDisplayName,
   type NumberFormat,
 } from "@/lib/utils";
-import { t, type Locale, type TranslationKeys } from "@/lib/i18n";
+import {
+  t,
+  translateUnit,
+  type Locale,
+  type TranslationKeys,
+} from "@/lib/i18n";
 
 interface ProductInsightModalProps {
   open: boolean;
@@ -181,7 +186,7 @@ export function ProductInsightModal({
                 {i.productInsight.currentStock}{" "}
                 <span className="font-semibold text-slate-900">
                   {product.trackStock
-                    ? `${formatNumber(product.stock, numberFormat)} ${product.unit}`
+                    ? `${formatNumber(product.stock, numberFormat)} ${translateUnit(product.unit, language as Locale)}`
                     : i.productInsight.notTracked}
                 </span>
               </p>
@@ -192,7 +197,7 @@ export function ProductInsightModal({
                     Math.max(1, product.lowStockAt || 5),
                     numberFormat,
                   )}{" "}
-                  {product.unit}
+                  {translateUnit(product.unit, language as Locale)}
                 </span>
               </p>
               <p>
@@ -243,7 +248,7 @@ export function ProductInsightModal({
                 {i.productInsight.suggestedReorder}{" "}
                 <span className="font-semibold text-slate-900">
                   {insight?.recommendedQty
-                    ? `${formatNumber(insight.recommendedQty, numberFormat)} ${product.unit}`
+                    ? `${formatNumber(insight.recommendedQty, numberFormat)} ${translateUnit(product.unit, language as Locale)}`
                     : i.productInsight.noReorderQty}
                 </span>
               </p>

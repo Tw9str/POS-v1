@@ -12,11 +12,10 @@ import {
   formatCurrency,
   formatNumber,
   formatDateTime,
-  getPaymentMethodLabel,
   type NumberFormat,
   type DateFormat,
 } from "@/lib/utils";
-import { t, type Locale } from "@/lib/i18n";
+import { t, translatePaymentMethod, type Locale } from "@/lib/i18n";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { db } from "@/lib/offlineDb";
@@ -81,6 +80,7 @@ export function CustomersContent({
     note?: string | null;
   };
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
+  const [expandedOrderRef, setExpandedOrderRef] = useState<string | null>(null);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [editCustomer, setEditCustomer] = useState<{
     id: string;
@@ -173,7 +173,7 @@ export function CustomersContent({
         merchantId,
       });
 
-      if (!result.ok) failures.push(result.error || "Delete failed");
+      if (!result.ok) failures.push(result.error || i.common.deleteFailed);
     }
 
     if (failures.length > 0) {
@@ -224,7 +224,9 @@ export function CustomersContent({
         setCollectMethod("CASH");
         router.refresh();
       } else {
-        const data = await res.json().catch(() => ({ error: "Unknown" }));
+        const data = await res
+          .json()
+          .catch(() => ({ error: i.common.unknown }));
         setFeedback({
           type: "error",
           text: data.error || i.customers.failedToCollect,
@@ -458,7 +460,8 @@ export function CustomersContent({
                       c.totalSpent,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </td>
                   <td className="px-5 py-4">
@@ -480,7 +483,8 @@ export function CustomersContent({
                             c.balance,
                             currency,
                             numberFormat,
-                            currencyFormat, language,
+                            currencyFormat,
+                            language,
                           )}
                         </button>
                       )}
@@ -616,7 +620,8 @@ export function CustomersContent({
                   collectCustomer.balance,
                   currency,
                   numberFormat,
-                  currencyFormat, language,
+                  currencyFormat,
+                  language,
                 )}
               </p>
             </div>
@@ -652,7 +657,8 @@ export function CustomersContent({
                       amount,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </button>
                 ))}
@@ -748,117 +754,233 @@ export function CustomersContent({
             {i.customers.noActivity}
           </div>
         ) : (
-          <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider sticky top-0">
-                <tr>
-                  <th className="px-4 py-2.5 text-start font-semibold">
-                    {i.customers.paymentDate}
-                  </th>
-                  <th className="px-4 py-2.5 text-start font-semibold" />
-                  <th className="px-4 py-2.5 text-start font-semibold">#</th>
-                  <th className="px-4 py-2.5 text-end font-semibold">
-                    {i.customers.debit}
-                  </th>
-                  <th className="px-4 py-2.5 text-end font-semibold">
-                    {i.customers.credit}
-                  </th>
-                  <th className="px-4 py-2.5 text-end font-semibold">
-                    {i.customers.runningBalance}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {(() => {
-                  let running = 0;
-                  return ledgerEntries.map((entry) => {
-                    running += entry.debit - entry.credit;
-                    return (
-                      <tr
-                        key={entry.id}
-                        className="hover:bg-slate-50/50 transition-colors"
-                      >
-                        <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap text-xs">
-                          {formatDateTime(entry.date, dateFormat, numberFormat)}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {entry.type === "order" ? (
-                            <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
-                              {i.customers.creditOrder}
-                            </span>
-                          ) : (
-                            <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                              {i.customers.paymentReceived}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-slate-500">
-                          {entry.ref}
-                          {entry.method && (
-                            <span className="text-slate-400">
-                              {" "}
-                              · {getPaymentMethodLabel(entry.method)}
-                            </span>
-                          )}
-                          {entry.note && (
-                            <span className="text-slate-400">
-                              {" "}
-                              · {entry.note}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-end tabular-nums font-medium">
-                          {entry.debit > 0 ? (
-                            <span className="text-amber-700">
-                              {formatCurrency(
-                                entry.debit,
-                                currency,
-                                numberFormat,
-                                currencyFormat, language,
-                              )}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-end tabular-nums font-medium">
-                          {entry.credit > 0 ? (
-                            <span className="text-emerald-700">
-                              {formatCurrency(
-                                entry.credit,
-                                currency,
-                                numberFormat,
-                                currencyFormat, language,
-                              )}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-end tabular-nums font-bold">
+          <div className="space-y-0">
+            {/* Summary bar */}
+            {(() => {
+              const totalDebit = ledgerEntries.reduce((s, e) => s + e.debit, 0);
+              const totalCredit = ledgerEntries.reduce(
+                (s, e) => s + e.credit,
+                0,
+              );
+              const balance = totalDebit - totalCredit;
+              return (
+                <div className="flex items-center gap-4 rounded-xl bg-slate-50 px-4 py-3 mb-4 text-sm">
+                  <div className="flex-1">
+                    <span className="text-slate-500">
+                      {i.customers.debit}:{" "}
+                    </span>
+                    <span className="font-semibold text-amber-700">
+                      {formatCurrency(
+                        totalDebit,
+                        currency,
+                        numberFormat,
+                        currencyFormat,
+                        language,
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-slate-500">
+                      {i.customers.credit}:{" "}
+                    </span>
+                    <span className="font-semibold text-emerald-700">
+                      {formatCurrency(
+                        totalCredit,
+                        currency,
+                        numberFormat,
+                        currencyFormat,
+                        language,
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex-1 text-end">
+                    <span className="text-slate-500">
+                      {i.customers.runningBalance}:{" "}
+                    </span>
+                    <span
+                      className={`font-bold ${balance > 0 ? "text-amber-700" : balance < 0 ? "text-emerald-700" : "text-slate-400"}`}
+                    >
+                      {formatCurrency(
+                        Math.abs(balance),
+                        currency,
+                        numberFormat,
+                        currencyFormat,
+                        language,
+                      )}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Entries */}
+            <div className="max-h-[24rem] overflow-y-auto space-y-2">
+              {(() => {
+                let running = 0;
+                return ledgerEntries.map((entry) => {
+                  running += entry.debit - entry.credit;
+                  const isOrder = entry.type === "order";
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`rounded-xl border px-4 py-3 ${isOrder ? "border-amber-100 bg-amber-50/30" : "border-emerald-100 bg-emerald-50/30"}`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <span
-                            className={
-                              running > 0
-                                ? "text-amber-700"
-                                : running < 0
-                                  ? "text-emerald-700"
-                                  : "text-slate-400"
-                            }
+                            className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold flex-shrink-0 ${isOrder ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}
                           >
+                            {isOrder ? "−" : "+"}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`text-xs font-semibold ${isOrder ? "text-amber-700" : "text-emerald-700"}`}
+                              >
+                                {isOrder
+                                  ? i.customers.creditOrder
+                                  : i.customers.paymentReceived}
+                              </span>
+                              {entry.ref && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedOrderRef(
+                                      expandedOrderRef === entry.ref
+                                        ? null
+                                        : entry.ref,
+                                    )
+                                  }
+                                  className={`text-xs font-mono cursor-pointer ${expandedOrderRef === entry.ref ? "text-indigo-800 underline" : "text-indigo-600 hover:text-indigo-800 hover:underline"}`}
+                                >
+                                  {entry.ref}
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400">
+                              <span>
+                                {formatDateTime(
+                                  entry.date,
+                                  dateFormat,
+                                  numberFormat,
+                                )}
+                              </span>
+                              {entry.method && (
+                                <>
+                                  <span>·</span>
+                                  <span>
+                                    {translatePaymentMethod(
+                                      entry.method,
+                                      language as Locale,
+                                    )}
+                                  </span>
+                                </>
+                              )}
+                              {entry.note && (
+                                <>
+                                  <span>·</span>
+                                  <span className="truncate max-w-[150px]">
+                                    {entry.note}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-end flex-shrink-0">
+                          <div
+                            className={`text-sm font-bold tabular-nums ${isOrder ? "text-amber-700" : "text-emerald-700"}`}
+                          >
+                            {isOrder ? "" : "−"}
+                            {formatCurrency(
+                              isOrder ? entry.debit : entry.credit,
+                              currency,
+                              numberFormat,
+                              currencyFormat,
+                              language,
+                            )}
+                          </div>
+                          <div
+                            className={`text-[11px] tabular-nums ${running > 0 ? "text-amber-600" : running < 0 ? "text-emerald-600" : "text-slate-400"}`}
+                          >
+                            {i.customers.runningBalance}:{" "}
                             {formatCurrency(
                               Math.abs(running),
                               currency,
                               numberFormat,
-                              currencyFormat, language,
+                              currencyFormat,
+                              language,
                             )}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  });
-                })()}
-              </tbody>
-            </table>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expanded order details */}
+                      {isOrder &&
+                        expandedOrderRef === entry.ref &&
+                        (() => {
+                          const order = allOrders.find(
+                            (o) => o.orderNumber === entry.ref,
+                          );
+                          if (!order) return null;
+                          return (
+                            <div className="mt-3 border-t border-amber-100 pt-3 text-xs text-slate-600 space-y-1.5">
+                              {order.items.map((item, idx) => (
+                                <div key={idx} className="flex justify-between">
+                                  <span>
+                                    {item.quantity}× {item.name}
+                                  </span>
+                                  <span className="tabular-nums text-slate-500">
+                                    {formatCurrency(
+                                      item.price * item.quantity -
+                                        item.discount,
+                                      currency,
+                                      numberFormat,
+                                      currencyFormat,
+                                      language,
+                                    )}
+                                  </span>
+                                </div>
+                              ))}
+                              <div className="border-t border-amber-100 pt-1.5 flex justify-between font-semibold text-slate-700">
+                                <span>{i.orders.total}</span>
+                                <span className="tabular-nums">
+                                  {formatCurrency(
+                                    order.total,
+                                    currency,
+                                    numberFormat,
+                                    currencyFormat,
+                                    language,
+                                  )}
+                                </span>
+                              </div>
+                              {order.paidAmount > 0 && (
+                                <div className="flex justify-between text-emerald-600">
+                                  <span>{i.orders.paid}</span>
+                                  <span className="tabular-nums">
+                                    {formatCurrency(
+                                      order.paidAmount,
+                                      currency,
+                                      numberFormat,
+                                      currencyFormat,
+                                      language,
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              {order.staffName && (
+                                <div className="text-slate-400 pt-0.5">
+                                  {i.orders.cashierCol}: {order.staffName}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
           </div>
         )}
       </Modal>

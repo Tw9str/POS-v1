@@ -30,12 +30,17 @@ import {
   formatCurrency,
   formatDate,
   formatNumber,
-  getPaymentMethodLabel,
   getProductDisplayName,
   type DateFormat,
   type NumberFormat,
 } from "@/lib/utils";
-import { t, type Locale, type TranslationKeys } from "@/lib/i18n";
+import {
+  t,
+  translatePaymentMethod,
+  translateUnit,
+  type Locale,
+  type TranslationKeys,
+} from "@/lib/i18n";
 
 type MetricSnapshot = {
   grossSales: number;
@@ -184,16 +189,16 @@ export function AnalyticsContent({
   );
   const dateRangeError = useMemo(() => {
     if (range !== "custom") return "";
-    if (!customStart || !customEnd) return "Select both a start and end date.";
+    if (!customStart || !customEnd) return i.analytics.selectBothDates;
 
     const start = new Date(`${customStart}T00:00:00`).getTime();
     const end = new Date(`${customEnd}T23:59:59.999`).getTime();
 
     if (!Number.isFinite(start) || !Number.isFinite(end)) {
-      return "Enter a valid custom date range.";
+      return i.analytics.invalidDateRange;
     }
 
-    return start > end ? "End date must be on or after the start date." : "";
+    return start > end ? i.analytics.endAfterStart : "";
   }, [range, customStart, customEnd]);
   const filteredOrders = useMemo(() => {
     if (range === "day") {
@@ -373,26 +378,34 @@ export function AnalyticsContent({
 
   function handleExport() {
     const rows: Array<Array<string | number>> = [
-      ["Shampay Analytics Export"],
-      ["Range", stats.rangeLabel],
-      ["Net revenue", stats.snapshot.netRevenue],
-      ["Gross profit", stats.snapshot.grossProfit],
-      ["Gross sales", stats.snapshot.grossSales],
-      ["Refunded revenue", stats.snapshot.refundedRevenue],
-      ["Orders", stats.snapshot.orderCount],
-      ["Average order", stats.snapshot.avgOrder],
-      ["Active customers", stats.activeCustomers],
-      ["Reorder alerts", stats.reorderCount],
-      ["Dead stock", stats.deadStockCount],
+      [i.analytics.exportTitle],
+      [i.analytics.exportRange, stats.rangeLabel],
+      [i.analytics.netRevenue, stats.snapshot.netRevenue],
+      [i.analytics.grossProfit, stats.snapshot.grossProfit],
+      [i.analytics.grossSales, stats.snapshot.grossSales],
+      [i.analytics.refundedRevenue, stats.snapshot.refundedRevenue],
+      [i.analytics.exportOrders, stats.snapshot.orderCount],
+      [i.analytics.exportAvgOrder, stats.snapshot.avgOrder],
+      [i.analytics.activeCustomers, stats.activeCustomers],
+      [i.analytics.reorderAlerts, stats.reorderCount],
+      [i.analytics.deadStockCount, stats.deadStockCount],
       [],
-      ["Payment method", "Orders", "Total"],
+      [
+        i.analytics.exportPaymentMethod,
+        i.analytics.exportOrders,
+        i.analytics.exportTotal,
+      ],
       ...stats.paymentMix.map((method) => [
-        getPaymentMethodLabel(method.method),
+        translatePaymentMethod(method.method, language as Locale),
         method.count,
         method.total,
       ]),
       [],
-      ["Top variants", "Units sold", "Net revenue"],
+      [
+        i.analytics.topVariants,
+        i.analytics.exportUnitsSold,
+        i.analytics.netRevenue,
+      ],
       ...stats.topVariants.map(({ product, metric }) => [
         getProductDisplayName(product.name, product.variantName),
         metric?.sold30d ?? 0,
@@ -499,7 +512,8 @@ export function AnalyticsContent({
             stats.snapshot.netRevenue,
             currency,
             numberFormat,
-            currencyFormat, language,
+            currencyFormat,
+            language,
           )}
           subtitle={`${stats.rangeLabel} · ${formatCurrency(stats.snapshot.grossProfit, currency, numberFormat, currencyFormat, language)} ${i.analytics.profit}`}
           icon={<IconMoney size={24} />}
@@ -510,7 +524,8 @@ export function AnalyticsContent({
             stats.snapshot.avgOrder,
             currency,
             numberFormat,
-            currencyFormat, language,
+            currencyFormat,
+            language,
           )}
           subtitle={`${formatNumber(stats.snapshot.orderCount, numberFormat)} ${i.analytics.orders}`}
           icon={<IconOrders size={24} />}
@@ -536,7 +551,8 @@ export function AnalyticsContent({
             stats.snapshot.grossSales,
             currency,
             numberFormat,
-            currencyFormat, language,
+            currencyFormat,
+            language,
           )}
           subtitle={`${formatCurrency(stats.snapshot.refundedRevenue, currency, numberFormat, currencyFormat, language)} ${i.reports.refunded}`}
           icon={<IconMoney size={22} />}
@@ -582,7 +598,8 @@ export function AnalyticsContent({
                       niceMax * tick,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </span>
                 ))}
@@ -627,7 +644,8 @@ export function AnalyticsContent({
                                   day.netRevenue,
                                   currency,
                                   numberFormat,
-                                  currencyFormat, language,
+                                  currencyFormat,
+                                  language,
                                 )}
                               </p>
                               <p className="text-slate-300">
@@ -637,7 +655,8 @@ export function AnalyticsContent({
                                   day.grossProfit,
                                   currency,
                                   numberFormat,
-                                  currencyFormat, language,
+                                  currencyFormat,
+                                  language,
                                 )}{" "}
                                 {i.analytics.profit}
                               </p>
@@ -686,7 +705,8 @@ export function AnalyticsContent({
                         niceMaxPayment * tick,
                         currency,
                         numberFormat,
-                        currencyFormat, language,
+                        currencyFormat,
+                        language,
                       )}
                     </span>
                   ))}
@@ -725,14 +745,18 @@ export function AnalyticsContent({
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
                               <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
                                 <p className="font-semibold">
-                                  {getPaymentMethodLabel(method.method)}
+                                  {translatePaymentMethod(
+                                    method.method,
+                                    language as Locale,
+                                  )}
                                 </p>
                                 <p>
                                   {formatCurrency(
                                     method.total,
                                     currency,
                                     numberFormat,
-                                    currencyFormat, language,
+                                    currencyFormat,
+                                    language,
                                   )}
                                 </p>
                                 <p className="text-slate-300">
@@ -755,7 +779,10 @@ export function AnalyticsContent({
                         className="w-12 max-w-[3rem] text-center"
                       >
                         <span className="text-[10px] text-slate-400 truncate block">
-                          {getPaymentMethodLabel(method.method)}
+                          {translatePaymentMethod(
+                            method.method,
+                            language as Locale,
+                          )}
                         </span>
                       </div>
                     ))}
@@ -792,7 +819,8 @@ export function AnalyticsContent({
                       metric?.netRevenue ?? 0,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}{" "}
                     {i.analytics.net}
                   </p>
@@ -879,7 +907,7 @@ export function AnalyticsContent({
                       </div>
                       <Badge variant="default">
                         {formatNumber(product.stock, numberFormat)}{" "}
-                        {product.unit}
+                        {translateUnit(product.unit, language as Locale)}
                       </Badge>
                     </div>
                   </div>

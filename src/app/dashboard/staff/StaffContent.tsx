@@ -168,7 +168,7 @@ export function StaffContent({
         merchantId,
       });
 
-      if (!result.ok) failures.push(result.error || "Delete failed");
+      if (!result.ok) failures.push(result.error || i.common.deleteFailed);
     }
 
     if (failures.length > 0) {

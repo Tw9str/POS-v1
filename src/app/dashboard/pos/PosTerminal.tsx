@@ -31,13 +31,12 @@ import {
   formatCurrency,
   formatDateTime,
   formatNumber,
-  getPaymentMethodLabel,
   getProductDisplayName,
   type DateFormat,
   type NumberFormat,
   type SupportedPaymentMethod,
 } from "@/lib/utils";
-import { t, type Locale } from "@/lib/i18n";
+import { t, translatePaymentMethod, type Locale } from "@/lib/i18n";
 import {
   useLocalProducts,
   useLocalCategories,
@@ -2201,7 +2200,11 @@ export function POSTerminal({
               </div>
               <div className="flex justify-between">
                 <span>
-                  {i.pos.paid} ({getPaymentMethodLabel(lastOrder.paymentMethod)}
+                  {i.pos.paid} (
+                  {translatePaymentMethod(
+                    lastOrder.paymentMethod,
+                    language as Locale,
+                  )}
                   )
                 </span>
                 <span className="tabular-nums">

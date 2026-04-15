@@ -26,11 +26,10 @@ import {
   formatCurrency,
   formatDateTime,
   formatNumber,
-  getPaymentMethodLabel,
   type DateFormat,
   type NumberFormat,
 } from "@/lib/utils";
-import { t, type Locale } from "@/lib/i18n";
+import { t, translatePaymentMethod, type Locale } from "@/lib/i18n";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -242,7 +241,7 @@ export function OrdersContent({
       if (!Number.isFinite(amount) || !amount || amount <= 0) {
         setFeedback({
           type: "error",
-          text: "Enter a valid partial refund amount.",
+          text: i.orders.enterValidAmount,
         });
         return;
       }
@@ -250,7 +249,7 @@ export function OrdersContent({
       if (amount >= selectedOrder.total) {
         setFeedback({
           type: "error",
-          text: "Use full refund for the whole order amount.",
+          text: i.orders.useFullRefund,
         });
         return;
       }
@@ -275,7 +274,8 @@ export function OrdersContent({
     if (!result.ok) {
       setFeedback({
         type: "error",
-        text: result.error || `Failed to ${label} order`,
+        text:
+          result.error || i.orders.failedToProcess.replace("{action}", label),
       });
     } else {
       const nextStatus =
@@ -293,7 +293,10 @@ export function OrdersContent({
                 prev.notes,
                 actionReason || null,
                 action === "PARTIAL_REFUND" && amount
-                  ? `Partial refund amount: ${amount}`
+                  ? i.orders.partialRefundNote.replace(
+                      "{amount}",
+                      String(amount),
+                    )
                   : null,
               ]
                 .filter(Boolean)
@@ -304,10 +307,10 @@ export function OrdersContent({
       setFeedback({
         type: "success",
         text: result.offline
-          ? `Order ${label} was saved offline and will sync automatically.`
+          ? i.orders.offlineSuccess.replace("{action}", label)
           : action === "PARTIAL_REFUND"
-            ? `Partial refund recorded successfully.`
-            : `Order ${label}ed successfully.`,
+            ? i.orders.partialRefundSuccess
+            : i.orders.actionSuccess.replace("{action}", label),
       });
       setActionReason("");
       setPartialRefundAmount("");
@@ -351,7 +354,9 @@ export function OrdersContent({
         setFeedback({ type: "success", text: i.customers.paymentCollected });
         router.refresh();
       } else {
-        const data = await res.json().catch(() => ({ error: "Unknown" }));
+        const data = await res
+          .json()
+          .catch(() => ({ error: i.common.unknown }));
         setFeedback({
           type: "error",
           text: data.error || i.customers.failedToCollect,
@@ -623,11 +628,15 @@ export function OrdersContent({
                         o.total,
                         currency,
                         numberFormat,
-                        currencyFormat, language,
+                        currencyFormat,
+                        language,
                       )}
                     </td>
                     <td className="px-5 py-4 text-slate-500">
-                      {getPaymentMethodLabel(o.paymentMethod)}
+                      {translatePaymentMethod(
+                        o.paymentMethod,
+                        language as Locale,
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <Badge
@@ -732,7 +741,10 @@ export function OrdersContent({
                   {i.orders.payment}
                 </p>
                 <p className="mt-1 font-semibold text-slate-900">
-                  {getPaymentMethodLabel(selectedOrder.paymentMethod)}
+                  {translatePaymentMethod(
+                    selectedOrder.paymentMethod,
+                    language as Locale,
+                  )}
                 </p>
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
@@ -785,7 +797,8 @@ export function OrdersContent({
                           item.price,
                           currency,
                           numberFormat,
-                          currencyFormat, language,
+                          currencyFormat,
+                          language,
                         )}
                       </p>
                     </div>
@@ -794,7 +807,8 @@ export function OrdersContent({
                         item.price * item.quantity - item.discount,
                         currency,
                         numberFormat,
-                        currencyFormat, language,
+                        currencyFormat,
+                        language,
                       )}
                     </p>
                   </div>
@@ -811,7 +825,8 @@ export function OrdersContent({
                       selectedOrder.subtotal,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
@@ -822,7 +837,8 @@ export function OrdersContent({
                       selectedOrder.taxAmount,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
@@ -833,7 +849,8 @@ export function OrdersContent({
                       selectedOrder.paidAmount,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
@@ -844,7 +861,8 @@ export function OrdersContent({
                       selectedOrder.changeAmount,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
@@ -858,7 +876,8 @@ export function OrdersContent({
                         selectedOrder.creditAmount,
                         currency,
                         numberFormat,
-                        currencyFormat, language,
+                        currencyFormat,
+                        language,
                       )}
                     </span>
                   </div>
@@ -872,7 +891,8 @@ export function OrdersContent({
                       selectedOrder.total,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
@@ -921,7 +941,8 @@ export function OrdersContent({
                     selectedOrder.creditAmount,
                     currency,
                     numberFormat,
-                    currencyFormat, language,
+                    currencyFormat,
+                    language,
                   )}
                   )
                 </Button>
@@ -941,14 +962,20 @@ export function OrdersContent({
               <div className="text-center mb-3 font-mono text-xs">
                 <p className="font-bold text-sm">{merchantName}</p>
                 {merchantAddress && <p>{merchantAddress}</p>}
-                {merchantPhone && <p>Tel: {merchantPhone}</p>}
+                {merchantPhone && (
+                  <p>
+                    {i.common.tel} {merchantPhone}
+                  </p>
+                )}
                 <p className="mt-1">─────────────────</p>
               </div>
 
               <div className="font-mono text-xs">
-                <p>Order: {selectedOrder.orderNumber}</p>
                 <p>
-                  Date:{" "}
+                  {i.orders.receiptOrder} {selectedOrder.orderNumber}
+                </p>
+                <p>
+                  {i.orders.receiptDate}{" "}
                   {formatDateTime(
                     new Date(selectedOrder.createdAt),
                     dateFormat,
@@ -956,15 +983,19 @@ export function OrdersContent({
                   )}
                 </p>
                 {selectedOrder.staffName && (
-                  <p>Cashier: {selectedOrder.staffName}</p>
+                  <p>
+                    {i.orders.receiptCashier} {selectedOrder.staffName}
+                  </p>
                 )}
                 {selectedOrder.customerName && (
-                  <p>Customer: {selectedOrder.customerName}</p>
+                  <p>
+                    {i.orders.receiptCustomer} {selectedOrder.customerName}
+                  </p>
                 )}
                 <p>─────────────────</p>
 
-                {selectedOrder.items.map((item, i) => (
-                  <div key={i} className="flex justify-between py-0.5">
+                {selectedOrder.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between py-0.5">
                     <span className="truncate mr-2">
                       {item.quantity}x {item.name}
                     </span>
@@ -973,7 +1004,8 @@ export function OrdersContent({
                         item.price * item.quantity - item.discount,
                         currency,
                         numberFormat,
-                        currencyFormat, language,
+                        currencyFormat,
+                        language,
                       )}
                     </span>
                   </div>
@@ -981,62 +1013,73 @@ export function OrdersContent({
 
                 <p className="mt-1">─────────────────</p>
                 <div className="flex justify-between">
-                  <span>Subtotal</span>
+                  <span>{i.orders.receiptSubtotal}</span>
                   <span className="tabular-nums">
                     {formatCurrency(
                       selectedOrder.subtotal,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
                 {selectedOrder.taxAmount > 0 && (
                   <div className="flex justify-between">
-                    <span>Tax</span>
+                    <span>{i.orders.receiptTax}</span>
                     <span className="tabular-nums">
                       {formatCurrency(
                         selectedOrder.taxAmount,
                         currency,
                         numberFormat,
-                        currencyFormat, language,
+                        currencyFormat,
+                        language,
                       )}
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-sm mt-1">
-                  <span>TOTAL</span>
+                  <span>{i.orders.receiptTotal}</span>
                   <span className="tabular-nums">
                     {formatCurrency(
                       selectedOrder.total,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>
-                    Paid ({getPaymentMethodLabel(selectedOrder.paymentMethod)})
+                    {i.orders.receiptPaid.replace(
+                      "{method}",
+                      translatePaymentMethod(
+                        selectedOrder.paymentMethod,
+                        language as Locale,
+                      ),
+                    )}
                   </span>
                   <span className="tabular-nums">
                     {formatCurrency(
                       selectedOrder.paidAmount,
                       currency,
                       numberFormat,
-                      currencyFormat, language,
+                      currencyFormat,
+                      language,
                     )}
                   </span>
                 </div>
                 {selectedOrder.changeAmount > 0 && (
                   <div className="flex justify-between">
-                    <span>Change</span>
+                    <span>{i.orders.receiptChange}</span>
                     <span className="tabular-nums">
                       {formatCurrency(
                         selectedOrder.changeAmount,
                         currency,
                         numberFormat,
-                        currencyFormat, language,
+                        currencyFormat,
+                        language,
                       )}
                     </span>
                   </div>
@@ -1050,7 +1093,7 @@ export function OrdersContent({
                       size={80}
                     />
                   </div>
-                  <p className="mt-1">Thank you!</p>
+                  <p className="mt-1">{i.orders.receiptThankYou}</p>
                 </div>
               </div>
             </div>
@@ -1061,7 +1104,7 @@ export function OrdersContent({
                   <Input
                     id="order-action-reason"
                     label={i.orders.reason}
-                    placeholder="Why are you changing this order?"
+                    placeholder={i.orders.reasonPlaceholder}
                     value={actionReason}
                     onChange={(e) => setActionReason(e.target.value)}
                   />
@@ -1071,7 +1114,7 @@ export function OrdersContent({
                     type="number"
                     min="0"
                     step="0.01"
-                    placeholder="Enter amount to refund"
+                    placeholder={i.orders.refundAmountPlaceholder}
                     value={partialRefundAmount}
                     onChange={(e) => setPartialRefundAmount(e.target.value)}
                   />
@@ -1108,8 +1151,10 @@ export function OrdersContent({
               </div>
             ) : (
               <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                This order is {displayStatus(selectedOrder).toLowerCase()} and
-                cannot be changed here.
+                {i.orders.orderIsStatus.replace(
+                  "{status}",
+                  displayStatus(selectedOrder).toLowerCase(),
+                )}
               </p>
             )}
           </div>
@@ -1127,18 +1172,25 @@ export function OrdersContent({
         }}
         title={
           confirmAction === "REFUND"
-            ? "Refund order"
+            ? i.orders.confirmRefundTitle
             : confirmAction === "PARTIAL_REFUND"
-              ? "Partial refund"
-              : "Void order"
+              ? i.orders.confirmPartialRefundTitle
+              : i.orders.confirmVoidTitle
         }
-        message={`Are you sure you want to ${confirmAction === "REFUND" ? "refund" : confirmAction === "PARTIAL_REFUND" ? "partially refund" : "void"} this order? This action cannot be undone.`}
+        message={i.orders.confirmActionMessage.replace(
+          "{action}",
+          confirmAction === "REFUND"
+            ? i.orders.refund.toLowerCase()
+            : confirmAction === "PARTIAL_REFUND"
+              ? i.orders.partialRefund.toLowerCase()
+              : i.orders.voidOrder.toLowerCase(),
+        )}
         confirmLabel={
           confirmAction === "REFUND"
-            ? "Refund"
+            ? i.orders.refund
             : confirmAction === "PARTIAL_REFUND"
-              ? "Partial Refund"
-              : "Void"
+              ? i.orders.partialRefund
+              : i.orders.voidOrder
         }
         variant={confirmAction === "VOID" ? "danger" : "primary"}
       />

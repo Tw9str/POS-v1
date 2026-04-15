@@ -56,6 +56,16 @@ const en = {
     deleteSelected: "Delete Selected",
     deleting: "Deleting...",
     offlineSaved: "was saved offline and will sync automatically.",
+    deleteFailed: "Delete failed",
+    unknown: "Unknown",
+    tel: "Tel:",
+    methodCash: "Cash",
+    methodCard: "Card",
+    methodShamcash: "ShamCash",
+    methodTransfer: "Transfer",
+    methodCredit: "Credit",
+    methodSplit: "Split",
+    methodOther: "Other",
   },
 
   // ─── Roles ───
@@ -342,6 +352,30 @@ const en = {
     creditAmount: "Credit Amount",
     collectPayment: "Collect Payment",
     remainingCredit: "Remaining Credit",
+    failedToProcess: "Failed to {action} order",
+    partialRefundNote: "Partial refund amount: {amount}",
+    offlineSuccess:
+      "Order {action} was saved offline and will sync automatically.",
+    partialRefundSuccess: "Partial refund recorded successfully.",
+    actionSuccess: "Order {action} successfully.",
+    confirmRefundTitle: "Refund order",
+    confirmPartialRefundTitle: "Partial refund",
+    confirmVoidTitle: "Void order",
+    confirmActionMessage:
+      "Are you sure you want to {action} this order? This action cannot be undone.",
+    orderIsStatus: "This order is {status} and cannot be changed here.",
+    reasonPlaceholder: "Why are you changing this order?",
+    refundAmountPlaceholder: "Enter amount to refund",
+    receiptOrder: "Order:",
+    receiptDate: "Date:",
+    receiptCashier: "Cashier:",
+    receiptCustomer: "Customer:",
+    receiptSubtotal: "Subtotal",
+    receiptTax: "Tax",
+    receiptTotal: "TOTAL",
+    receiptPaid: "Paid ({method})",
+    receiptChange: "Change",
+    receiptThankYou: "Thank you!",
   },
 
   // ─── Inventory ───
@@ -687,6 +721,16 @@ const en = {
     customRange: "Custom range",
     allTime: "All time",
     selectedDay: "Selected day",
+    exportTitle: "Shampay Analytics Export",
+    exportRange: "Range",
+    exportOrders: "Orders",
+    exportAvgOrder: "Average order",
+    exportPaymentMethod: "Payment method",
+    exportTotal: "Total",
+    exportUnitsSold: "Units sold",
+    selectBothDates: "Select both a start and end date.",
+    invalidDateRange: "Enter a valid custom date range.",
+    endAfterStart: "End date must be on or after the start date.",
   },
 
   // ─── Settings ───
@@ -866,6 +910,16 @@ const ar: DeepStringify<typeof en> = {
     deleteSelected: "حذف المحدد",
     deleting: "جاري الحذف...",
     offlineSaved: "تم الحفظ دون اتصال وستتم المزامنة تلقائياً.",
+    deleteFailed: "فشل الحذف",
+    unknown: "غير معروف",
+    tel: "هاتف:",
+    methodCash: "نقداً",
+    methodCard: "بطاقة",
+    methodShamcash: "شام كاش",
+    methodTransfer: "تحويل",
+    methodCredit: "آجل",
+    methodSplit: "تقسيم",
+    methodOther: "أخرى",
   },
 
   // ─── Roles ───
@@ -1150,6 +1204,29 @@ const ar: DeepStringify<typeof en> = {
     creditAmount: "مبلغ الآجل",
     collectPayment: "تحصيل دفعة",
     remainingCredit: "الآجل المتبقي",
+    failedToProcess: "فشل في {action} الطلب",
+    partialRefundNote: "مبلغ الاسترداد الجزئي: {amount}",
+    offlineSuccess: "تم حفظ {action} الطلب دون اتصال وستتم المزامنة تلقائياً.",
+    partialRefundSuccess: "تم تسجيل الاسترداد الجزئي بنجاح.",
+    actionSuccess: "تم {action} الطلب بنجاح.",
+    confirmRefundTitle: "استرداد الطلب",
+    confirmPartialRefundTitle: "استرداد جزئي",
+    confirmVoidTitle: "إلغاء الطلب",
+    confirmActionMessage:
+      "هل أنت متأكد من {action} هذا الطلب؟ لا يمكن التراجع عن هذا الإجراء.",
+    orderIsStatus: "هذا الطلب {status} ولا يمكن تعديله هنا.",
+    reasonPlaceholder: "لماذا تريد تغيير هذا الطلب؟",
+    refundAmountPlaceholder: "أدخل مبلغ الاسترداد",
+    receiptOrder: "طلب:",
+    receiptDate: "التاريخ:",
+    receiptCashier: "الكاشير:",
+    receiptCustomer: "العميل:",
+    receiptSubtotal: "المجموع الفرعي",
+    receiptTax: "الضريبة",
+    receiptTotal: "الإجمالي",
+    receiptPaid: "مدفوع ({method})",
+    receiptChange: "الباقي",
+    receiptThankYou: "شكراً لك!",
   },
 
   // ─── Inventory ───
@@ -1490,6 +1567,16 @@ const ar: DeepStringify<typeof en> = {
     customRange: "نطاق مخصص",
     allTime: "كل الوقت",
     selectedDay: "اليوم المحدد",
+    exportTitle: "تقرير تحليلات Shampay",
+    exportRange: "الفترة",
+    exportOrders: "الطلبات",
+    exportAvgOrder: "متوسط الطلب",
+    exportPaymentMethod: "طريقة الدفع",
+    exportTotal: "الإجمالي",
+    exportUnitsSold: "الوحدات المباعة",
+    selectBothDates: "اختر تاريخ البدء والانتهاء.",
+    invalidDateRange: "أدخل نطاق تاريخ صحيح.",
+    endAfterStart: "يجب أن يكون تاريخ الانتهاء بعد تاريخ البدء.",
   },
 
   // ─── Settings ───
@@ -1623,4 +1710,46 @@ const translations: Record<Locale, TranslationKeys> = { en, ar };
 
 export function t(locale: Locale): TranslationKeys {
   return translations[locale];
+}
+
+const UNIT_MAP: Record<string, keyof TranslationKeys["products"]> = {
+  piece: "unitPiece",
+  kg: "unitKg",
+  g: "unitG",
+  liter: "unitLiter",
+  ml: "unitMl",
+  box: "unitBox",
+  pack: "unitPack",
+  dozen: "unitDozen",
+  meter: "unitMeter",
+};
+
+export function translateUnit(unit: string, locale: Locale): string {
+  const key = UNIT_MAP[unit];
+  return key ? (translations[locale].products[key] as string) : unit;
+}
+
+const METHOD_MAP: Record<string, keyof TranslationKeys["common"]> = {
+  CASH: "methodCash",
+  CARD: "methodCard",
+  MOBILE_MONEY: "methodShamcash",
+  SHAMCASH: "methodShamcash",
+  TRANSFER: "methodTransfer",
+  CREDIT: "methodCredit",
+  SPLIT: "methodSplit",
+  OTHER: "methodOther",
+};
+
+export function translatePaymentMethod(
+  method: string | null | undefined,
+  locale: Locale,
+): string {
+  if (!method) return translations[locale].common.unknown as string;
+  const key = METHOD_MAP[method];
+  return key
+    ? (translations[locale].common[key] as string)
+    : method
+        .toLowerCase()
+        .replaceAll("_", " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
 }

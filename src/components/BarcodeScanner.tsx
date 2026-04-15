@@ -128,7 +128,7 @@ export function BarcodeScanner({
       try {
         await scanner.start(
           cameraId,
-          { fps: 15, qrbox: { width: 280, height: 180 } },
+          { fps: 15, qrbox: { width: 250, height: 150 } },
           (decodedText) => {
             safeStop(scanner);
             onScan(decodedText);

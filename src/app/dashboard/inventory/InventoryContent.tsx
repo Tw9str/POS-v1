@@ -31,7 +31,7 @@ import {
   buildInventoryInsights,
   buildProductPerformance,
 } from "@/lib/productPerformance";
-import { t, type Locale } from "@/lib/i18n";
+import { t, translateUnit, type Locale } from "@/lib/i18n";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -406,7 +406,7 @@ export function InventoryContent({
                     <p className="text-xs font-semibold text-amber-700 mt-1">
                       {i.inventory.suggestedReorder} +
                       {formatNumber(item.recommendedQty, numberFormat)}{" "}
-                      {product.unit}
+                      {translateUnit(product.unit, language as Locale)}
                     </p>
                   </button>
                 );
@@ -456,7 +456,8 @@ export function InventoryContent({
                     </p>
                     <p className="text-xs font-semibold text-slate-700 mt-1">
                       {i.inventory.onHand}{" "}
-                      {formatNumber(product.stock, numberFormat)} {product.unit}
+                      {formatNumber(product.stock, numberFormat)}{" "}
+                      {translateUnit(product.unit, language as Locale)}
                     </p>
                   </button>
                 );
@@ -701,10 +702,12 @@ export function InventoryContent({
                       {p.sku || "·"}
                     </td>
                     <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
-                      {formatNumber(p.stock, numberFormat)} {p.unit}
+                      {formatNumber(p.stock, numberFormat)}{" "}
+                      {translateUnit(p.unit, language as Locale)}
                     </td>
                     <td className="px-5 py-4 text-slate-500 tabular-nums">
-                      {formatNumber(threshold, numberFormat)} {p.unit}
+                      {formatNumber(threshold, numberFormat)}{" "}
+                      {translateUnit(p.unit, language as Locale)}
                     </td>
                     <td className="px-5 py-4 text-slate-600 tabular-nums">
                       {formatNumber(metric?.sold7d ?? 0, numberFormat)}
@@ -714,7 +717,8 @@ export function InventoryContent({
                         metric?.netRevenue ?? 0,
                         currency,
                         numberFormat,
-                        currencyFormat, language,
+                        currencyFormat,
+                        language,
                       )}
                     </td>
                     <td className="px-5 py-4">
@@ -831,7 +835,7 @@ export function InventoryContent({
                   >
                     {entry.quantity > 0 ? "+" : ""}
                     {formatNumber(entry.quantity, numberFormat)}{" "}
-                    {entry.product.unit}
+                    {translateUnit(entry.product.unit, language as Locale)}
                   </span>
                   <span className="text-slate-500">
                     {formatDateTime(
@@ -886,7 +890,7 @@ export function InventoryContent({
               {i.inventory.currentStock}{" "}
               <span className="font-semibold text-slate-900">
                 {formatNumber(selectedProduct.stock, numberFormat)}{" "}
-                {selectedProduct.unit}
+                {translateUnit(selectedProduct.unit, language as Locale)}
               </span>
             </div>
 
