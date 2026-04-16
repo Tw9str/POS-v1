@@ -29,6 +29,11 @@ const deleteSchema = z.object({
   id: z.string().min(1),
 });
 
+const toggleSchema = z.object({
+  id: z.string().min(1),
+  isActive: z.boolean(),
+});
+
 export async function GET() {
   try {
     const merchant = await getMerchantFromSession();
@@ -134,6 +139,27 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
+
+    // Quick toggle: only id + isActive
+    const toggle = toggleSchema.safeParse(body);
+    if (toggle.success && Object.keys(body).length === 2) {
+      const existing = await prisma.promotion.findFirst({
+        where: { id: toggle.data.id, merchantId: merchant.id },
+      });
+      if (!existing) {
+        return NextResponse.json(
+          { error: "Promotion not found" },
+          { status: 404 },
+        );
+      }
+      const updated = await prisma.promotion.update({
+        where: { id: toggle.data.id },
+        data: { isActive: toggle.data.isActive },
+      });
+      return NextResponse.json(updated);
+    }
+
+    // Full update
     const parsed = promoSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

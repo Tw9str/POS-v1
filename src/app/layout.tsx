@@ -19,6 +19,14 @@ export const metadata: Metadata = {
   title: "Shampay POS",
   description: "Advanced SaaS Point of Sale System",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Shampay POS",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {

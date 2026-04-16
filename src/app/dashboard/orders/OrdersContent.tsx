@@ -127,6 +127,16 @@ export function OrdersContent({
   const [actionReason, setActionReason] = useState("");
   const [partialRefundAmount, setPartialRefundAmount] = useState("");
   const [collectLoading, setCollectLoading] = useState(false);
+  const [collectOrderAmount, setCollectOrderAmount] = useState("");
+  const [collectModalOpen, setCollectModalOpen] = useState(false);
+  const [collectMethod, setCollectMethod] = useState<
+    "CASH" | "MOBILE_MONEY" | "CARD"
+  >("CASH");
+  const [collectNote, setCollectNote] = useState("");
+  const [collectFeedback, setCollectFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -134,6 +144,40 @@ export function OrdersContent({
   const [confirmAction, setConfirmAction] = useState<
     "REFUND" | "VOID" | "PARTIAL_REFUND" | null
   >(null);
+
+  // Build dynamic payment method options from actual order data
+  const paymentMethodOptions = useMemo(() => {
+    const methods = new Set(orders.map((o) => o.paymentMethod));
+    const opts: { value: string; label: string }[] = [
+      { value: "all", label: i.orders.allMethods },
+    ];
+    for (const m of methods) {
+      opts.push({
+        value: m,
+        label: translatePaymentMethod(m, language as Locale),
+      });
+    }
+    return opts;
+  }, [orders, language, i.orders.allMethods]);
+
+  function translateOrderStatus(status: string): string {
+    switch (status) {
+      case "COMPLETED":
+        return i.orders.statusCompleted;
+      case "REFUNDED":
+        return i.orders.statusRefunded;
+      case "PARTIALLY_REFUNDED":
+        return i.orders.statusPartiallyRefunded;
+      case "VOIDED":
+        return i.orders.statusVoided;
+      case "PENDING SYNC":
+        return i.orders.statusPendingSync;
+      case "SYNC FAILED":
+        return i.orders.statusSyncFailed;
+      default:
+        return status;
+    }
+  }
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -229,10 +273,10 @@ export function OrdersContent({
 
     const label =
       action === "REFUND"
-        ? "refund"
+        ? i.orders.refund.toLowerCase()
         : action === "PARTIAL_REFUND"
-          ? "partial refund"
-          : "void";
+          ? i.orders.partialRefund.toLowerCase()
+          : i.orders.voidOrder.toLowerCase();
 
     const amount =
       action === "PARTIAL_REFUND" ? Number(partialRefundAmount) : undefined;
@@ -327,43 +371,83 @@ export function OrdersContent({
       selectedOrder.creditAmount <= 0
     )
       return;
+    const amount = collectOrderAmount
+      ? parseFloat(collectOrderAmount)
+      : selectedOrder.creditAmount;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setCollectFeedback({
+        type: "error",
+        text: i.orders.invalidCollectAmount,
+      });
+      return;
+    }
+    if (amount > selectedOrder.creditAmount) {
+      setCollectFeedback({ type: "error", text: i.orders.amountExceedsCredit });
+      return;
+    }
     setCollectLoading(true);
-    setFeedback(null);
+    setCollectFeedback(null);
     try {
+      const actualAmount = Math.min(amount, selectedOrder.creditAmount);
+
+      // Call server API directly
       const res = await fetch("/api/merchant/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: selectedOrder.customerId,
           orderId: selectedOrder.localId,
-          amount: selectedOrder.creditAmount,
-          method: "CASH",
+          amount: actualAmount,
+          method: collectMethod,
+          note: collectNote.trim() || null,
         }),
       });
-      if (res.ok) {
-        // Update IndexedDB
-        const customer = await db.customers.get(selectedOrder.customerId);
-        if (customer) {
-          await db.customers.update(selectedOrder.customerId, {
-            balance: Math.max(0, customer.balance - selectedOrder.creditAmount),
-          });
-        }
-        setSelectedOrder((prev) =>
-          prev ? { ...prev, creditAmount: 0, paymentStatus: "settled" } : prev,
-        );
-        setFeedback({ type: "success", text: i.customers.paymentCollected });
-        router.refresh();
-      } else {
-        const data = await res
-          .json()
-          .catch(() => ({ error: i.common.unknown }));
-        setFeedback({
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setCollectFeedback({
           type: "error",
-          text: data.error || i.customers.failedToCollect,
+          text: err.error || i.customers.failedToCollect,
+        });
+        return;
+      }
+
+      // Update local IndexedDB to reflect server changes (keeps useLiveQuery in sync)
+      const newCredit = selectedOrder.creditAmount - actualAmount;
+      const newPaymentStatus = newCredit <= 0 ? "settled" : "partial_credit";
+      await db.orders.update(selectedOrder.localId, {
+        creditAmount: Math.max(0, newCredit),
+        paymentStatus: newPaymentStatus,
+      });
+      const customer = await db.customers.get(selectedOrder.customerId);
+      if (customer) {
+        await db.customers.update(selectedOrder.customerId, {
+          balance: Math.max(0, customer.balance - actualAmount),
         });
       }
+
+      // Close modal and reset states
+      setCollectModalOpen(false);
+      setCollectOrderAmount("");
+      setCollectNote("");
+      setCollectMethod("CASH");
+      setCollectFeedback(null);
+      setFeedback({
+        type: "success",
+        text: i.customers.paymentCollected,
+      });
+      // Update selected order to reflect new state
+      setSelectedOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              creditAmount: Math.max(0, newCredit),
+              paymentStatus: newPaymentStatus,
+            }
+          : prev,
+      );
     } catch {
-      setFeedback({ type: "error", text: i.customers.failedToCollect });
+      setCollectFeedback({ type: "error", text: i.customers.failedToCollect });
     } finally {
       setCollectLoading(false);
     }
@@ -418,16 +502,7 @@ export function OrdersContent({
             setPaymentFilter(e.target.value);
             setPage(1);
           }}
-          options={[
-            { value: "all", label: i.orders.allMethods },
-            { value: "CASH", label: i.pos.cash },
-            { value: "CARD", label: i.pos.card },
-            { value: "CREDIT", label: i.pos.credit },
-            { value: "TRANSFER", label: i.pos.transfer },
-            { value: "MOBILE_MONEY", label: i.pos.mobileMoney },
-            { value: "SPLIT", label: i.pos.split },
-            { value: "OTHER", label: i.pos.other },
-          ]}
+          options={paymentMethodOptions}
         />
         <Select
           id="orders-payment-status-filter"
@@ -474,18 +549,6 @@ export function OrdersContent({
           }))}
         />
       </div>
-
-      {feedback && (
-        <p
-          className={`rounded-xl px-3 py-2 text-sm font-medium ${
-            feedback.type === "success"
-              ? "bg-green-50 text-green-700"
-              : "bg-red-50 text-red-700"
-          }`}
-        >
-          {feedback.text}
-        </p>
-      )}
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
         <div className="px-6 py-4 border-b border-slate-100">
@@ -655,7 +718,9 @@ export function OrdersContent({
                       </Badge>
                     </td>
                     <td className="px-5 py-4">
-                      <Badge variant={statusVariant(status)}>{status}</Badge>
+                      <Badge variant={statusVariant(status)}>
+                        {translateOrderStatus(status)}
+                      </Badge>
                     </td>
                     <td className="px-5 py-4 text-slate-500 whitespace-nowrap">
                       {formatDateTime(
@@ -768,7 +833,10 @@ export function OrdersContent({
 
       <Modal
         open={Boolean(selectedOrder)}
-        onClose={() => setSelectedOrder(null)}
+        onClose={() => {
+          setSelectedOrder(null);
+          setFeedback(null);
+        }}
         title={
           selectedOrder
             ? `${i.orders.orderDetails} ${selectedOrder.orderNumber}`
@@ -812,7 +880,7 @@ export function OrdersContent({
                 </p>
                 <div className="mt-1">
                   <Badge variant={statusVariant(displayStatus(selectedOrder))}>
-                    {displayStatus(selectedOrder)}
+                    {translateOrderStatus(displayStatus(selectedOrder))}
                   </Badge>
                 </div>
               </div>
@@ -975,7 +1043,7 @@ export function OrdersContent({
                     {i.common.notes}
                   </p>
                   <p className="mt-1 text-sm text-slate-700">
-                    {selectedOrder.notes || "No notes for this order."}
+                    {selectedOrder.notes || i.orders.noNotes}
                   </p>
                 </div>
                 {selectedOrder.syncError && (
@@ -986,24 +1054,21 @@ export function OrdersContent({
               </div>
             </div>
 
-            {/* Print button */}
+            {/* Print & Collect */}
             <div className="flex justify-end gap-3">
               {selectedOrder.creditAmount > 0 && selectedOrder.customerId && (
                 <Button
                   variant="primary"
                   type="button"
-                  loading={collectLoading}
-                  onClick={handleCollectFullPayment}
+                  onClick={() => {
+                    setCollectOrderAmount("");
+                    setCollectNote("");
+                    setCollectMethod("CASH");
+                    setCollectFeedback(null);
+                    setCollectModalOpen(true);
+                  }}
                 >
-                  {i.orders.collectPayment} (
-                  {formatCurrency(
-                    selectedOrder.creditAmount,
-                    currency,
-                    numberFormat,
-                    currencyFormat,
-                    language,
-                  )}
-                  )
+                  {i.orders.collectPayment}
                 </Button>
               )}
               <Button
@@ -1157,6 +1222,18 @@ export function OrdersContent({
               </div>
             </div>
 
+            {feedback && (
+              <p
+                className={`rounded-xl px-3 py-2 text-sm font-medium ${
+                  feedback.type === "success"
+                    ? "bg-green-50 text-green-700"
+                    : "bg-red-50 text-red-700"
+                }`}
+              >
+                {feedback.text}
+              </p>
+            )}
+
             {displayStatus(selectedOrder) === "COMPLETED" ? (
               <div className="space-y-3 border-t border-slate-100 pt-3">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -1212,10 +1289,162 @@ export function OrdersContent({
               <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 {i.orders.orderIsStatus.replace(
                   "{status}",
-                  displayStatus(selectedOrder).toLowerCase(),
+                  translateOrderStatus(displayStatus(selectedOrder)),
                 )}
               </p>
             )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Collect Payment Modal */}
+      <Modal
+        open={collectModalOpen && Boolean(selectedOrder)}
+        onClose={() => {
+          setCollectModalOpen(false);
+          setCollectOrderAmount("");
+          setCollectNote("");
+          setCollectMethod("CASH");
+          setCollectFeedback(null);
+        }}
+        title={i.orders.collectPayment}
+        size="sm"
+      >
+        {selectedOrder && selectedOrder.creditAmount > 0 && (
+          <div className="space-y-4">
+            <div className="rounded-xl bg-amber-50 p-4 text-center">
+              <p className="text-xs text-amber-600 mb-1">
+                {i.orders.remainingCredit}
+              </p>
+              <p className="text-2xl font-bold text-amber-800 tabular-nums">
+                {formatCurrency(
+                  selectedOrder.creditAmount,
+                  currency,
+                  numberFormat,
+                  currencyFormat,
+                  language,
+                )}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                {i.orders.collectAmount}
+              </label>
+              <input
+                type="number"
+                placeholder={selectedOrder.creditAmount.toString()}
+                value={collectOrderAmount}
+                onChange={(e) => setCollectOrderAmount(e.target.value)}
+                min="0"
+                max={selectedOrder.creditAmount}
+                step="any"
+                className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-lg font-bold text-slate-900 tabular-nums focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+              />
+              <div className="flex gap-2 mt-2">
+                {[
+                  selectedOrder.creditAmount,
+                  ...(selectedOrder.creditAmount > 1000
+                    ? [Math.ceil(selectedOrder.creditAmount / 2)]
+                    : []),
+                ].map((val, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setCollectOrderAmount(val.toString())}
+                    className="flex-1 py-1.5 rounded-lg bg-slate-100 text-xs font-semibold text-slate-600 hover:bg-slate-200 active:scale-95 transition-all tabular-nums cursor-pointer"
+                  >
+                    {formatCurrency(
+                      val,
+                      currency,
+                      numberFormat,
+                      currencyFormat,
+                      language,
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                {i.customers.paymentMethod}
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    { value: "CASH" as const, label: i.pos.cash },
+                    { value: "MOBILE_MONEY" as const, label: i.pos.shamcash },
+                    { value: "CARD" as const, label: i.pos.card },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setCollectMethod(m.value)}
+                    className={`py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ring-2 ring-inset ${
+                      collectMethod === m.value
+                        ? "ring-indigo-500 bg-indigo-50 text-indigo-700"
+                        : "ring-transparent bg-slate-50 text-slate-500 hover:bg-slate-100"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                {i.customers.paymentNote}
+              </label>
+              <input
+                type="text"
+                value={collectNote}
+                onChange={(e) => setCollectNote(e.target.value)}
+                className="w-full rounded-xl border-2 border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+              />
+            </div>
+
+            {collectFeedback && (
+              <p
+                className={`rounded-xl px-3 py-2 text-sm font-medium ${
+                  collectFeedback.type === "success"
+                    ? "bg-green-50 text-green-700"
+                    : "bg-red-50 text-red-700"
+                }`}
+              >
+                {collectFeedback.text}
+              </p>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => {
+                  setCollectModalOpen(false);
+                  setCollectOrderAmount("");
+                  setCollectNote("");
+                  setCollectMethod("CASH");
+                  setCollectFeedback(null);
+                }}
+              >
+                {i.common.cancel}
+              </Button>
+              <Button
+                className="flex-1"
+                loading={collectLoading}
+                onClick={handleCollectFullPayment}
+                disabled={
+                  !collectOrderAmount ||
+                  parseFloat(collectOrderAmount) <= 0 ||
+                  parseFloat(collectOrderAmount) > selectedOrder.creditAmount
+                }
+              >
+                {i.orders.collectPayment}
+              </Button>
+            </div>
           </div>
         )}
       </Modal>

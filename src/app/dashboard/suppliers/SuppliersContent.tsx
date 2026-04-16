@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useLocalSuppliers } from "@/hooks/useLocalData";
 import { SupplierActions } from "./SupplierActions";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { RowActions } from "@/components/ui/RowActions";
+import { FloatingActionBar } from "@/components/ui/FloatingActionBar";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { SearchInput } from "@/components/ui/SearchInput";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
 import { t, type Locale } from "@/lib/i18n";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -30,7 +32,6 @@ export function SuppliersContent({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [editMode, setEditMode] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -108,7 +109,10 @@ export function SuppliersContent({
       });
     } else {
       setSelectedIds((prev) => prev.filter((item) => item !== id));
-      setFeedback({ type: "success", text: `Deleted "${name}".` });
+      setFeedback({
+        type: "success",
+        text: i.common.deleted.replace("{name}", name),
+      });
       router.refresh();
     }
     setDeletingId(null);
@@ -138,7 +142,10 @@ export function SuppliersContent({
     } else {
       setFeedback({
         type: "success",
-        text: `Deleted ${selectedIds.length} suppliers.`,
+        text: i.common.deletedCount.replace(
+          "{count}",
+          String(selectedIds.length),
+        ),
       });
       setSelectedIds([]);
       router.refresh();
@@ -156,43 +163,21 @@ export function SuppliersContent({
         <SupplierActions merchantId={merchantId} language={language} />
       </PageHeader>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="w-full md:max-w-sm">
-          <Input
-            id="supplier-search"
-            label={i.common.search}
-            placeholder={i.suppliers.searchPlaceholder}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={editMode ? "primary" : "outline"}
-            size="sm"
-            onClick={() => {
-              setEditMode((prev) => !prev);
-              if (editMode) setSelectedIds([]);
-            }}
-          >
-            {editMode ? i.common.done : i.common.edit}
-          </Button>
-          {editMode && selectedIds.length > 0 && (
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={bulkDeleting}
-              onClick={() => setConfirmBulkDelete(true)}
-            >
-              {bulkDeleting
-                ? i.common.deleting
-                : `${i.common.deleteSelected} (${formatNumber(selectedIds.length, numberFormat)})`}
-            </Button>
-          )}
-        </div>
+      <div className="w-full md:max-w-sm">
+        <SearchInput
+          id="supplier-search"
+          label={i.common.search}
+          placeholder={i.suppliers.searchPlaceholder}
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          resultCount={filteredSuppliers.length}
+          totalCount={suppliers.length}
+          numberFormat={numberFormat}
+          language={language}
+        />
       </div>
 
       {feedback && (
@@ -211,16 +196,14 @@ export function SuppliersContent({
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              {editMode && (
-                <th className="px-4 py-3.5 text-start">
-                  <input
-                    type="checkbox"
-                    checked={allPageSelected}
-                    onChange={toggleSelectPage}
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                </th>
-              )}
+              <th className="px-4 py-3.5 text-start w-10">
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  onChange={toggleSelectPage}
+                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+              </th>
               <th className="px-5 py-3.5 text-start font-semibold">
                 {i.common.name}
               </th>
@@ -236,13 +219,16 @@ export function SuppliersContent({
               <th className="px-5 py-3.5 text-start font-semibold">
                 {i.common.notes}
               </th>
+              <th className="px-4 py-3.5 text-end font-semibold">
+                {i.common.actions}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredSuppliers.length === 0 ? (
               <tr>
                 <td
-                  colSpan={editMode ? 7 : 6}
+                  colSpan={8}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {suppliers.length === 0
@@ -256,16 +242,14 @@ export function SuppliersContent({
                   key={s.id}
                   className="hover:bg-slate-50/50 transition-colors"
                 >
-                  {editMode && (
-                    <td className="px-4 py-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(s.id)}
-                        onChange={() => toggleSelected(s.id)}
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                    </td>
-                  )}
+                  <td className="px-4 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(s.id)}
+                      onChange={() => toggleSelected(s.id)}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </td>
                   <td className="px-5 py-4">
                     <button
                       type="button"
@@ -284,6 +268,24 @@ export function SuppliersContent({
                   </td>
                   <td className="px-5 py-4 text-slate-400 text-xs max-w-[200px] truncate">
                     {s.notes || "·"}
+                  </td>
+                  <td className="px-4 py-4">
+                    <RowActions
+                      actions={[
+                        {
+                          icon: "edit",
+                          label: i.common.edit,
+                          onClick: () => setEditSupplier(s),
+                        },
+                        {
+                          icon: "delete",
+                          label: i.common.delete,
+                          variant: "danger",
+                          onClick: () =>
+                            setConfirmDelete({ id: s.id, name: s.name }),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))
@@ -327,6 +329,15 @@ export function SuppliersContent({
           </div>
         </div>
       )}
+
+      <FloatingActionBar
+        selectedCount={selectedIds.length}
+        onDelete={() => setConfirmBulkDelete(true)}
+        onCancel={() => setSelectedIds([])}
+        deleting={bulkDeleting}
+        numberFormat={numberFormat}
+        language={language}
+      />
 
       {editSupplier && (
         <SupplierActions

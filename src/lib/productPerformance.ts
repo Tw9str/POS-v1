@@ -21,7 +21,8 @@ export interface InventoryInsight {
   productId: string;
   action: InventoryAction;
   priority: number;
-  reason: string;
+  reasonKey: string;
+  reasonParams?: Record<string, string | number>;
   threshold: number;
   recommendedQty: number;
   coverageDays: number | null;
@@ -125,7 +126,7 @@ export function buildInventoryInsights(
 ): InventoryInsight[] {
   return products
     .filter((product) => product.trackStock)
-    .map((product) => {
+    .map((product): InventoryInsight => {
       const metric = performance.get(product.id);
       const threshold = Math.max(1, product.lowStockAt || 5);
       const coverageDays = metric?.stockCoverageDays ?? null;
@@ -150,7 +151,8 @@ export function buildInventoryInsights(
           productId: product.id,
           action: "dead" as const,
           priority: Math.min(100, 40 + product.stock),
-          reason: `No sales in the last 30 days with ${product.stock} ${product.unit} still on hand.`,
+          reasonKey: "deadStock",
+          reasonParams: { stock: product.stock, unit: product.unit },
           threshold,
           recommendedQty: 0,
           coverageDays,
@@ -162,10 +164,7 @@ export function buildInventoryInsights(
           productId: product.id,
           action: dailyVelocity > 0 ? ("reorder" as const) : ("watch" as const),
           priority: dailyVelocity > 0 ? 100 : 65,
-          reason:
-            dailyVelocity > 0
-              ? "Out of stock while demand is still active."
-              : "Out of stock, but recent demand has been quiet.",
+          reasonKey: dailyVelocity > 0 ? "outOfStockActive" : "outOfStockQuiet",
           threshold,
           recommendedQty: Math.max(recommendedQty, threshold),
           coverageDays: 0,
@@ -180,10 +179,14 @@ export function buildInventoryInsights(
           productId: product.id,
           action: "reorder" as const,
           priority: Math.min(99, 75 + Math.round(metric?.sold7d ?? 0)),
-          reason:
+          reasonKey:
             coverageDays !== null && coverageDays <= 7
-              ? `Only about ${coverageDays.toFixed(1)} days of stock remain at the current pace.`
-              : "Stock is already at or below the low-alert threshold.",
+              ? "lowCoverage"
+              : "belowThreshold",
+          reasonParams:
+            coverageDays !== null && coverageDays <= 7
+              ? { days: coverageDays.toFixed(1) }
+              : undefined,
           threshold,
           recommendedQty: Math.max(recommendedQty, threshold),
           coverageDays,
@@ -199,10 +202,10 @@ export function buildInventoryInsights(
           productId: product.id,
           action: "watch" as const,
           priority: 45 + Math.round(metric?.sold30d ?? 0),
-          reason:
+          reasonKey:
             coverageDays !== null && coverageDays <= 14
-              ? "Demand is healthy, but stock coverage is getting tighter."
-              : "Sales have slowed while stock remains relatively high.",
+              ? "tighteningCoverage"
+              : "slowedSales",
           threshold,
           recommendedQty,
           coverageDays,
@@ -213,7 +216,7 @@ export function buildInventoryInsights(
         productId: product.id,
         action: "healthy" as const,
         priority: 0,
-        reason: "Stock level and sales pace are currently balanced.",
+        reasonKey: "balanced",
         threshold,
         recommendedQty,
         coverageDays,

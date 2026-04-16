@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { useLocalStaff } from "@/hooks/useLocalData";
 import { StaffActions } from "./StaffActions";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { RowActions } from "@/components/ui/RowActions";
+import { FloatingActionBar } from "@/components/ui/FloatingActionBar";
+import { StatusToggle } from "@/components/ui/StatusToggle";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { SearchInput } from "@/components/ui/SearchInput";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
 import { t, type Locale } from "@/lib/i18n";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -45,7 +48,6 @@ export function StaffContent({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [editMode, setEditMode] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -118,7 +120,10 @@ export function StaffContent({
       });
     } else {
       setSelectedIds((prev) => prev.filter((item) => item !== id));
-      setFeedback({ type: "success", text: `Deleted "${name}".` });
+      setFeedback({
+        type: "success",
+        text: i.common.deleted.replace("{name}", name),
+      });
       router.refresh();
     }
     setDeletingId(null);
@@ -176,7 +181,10 @@ export function StaffContent({
     } else {
       setFeedback({
         type: "success",
-        text: `Deleted ${selectedIds.length} staff members.`,
+        text: i.common.deletedCount.replace(
+          "{count}",
+          String(selectedIds.length),
+        ),
       });
       setSelectedIds([]);
       router.refresh();
@@ -194,43 +202,21 @@ export function StaffContent({
         <StaffActions merchantId={merchantId} language={language} />
       </PageHeader>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="w-full md:max-w-sm">
-          <Input
-            id="staff-search"
-            label={i.common.search}
-            placeholder={i.staff.searchPlaceholder}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={editMode ? "primary" : "outline"}
-            size="sm"
-            onClick={() => {
-              setEditMode((prev) => !prev);
-              if (editMode) setSelectedIds([]);
-            }}
-          >
-            {editMode ? i.common.done : i.common.edit}
-          </Button>
-          {editMode && selectedIds.length > 0 && (
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={bulkDeleting}
-              onClick={() => setConfirmBulkDelete(true)}
-            >
-              {bulkDeleting
-                ? i.common.deleting
-                : `${i.common.deleteSelected} (${formatNumber(selectedIds.length, numberFormat)})`}
-            </Button>
-          )}
-        </div>
+      <div className="w-full md:max-w-sm">
+        <SearchInput
+          id="staff-search"
+          label={i.common.search}
+          placeholder={i.staff.searchPlaceholder}
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          resultCount={filteredStaff.length}
+          totalCount={staff.length}
+          numberFormat={numberFormat}
+          language={language}
+        />
       </div>
 
       {feedback && (
@@ -249,16 +235,14 @@ export function StaffContent({
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              {editMode && (
-                <th className="px-4 py-3.5 text-start">
-                  <input
-                    type="checkbox"
-                    checked={allPageSelected}
-                    onChange={toggleSelectPage}
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                </th>
-              )}
+              <th className="px-4 py-3.5 text-start w-10">
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  onChange={toggleSelectPage}
+                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+              </th>
               <th className="px-5 py-3.5 text-start font-semibold">
                 {i.common.name}
               </th>
@@ -271,13 +255,16 @@ export function StaffContent({
               <th className="px-5 py-3.5 text-start font-semibold">
                 {i.common.status}
               </th>
+              <th className="px-4 py-3.5 text-end font-semibold">
+                {i.common.actions}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredStaff.length === 0 ? (
               <tr>
                 <td
-                  colSpan={editMode ? 6 : 5}
+                  colSpan={6}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {staff.length === 0
@@ -291,16 +278,14 @@ export function StaffContent({
                   key={s.id}
                   className="hover:bg-slate-50/50 transition-colors"
                 >
-                  {editMode && (
-                    <td className="px-4 py-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(s.id)}
-                        onChange={() => toggleSelected(s.id)}
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                    </td>
-                  )}
+                  <td className="px-4 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(s.id)}
+                      onChange={() => toggleSelected(s.id)}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </td>
                   <td className="px-5 py-4">
                     <button
                       type="button"
@@ -319,10 +304,11 @@ export function StaffContent({
                     {"••••"}
                   </td>
                   <td className="px-5 py-4">
-                    <button
-                      type="button"
-                      className="group flex items-center gap-2 cursor-pointer"
-                      onClick={() =>
+                    <StatusToggle
+                      isActive={s.isActive}
+                      activeLabel={i.common.active}
+                      inactiveLabel={i.common.inactive}
+                      onToggle={() =>
                         handleToggleActive(s.id, s.name, s.isActive)
                       }
                       title={
@@ -330,20 +316,25 @@ export function StaffContent({
                           ? i.staff.clickToDeactivate
                           : i.staff.clickToActivate
                       }
-                    >
-                      <span
-                        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${s.isActive ? "bg-green-500" : "bg-slate-300"}`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform mt-0.5 ${s.isActive ? "ltr:translate-x-4 rtl:-translate-x-4 ltr:ml-0.5 rtl:mr-0.5" : "ltr:translate-x-0.5 rtl:-translate-x-0.5"}`}
-                        />
-                      </span>
-                      <span
-                        className={`text-xs font-medium ${s.isActive ? "text-green-700" : "text-slate-500"}`}
-                      >
-                        {s.isActive ? i.common.active : i.common.inactive}
-                      </span>
-                    </button>
+                    />
+                  </td>
+                  <td className="px-4 py-4">
+                    <RowActions
+                      actions={[
+                        {
+                          icon: "edit",
+                          label: i.common.edit,
+                          onClick: () => setEditStaff(s),
+                        },
+                        {
+                          icon: "delete",
+                          label: i.common.delete,
+                          variant: "danger",
+                          onClick: () =>
+                            setConfirmDelete({ id: s.id, name: s.name }),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))
@@ -387,6 +378,15 @@ export function StaffContent({
           </div>
         </div>
       )}
+
+      <FloatingActionBar
+        selectedCount={selectedIds.length}
+        onDelete={() => setConfirmBulkDelete(true)}
+        onCancel={() => setSelectedIds([])}
+        deleting={bulkDeleting}
+        numberFormat={numberFormat}
+        language={language}
+      />
 
       {editStaff && (
         <StaffActions

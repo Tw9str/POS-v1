@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ProductInsightModal } from "@/components/ProductInsightModal";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { IconCamera } from "@/components/Icons";
+import { RowActions } from "@/components/ui/RowActions";
 import { SearchInput } from "@/components/ui/SearchInput";
 import {
   SortableTh,
@@ -31,7 +32,13 @@ import {
   buildInventoryInsights,
   buildProductPerformance,
 } from "@/lib/productPerformance";
-import { t, translateUnit, type Locale } from "@/lib/i18n";
+import {
+  t,
+  translateAdjustType,
+  translateInsightReason,
+  translateUnit,
+  type Locale,
+} from "@/lib/i18n";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -396,7 +403,8 @@ export function InventoryContent({
                     </p>
                   </div>
                   <Badge variant="warning">
-                    {formatNumber(urgentReorders.length, numberFormat)} items
+                    {formatNumber(urgentReorders.length, numberFormat)}{" "}
+                    {i.pos.items.toLowerCase()}
                   </Badge>
                 </div>
                 <div className="mt-3 space-y-2">
@@ -425,7 +433,11 @@ export function InventoryContent({
                             )}
                           </p>
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {item.reason}
+                            {translateInsightReason(
+                              item.reasonKey,
+                              language as Locale,
+                              item.reasonParams,
+                            )}
                           </p>
                           <p className="text-xs font-semibold text-amber-700 mt-1">
                             {i.inventory.suggestedReorder} +
@@ -450,7 +462,8 @@ export function InventoryContent({
                     </p>
                   </div>
                   <Badge variant="default">
-                    {formatNumber(deadStockItems.length, numberFormat)} items
+                    {formatNumber(deadStockItems.length, numberFormat)}{" "}
+                    {i.pos.items.toLowerCase()}
                   </Badge>
                 </div>
                 <div className="mt-3 space-y-2">
@@ -479,7 +492,11 @@ export function InventoryContent({
                             )}
                           </p>
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {item.reason}
+                            {translateInsightReason(
+                              item.reasonKey,
+                              language as Locale,
+                              item.reasonParams,
+                            )}
                           </p>
                           <p className="text-xs font-semibold text-slate-700 mt-1">
                             {i.inventory.onHand}{" "}
@@ -736,27 +753,15 @@ export function InventoryContent({
                           </Badge>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              title={i.inventory.adjustStock}
-                              onClick={() => openAdjustModal(p)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors opacity-0 group-hover:opacity-100"
-                            >
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                              </svg>
-                            </button>
-                          </div>
+                          <RowActions
+                            actions={[
+                              {
+                                icon: "edit",
+                                label: i.inventory.adjustStock,
+                                onClick: () => openAdjustModal(p),
+                              },
+                            ]}
+                          />
                         </td>
                       </tr>
                     );
@@ -785,12 +790,13 @@ export function InventoryContent({
                     )}
                   </p>
                   <p className="text-sm text-slate-500">
-                    {entry.reason || entry.type.replaceAll("_", " ")}
+                    {entry.reason ||
+                      translateAdjustType(entry.type, language as Locale)}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <Badge variant={entry.quantity > 0 ? "success" : "warning"}>
-                    {entry.type.replaceAll("_", " ")}
+                    {translateAdjustType(entry.type, language as Locale)}
                   </Badge>
                   <span
                     className={
@@ -915,7 +921,7 @@ export function InventoryContent({
               id="adjustment-quantity"
               label={i.inventory.quantity}
               type="number"
-              placeholder="Use + to add, - to remove"
+              placeholder={i.inventory.adjustQuantityPlaceholder}
               value={adjustmentForm.quantity}
               onChange={(e) =>
                 setAdjustmentForm((prev) => ({
@@ -929,7 +935,7 @@ export function InventoryContent({
             <Input
               id="adjustment-reason"
               label={i.inventory.reasonOptional}
-              placeholder="Why is stock changing?"
+              placeholder={i.inventory.adjustReasonPlaceholder}
               value={adjustmentForm.reason}
               onChange={(e) =>
                 setAdjustmentForm((prev) => ({

@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
-import { Badge } from "@/components/ui/Badge";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { RowActions } from "@/components/ui/RowActions";
+import { FloatingActionBar } from "@/components/ui/FloatingActionBar";
+import { StatusToggle } from "@/components/ui/StatusToggle";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SearchInput } from "@/components/ui/SearchInput";
 import {
@@ -86,6 +88,13 @@ export function PromosContent({
   const [deleteConfirm, setDeleteConfirm] = useState<{
     id: string;
     code: string;
+  } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
   } | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -224,17 +233,19 @@ export function PromosContent({
     }
   }
 
-  function getStatusBadge(p: Promotion) {
-    if (!p.isActive)
-      return <Badge variant="default">{i.promos.inactive}</Badge>;
+  function getStatusInfo(p: Promotion): {
+    label: string;
+    variant: "default" | "success" | "warning" | "danger";
+  } {
+    if (!p.isActive) return { label: i.promos.inactive, variant: "default" };
     const now = new Date();
     if (p.startsAt && now < new Date(p.startsAt))
-      return <Badge variant="warning">{i.promos.scheduled}</Badge>;
+      return { label: i.promos.scheduled, variant: "warning" };
     if (p.endsAt && now > new Date(p.endsAt))
-      return <Badge variant="danger">{i.promos.expired}</Badge>;
+      return { label: i.promos.expired, variant: "danger" };
     if (p.maxUses && p.usedCount >= p.maxUses)
-      return <Badge variant="danger">{i.promos.exhausted}</Badge>;
-    return <Badge variant="success">{i.promos.active}</Badge>;
+      return { label: i.promos.exhausted, variant: "danger" };
+    return { label: i.promos.active, variant: "success" };
   }
 
   function getStatusKey(p: Promotion): string {
@@ -331,6 +342,58 @@ export function PromosContent({
     (currentPage - 1) * pageSize,
     currentPage * pageSize,
   );
+  const pageIds = pagedPromos.map((p) => p.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  }
+
+  function toggleSelectPage() {
+    setSelectedIds((prev) =>
+      allPageSelected
+        ? prev.filter((id) => !pageIds.includes(id))
+        : Array.from(new Set([...prev, ...pageIds])),
+    );
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.length === 0) return;
+    setBulkDeleting(true);
+    setFeedback(null);
+    const failures: string[] = [];
+
+    for (const id of selectedIds) {
+      try {
+        const res = await fetch("/api/merchant/promotions", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        if (!res.ok) failures.push(id);
+      } catch {
+        failures.push(id);
+      }
+    }
+
+    if (failures.length > 0) {
+      setFeedback({ type: "error", text: i.common.somethingWentWrong });
+    } else {
+      setFeedback({
+        type: "success",
+        text: i.common.deletedCount.replace(
+          "{count}",
+          String(selectedIds.length),
+        ),
+      });
+      setSelectedIds([]);
+    }
+    fetchPromos();
+    setBulkDeleting(false);
+  }
 
   return (
     <div className="space-y-6">
@@ -418,6 +481,18 @@ export function PromosContent({
         />
       </div>
 
+      {feedback && (
+        <p
+          className={`rounded-xl px-3 py-2 text-sm font-medium ${
+            feedback.type === "success"
+              ? "bg-green-50 text-green-700"
+              : "bg-red-50 text-red-700"
+          }`}
+        >
+          {feedback.text}
+        </p>
+      )}
+
       {loading ? (
         <div className="text-center py-12 text-slate-400">
           {i.common.loading}
@@ -427,6 +502,14 @@ export function PromosContent({
           <table className="w-full text-sm">
             <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
               <tr>
+                <th className="px-4 py-3.5 text-start w-10">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectPage}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                </th>
                 <SortableTh
                   label={i.promos.code}
                   sortKey="code"
@@ -490,14 +573,16 @@ export function PromosContent({
                     setPage(1);
                   }}
                 />
-                <th className="px-5 py-3.5 text-end font-semibold" />
+                <th className="px-5 py-3.5 text-end font-semibold">
+                  {i.common.actions}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filteredPromos.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-5 py-12 text-center text-slate-400"
                   >
                     {promos.length === 0
@@ -511,6 +596,14 @@ export function PromosContent({
                     key={p.id}
                     className="hover:bg-slate-50/50 transition-colors"
                   >
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(p.id)}
+                        onChange={() => toggleSelected(p.id)}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </td>
                     <td className="px-5 py-4">
                       <button
                         type="button"
@@ -529,20 +622,17 @@ export function PromosContent({
                       {formatScope(p)}
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={p.isActive}
-                          onClick={() => handleToggleActive(p)}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${p.isActive ? "bg-emerald-500" : "bg-slate-200"}`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform ${p.isActive ? "translate-x-4" : "translate-x-0"}`}
+                      {(() => {
+                        const status = getStatusInfo(p);
+                        return (
+                          <StatusToggle
+                            isActive={p.isActive}
+                            badgeContent={status.label}
+                            badgeVariant={status.variant}
+                            onToggle={() => handleToggleActive(p)}
                           />
-                        </button>
-                        {getStatusBadge(p)}
-                      </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-5 py-4 text-slate-500 tabular-nums">
                       {formatNumber(p.usedCount, numberFormat)}
@@ -553,17 +643,23 @@ export function PromosContent({
                     <td className="px-5 py-4 text-slate-500 whitespace-nowrap">
                       {formatDate(p.createdAt, "long", numberFormat)}
                     </td>
-                    <td className="px-5 py-4 text-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-500 hover:bg-red-50"
-                        onClick={() =>
-                          setDeleteConfirm({ id: p.id, code: p.code })
-                        }
-                      >
-                        {i.common.delete}
-                      </Button>
+                    <td className="px-4 py-4">
+                      <RowActions
+                        actions={[
+                          {
+                            icon: "edit",
+                            label: i.common.edit,
+                            onClick: () => openEdit(p),
+                          },
+                          {
+                            icon: "delete",
+                            label: i.common.delete,
+                            variant: "danger",
+                            onClick: () =>
+                              setDeleteConfirm({ id: p.id, code: p.code }),
+                          },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))
@@ -608,6 +704,15 @@ export function PromosContent({
           </div>
         </div>
       )}
+
+      <FloatingActionBar
+        selectedCount={selectedIds.length}
+        onDelete={() => setConfirmBulkDelete(true)}
+        onCancel={() => setSelectedIds([])}
+        deleting={bulkDeleting}
+        numberFormat={numberFormat}
+        language={language}
+      />
 
       <Modal
         open={modalOpen}
@@ -823,6 +928,21 @@ export function PromosContent({
         message={i.promos.deletePromoConfirm.replace(
           "{code}",
           deleteConfirm?.code ?? "",
+        )}
+        confirmLabel={i.common.delete}
+      />
+
+      <ConfirmModal
+        open={confirmBulkDelete}
+        onClose={() => setConfirmBulkDelete(false)}
+        onConfirm={() => {
+          setConfirmBulkDelete(false);
+          handleBulkDelete();
+        }}
+        title={i.promos.deleteSelectedPromos}
+        message={i.promos.deleteSelectedConfirm.replace(
+          "{count}",
+          formatNumber(selectedIds.length, numberFormat),
         )}
         confirmLabel={i.common.delete}
       />

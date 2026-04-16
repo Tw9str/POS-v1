@@ -283,15 +283,67 @@ export function ReportsContent({
 
   const router = useRouter();
   const [showAllDebtors, setShowAllDebtors] = useState(false);
+  const [debtorSearch, setDebtorSearch] = useState("");
   const [productTab, setProductTab] = useState<"products" | "variants">(
     "products",
   );
 
-  const sortedDebtors = useMemo(
-    () =>
-      [...stats.debtors].sort((a, b) => (b.balance || 0) - (a.balance || 0)),
-    [stats.debtors],
-  );
+  const nowMs = Date.now();
+
+  // Aging buckets: compute per-debtor age + credit order count
+  const debtorDetails = useMemo(() => {
+    const creditOrdersByCustomer = new Map<string, number>();
+    for (const o of stats.creditOrders) {
+      if (o.customerId) {
+        creditOrdersByCustomer.set(
+          o.customerId,
+          (creditOrdersByCustomer.get(o.customerId) || 0) + 1,
+        );
+      }
+    }
+
+    return stats.debtors.map((d) => {
+      const oldest = stats.oldestDebtByCustomer.get(d.id);
+      const ageDays = oldest
+        ? Math.floor((nowMs - oldest) / (1000 * 60 * 60 * 24))
+        : 0;
+      return {
+        ...d,
+        ageDays,
+        creditOrderCount: creditOrdersByCustomer.get(d.id) || 0,
+        ageBucket: ageDays < 30 ? 0 : ageDays < 60 ? 1 : ageDays < 90 ? 2 : 3,
+      };
+    });
+  }, [stats.debtors, stats.oldestDebtByCustomer, stats.creditOrders, nowMs]);
+
+  // Aging summary
+  const agingSummary = useMemo(() => {
+    const buckets = [
+      { amount: 0, count: 0 },
+      { amount: 0, count: 0 },
+      { amount: 0, count: 0 },
+      { amount: 0, count: 0 },
+    ];
+    for (const d of debtorDetails) {
+      buckets[d.ageBucket].amount += d.balance || 0;
+      buckets[d.ageBucket].count += 1;
+    }
+    return buckets;
+  }, [debtorDetails]);
+
+  const sortedDebtors = useMemo(() => {
+    let list = [...debtorDetails].sort((a, b) => b.ageDays - a.ageDays);
+    if (debtorSearch.trim()) {
+      const q = debtorSearch.trim().toLowerCase();
+      list = list.filter(
+        (d) =>
+          d.name.toLowerCase().includes(q) ||
+          d.phone?.toLowerCase().includes(q) ||
+          d.email?.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [debtorDetails, debtorSearch]);
 
   const visibleDebtors = showAllDebtors
     ? sortedDebtors
@@ -498,72 +550,158 @@ export function ReportsContent({
 
         {/* Credit / Receivables */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              {i.reports.creditReport}
-            </h2>
-            <div className="flex items-center gap-4">
-              {stats.debtors.length > 0 && (
-                <button
-                  type="button"
-                  onClick={exportDebtorsCsv}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  {i.reports.exportDebtors}
-                </button>
-              )}
-              <div className="text-end">
-                <p className="text-xs text-slate-400">
-                  {i.reports.totalOutstanding}
-                </p>
-                <p className="text-lg font-bold text-amber-700 tabular-nums">
-                  {fc(stats.totalOutstanding)}
-                </p>
-              </div>
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                {i.reports.creditReport}
+              </h2>
+              <p className="text-lg font-bold text-amber-700 tabular-nums mt-0.5">
+                {fc(stats.totalOutstanding)}
+                <span className="text-xs font-normal text-slate-400 ms-1.5">
+                  {i.reports.totalOutstanding.toLowerCase()}
+                </span>
+              </p>
             </div>
+            {stats.debtors.length > 0 && (
+              <button
+                type="button"
+                onClick={exportDebtorsCsv}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-colors cursor-pointer"
+              >
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+                  />
+                </svg>
+                CSV
+              </button>
+            )}
           </div>
-          <div className="divide-y divide-slate-50">
-            {stats.debtors.length === 0 ? (
-              <div className="px-6 py-10 text-center text-slate-400 text-sm">
-                {i.reports.noDebtors}
-              </div>
-            ) : (
-              <>
-                {visibleDebtors.map((debtor) => {
-                  const oldestDebt = stats.oldestDebtByCustomer.get(debtor.id);
+
+          {stats.debtors.length === 0 ? (
+            <div className="px-6 py-10 text-center text-slate-400 text-sm">
+              {i.reports.noDebtors}
+            </div>
+          ) : (
+            <>
+              {/* Aging Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-4">
+                {[
+                  { from: 0, to: 30, color: "emerald" as const, idx: 0 },
+                  { from: 30, to: 60, color: "amber" as const, idx: 1 },
+                  { from: 60, to: 90, color: "orange" as const, idx: 2 },
+                  { from: 90, to: 0, color: "red" as const, idx: 3 },
+                ].map(({ from, to, color, idx }) => {
+                  const label =
+                    idx === 3
+                      ? i.reports.agingDaysPlus.replace("{from}", fn(from))
+                      : i.reports.agingDays
+                          .replace("{from}", fn(from))
+                          .replace("{to}", fn(to));
                   return (
                     <div
-                      key={debtor.id}
-                      className="px-6 py-3.5 flex items-center justify-between gap-4 hover:bg-slate-50 cursor-pointer transition-colors"
-                      onClick={() => router.push(`/dashboard/customers`)}
+                      key={idx}
+                      className={`rounded-xl border px-3 py-2.5 ${
+                        color === "emerald"
+                          ? "border-emerald-200 bg-emerald-50"
+                          : color === "amber"
+                            ? "border-amber-200 bg-amber-50"
+                            : color === "orange"
+                              ? "border-orange-200 bg-orange-50"
+                              : "border-red-200 bg-red-50"
+                      }`}
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-blue-700 capitalize hover:underline">
-                          {debtor.name}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {(debtor.phone || debtor.email) && (
-                            <span className="text-xs text-slate-400">
-                              {debtor.phone || debtor.email}
-                            </span>
-                          )}
-                          {oldestDebt && (
-                            <>
-                              <span className="text-xs text-slate-300">·</span>
-                              <span className="text-xs text-slate-400">
-                                {i.reports.oldestDebt}:{" "}
-                                {formatDate(new Date(oldestDebt), dateFormat)}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-sm font-bold text-amber-700 tabular-nums whitespace-nowrap">
-                        {fc(debtor.balance || 0)}
-                      </span>
+                      <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
+                        {label}
+                      </p>
+                      <p
+                        className={`text-base font-bold tabular-nums mt-0.5 ${
+                          color === "emerald"
+                            ? "text-emerald-700"
+                            : color === "amber"
+                              ? "text-amber-700"
+                              : color === "orange"
+                                ? "text-orange-700"
+                                : "text-red-700"
+                        }`}
+                      >
+                        {fc(agingSummary[idx].amount)}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {fn(agingSummary[idx].count)}{" "}
+                        {i.nav.customers.toLowerCase()}
+                      </p>
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Search */}
+              <div className="px-6 pb-3">
+                <input
+                  type="text"
+                  value={debtorSearch}
+                  onChange={(e) => setDebtorSearch(e.target.value)}
+                  placeholder={i.reports.debtorSearch}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                />
+              </div>
+
+              {/* Debtor Table */}
+              <div className="divide-y divide-slate-50">
+                {visibleDebtors.map((debtor) => (
+                  <div
+                    key={debtor.id}
+                    className="px-6 py-3.5 flex items-center justify-between gap-4 hover:bg-slate-50 cursor-pointer transition-colors"
+                    onClick={() => router.push(`/dashboard/customers`)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-blue-700 capitalize hover:underline truncate">
+                          {debtor.name}
+                        </p>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${
+                            debtor.ageBucket === 0
+                              ? "bg-emerald-100 text-emerald-700"
+                              : debtor.ageBucket === 1
+                                ? "bg-amber-100 text-amber-700"
+                                : debtor.ageBucket === 2
+                                  ? "bg-orange-100 text-orange-700"
+                                  : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {i.reports.ageDays.replace(
+                            "{days}",
+                            String(debtor.ageDays),
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {(debtor.phone || debtor.email) && (
+                          <span className="text-xs text-slate-400">
+                            {debtor.phone || debtor.email}
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-300">·</span>
+                        <span className="text-xs text-slate-400">
+                          {fn(debtor.creditOrderCount)} {i.reports.unpaidOrders}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-amber-700 tabular-nums whitespace-nowrap">
+                      {fc(debtor.balance || 0)}
+                    </span>
+                  </div>
+                ))}
                 {sortedDebtors.length > 10 && (
                   <div className="px-6 py-3 text-center">
                     <button
@@ -577,9 +715,9 @@ export function ReportsContent({
                     </button>
                   </div>
                 )}
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

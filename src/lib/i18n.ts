@@ -67,6 +67,9 @@ const en = {
     methodCredit: "Credit",
     methodSplit: "Split",
     methodOther: "Other",
+    deleted: 'Deleted "{name}".',
+    deletedCount: "Deleted {count} items.",
+    noNotes: "No notes",
   },
 
   // ─── Roles ───
@@ -378,6 +381,18 @@ const en = {
     receiptChange: "Change",
     receiptThankYou: "Thank you!",
     pageTotal: "Page total",
+    statusCompleted: "Completed",
+    statusRefunded: "Refunded",
+    statusPartiallyRefunded: "Partially Refunded",
+    statusVoided: "Voided",
+    statusPendingSync: "Pending Sync",
+    statusSyncFailed: "Sync Failed",
+    noNotes: "No notes for this order.",
+    collectAmount: "Collect Amount",
+    invalidCollectAmount: "Enter an amount greater than 0.",
+    amountExceedsCredit: "Amount exceeds remaining credit.",
+    collectFull: "Full",
+    collectHalf: "Half",
   },
 
   // ─── Inventory ───
@@ -440,6 +455,28 @@ const en = {
     stockUpdateOffline: "Stock update for",
     failedToAdjust: "Failed to adjust stock",
     enterWholeNumber: "Enter a whole number above or below zero.",
+    adjustQuantityPlaceholder: "Use + to add, - to remove",
+    adjustReasonPlaceholder: "Why is stock changing?",
+    insightDeadStock:
+      "No sales in the last 30 days with {stock} {unit} still on hand.",
+    insightOutOfStockActive: "Out of stock while demand is still active.",
+    insightOutOfStockQuiet: "Out of stock, but recent demand has been quiet.",
+    insightLowCoverage:
+      "Only about {days} days of stock remain at the current pace.",
+    insightBelowThreshold:
+      "Stock is already at or below the low-alert threshold.",
+    insightTighteningCoverage:
+      "Demand is healthy, but stock coverage is getting tighter.",
+    insightSlowedSales:
+      "Sales have slowed while stock remains relatively high.",
+    insightBalanced: "Stock level and sales pace are currently balanced.",
+    adjustTypeCORRECTION: "Correction",
+    adjustTypePURCHASE: "Purchase",
+    adjustTypeDAMAGE: "Damage",
+    adjustTypeRETURN: "Return",
+    adjustTypeSALE: "Sale",
+    adjustTypeTRANSFER: "Transfer",
+    adjustTypeOTHER: "Other",
   },
 
   // ─── Promos ───
@@ -494,6 +531,9 @@ const en = {
     saveChanges: "Save Changes",
     deletePromotion: "Delete promotion",
     deletePromoConfirm: 'Delete promo code "{code}"? This cannot be undone.',
+    deleteSelectedPromos: "Delete selected promotions",
+    deleteSelectedConfirm:
+      "Delete {count} selected promotions? This cannot be undone.",
     failedToSave: "Failed to save",
   },
 
@@ -523,6 +563,7 @@ const en = {
       "Delete {count} selected customers? This cannot be undone.",
     balance: "Due",
     owes: "Owes",
+    collect: "Collect",
     collectPayment: "Collect Payment",
     collectPaymentFrom: "Collect payment from {name}",
     paymentAmount: "Payment Amount",
@@ -661,6 +702,11 @@ const en = {
     viewAll: "View All",
     showLess: "Show Less",
     exportDebtors: "Export Debtors",
+    agingDays: "{from}–{to} days",
+    agingDaysPlus: "{from}+ days",
+    unpaidOrders: "unpaid orders",
+    ageDays: "{days}d ago",
+    debtorSearch: "Search debtors...",
     periodComparison: "Period Comparison",
     thisWeek: "This Week",
     thisMonth: "This Month",
@@ -759,6 +805,7 @@ const en = {
     currencyCode: "Code (USD 100)",
     currencyNone: "Number only (100)",
     customCurrency: "Custom (3-letter code)",
+    currencyPlaceholder: "e.g. GBP",
     currencySYP: "SYP - Syrian Pound",
     currencyUSD: "USD - US Dollar",
     currencyEUR: "EUR - Euro",
@@ -933,6 +980,9 @@ const ar: DeepStringify<typeof en> = {
     methodCredit: "آجل",
     methodSplit: "تقسيم",
     methodOther: "أخرى",
+    deleted: 'تم حذف "{name}".',
+    deletedCount: "تم حذف {count} عناصر.",
+    noNotes: "لا توجد ملاحظات",
   },
 
   // ─── Roles ───
@@ -1002,7 +1052,7 @@ const ar: DeepStringify<typeof en> = {
     noProductsFound: "لا توجد منتجات",
     cart: "السلة",
     clearAll: "مسح الكل",
-    walkinCustomer: "عميل مباشر",
+    walkinCustomer: "غير مسجل",
     searchOrAddCustomer: "ابحث أو أضف عميل...",
     addNewCustomer: "+ عميل جديد",
     quickAddCustomer: "إضافة عميل",
@@ -1053,7 +1103,7 @@ const ar: DeepStringify<typeof en> = {
     cashier: "الكاشير:",
     customer: "العميل:",
     notAssigned: "غير محدد",
-    walkin: "مباشر",
+    walkin: "غير مسجل",
     orderComplete: "تم إتمام الطلب",
     promoNotStarted: "هذا العرض لم يبدأ بعد",
     promoExpired: "انتهت صلاحية هذا العرض",
@@ -1083,8 +1133,8 @@ const ar: DeepStringify<typeof en> = {
   products: {
     title: "المنتجات",
     products: "منتجات",
-    variants: "متغيرات",
-    searchPlaceholder: "الاسم، المتغير، SKU، الباركود...",
+    variants: "أصناف",
+    searchPlaceholder: "الاسم، الصنف، SKU، الباركود...",
     category: "الفئة",
     allCategories: "كل الفئات",
     categoryOther: "أخرى",
@@ -1118,7 +1168,7 @@ const ar: DeepStringify<typeof en> = {
     deleteAll: "حذف الكل",
     // Product actions / form
     addProduct: "إضافة منتج",
-    addVariant: "إضافة متغير",
+    addVariant: "إضافة صنف",
     editProduct: "تعديل المنتج",
     editBtn: "تعديل",
     categories: "الفئات",
@@ -1126,10 +1176,10 @@ const ar: DeepStringify<typeof en> = {
     productName: "اسم المنتج",
     productNamePlaceholder: "مثال: بيبسي، تيشيرت، أرز",
     productNameHint: "استخدم نفس الاسم لجميع الأحجام أو الألوان لنفس المنتج.",
-    variantOption: "المتغير / الخيار",
+    variantOption: "الصنف / الخيار",
     variantPlaceholder: "اختياري: 330مل، كبير، أحمر...",
     variantHint:
-      "استخدم هذا للحجم أو اللون أو العبوة أو النكهة أو التنويعات المشابهة. كل متغير له SKU وباركود وسعر ومخزون خاص.",
+      "استخدم هذا للحجم أو اللون أو العبوة أو النكهة أو التنويعات المشابهة. كل صنف له SKU وباركود وسعر ومخزون خاص.",
     skuPlaceholder: "يُنشأ تلقائياً أو اكتب يدوياً",
     autoGenerateSku: "إنشاء SKU تلقائي",
     barcodePlaceholder: "امسح أو أدخل الباركود",
@@ -1150,7 +1200,7 @@ const ar: DeepStringify<typeof en> = {
     costPriceLabel: "سعر التكلفة",
     cancel: "إلغاء",
     saveChanges: "حفظ التغييرات",
-    createVariant: "إنشاء متغير",
+    createVariant: "إنشاء صنف",
     createProduct: "إنشاء منتج",
     categoryName: "اسم الفئة",
     color: "اللون",
@@ -1241,6 +1291,18 @@ const ar: DeepStringify<typeof en> = {
     receiptChange: "الباقي",
     receiptThankYou: "شكراً لك!",
     pageTotal: "إجمالي الصفحة",
+    statusCompleted: "مكتمل",
+    statusRefunded: "مسترد",
+    statusPartiallyRefunded: "مسترد جزئياً",
+    statusVoided: "ملغي",
+    statusPendingSync: "بانتظار المزامنة",
+    statusSyncFailed: "فشل المزامنة",
+    noNotes: "لا توجد ملاحظات لهذا الطلب.",
+    collectAmount: "مبلغ التحصيل",
+    invalidCollectAmount: "أدخل مبلغاً أكبر من صفر.",
+    amountExceedsCredit: "المبلغ يتجاوز الآجل المتبقي.",
+    collectFull: "الكل",
+    collectHalf: "النصف",
   },
 
   // ─── Inventory ───
@@ -1274,7 +1336,7 @@ const ar: DeepStringify<typeof en> = {
     noTrackedProducts: "لا توجد منتجات متتبعة",
     noInventoryMatch: "لا توجد عناصر مخزون تطابق البحث أو الفلتر",
     urgentReorderList: "قائمة إعادة الطلب العاجلة",
-    urgentReorderDesc: "متغيرات بتغطية منخفضة أو طلب نشط.",
+    urgentReorderDesc: "أصناف بتغطية منخفضة أو طلب نشط.",
     noUrgentReorder: "لا توجد تنبيهات إعادة طلب عاجلة الآن.",
     suggestedReorder: "إعادة طلب مقترحة:",
     deadStockWatch: "مراقبة المخزون الراكد",
@@ -1303,6 +1365,25 @@ const ar: DeepStringify<typeof en> = {
     stockUpdateOffline: "تحديث مخزون",
     failedToAdjust: "فشل في تعديل المخزون",
     enterWholeNumber: "أدخل رقماً صحيحاً أعلى أو أقل من الصفر.",
+    adjustQuantityPlaceholder: "استخدم + للإضافة، - للخصم",
+    adjustReasonPlaceholder: "لماذا يتغير المخزون؟",
+    insightDeadStock:
+      "لا مبيعات خلال آخر 30 يوماً مع وجود {stock} {unit} في المخزون.",
+    insightOutOfStockActive: "نفد المخزون بينما الطلب لا يزال نشطاً.",
+    insightOutOfStockQuiet: "نفد المخزون، لكن الطلب الأخير كان هادئاً.",
+    insightLowCoverage:
+      "يتبقى حوالي {days} يوم فقط من المخزون بالوتيرة الحالية.",
+    insightBelowThreshold: "المخزون بالفعل عند أو تحت حد التنبيه المنخفض.",
+    insightTighteningCoverage: "الطلب جيد، لكن تغطية المخزون تتقلص.",
+    insightSlowedSales: "تباطأت المبيعات بينما المخزون لا يزال مرتفعاً نسبياً.",
+    insightBalanced: "مستوى المخزون ووتيرة المبيعات متوازنان حالياً.",
+    adjustTypeCORRECTION: "تصحيح",
+    adjustTypePURCHASE: "شراء",
+    adjustTypeDAMAGE: "تالف",
+    adjustTypeRETURN: "إرجاع",
+    adjustTypeSALE: "بيع",
+    adjustTypeTRANSFER: "تحويل",
+    adjustTypeOTHER: "أخرى",
   },
 
   // ─── Promos ───
@@ -1357,6 +1438,9 @@ const ar: DeepStringify<typeof en> = {
     saveChanges: "حفظ التغييرات",
     deletePromotion: "حذف العرض الترويجي",
     deletePromoConfirm: 'حذف كود الخصم "{code}"؟ لا يمكن التراجع عن هذا.',
+    deleteSelectedPromos: "حذف العروض الترويجية المحددة",
+    deleteSelectedConfirm:
+      "حذف {count} عروض ترويجية محددة؟ لا يمكن التراجع عن هذا.",
     failedToSave: "فشل في الحفظ",
   },
 
@@ -1385,6 +1469,7 @@ const ar: DeepStringify<typeof en> = {
     deleteSelectedConfirm: "حذف {count} عملاء محددين؟ لا يمكن التراجع عن هذا.",
     balance: "المستحق",
     owes: "عليه",
+    collect: "تحصيل",
     collectPayment: "تحصيل دفعة",
     collectPaymentFrom: "تحصيل دفعة من {name}",
     paymentAmount: "مبلغ الدفعة",
@@ -1497,7 +1582,7 @@ const ar: DeepStringify<typeof en> = {
     units: "وحدات",
     refunds: "استردادات",
     products: "المنتجات",
-    variants: "المتغيرات",
+    variants: "الأصناف",
     customers: "العملاء",
     lowOutStock: "منخفض / نفد",
     refundVoid: "استرداد / ملغي",
@@ -1505,8 +1590,8 @@ const ar: DeepStringify<typeof en> = {
     voidedOrders: "طلبات ملغاة",
     noSalesData: "لا توجد بيانات مبيعات بعد",
     noProductData: "لا توجد بيانات منتجات بعد",
-    noVariantData: "لا توجد بيانات متغيرات بعد",
-    topSellingVariants: "أفضل المتغيرات مبيعاً",
+    noVariantData: "لا توجد بيانات أصناف بعد",
+    topSellingVariants: "أفضل الأصناف مبيعاً",
     avgOrderValueLabel: "متوسط قيمة الطلب",
     refunded: "مسترد",
     dailyPerformanceLast7: "الأداء اليومي (آخر 7 أيام)",
@@ -1519,6 +1604,11 @@ const ar: DeepStringify<typeof en> = {
     viewAll: "عرض الكل",
     showLess: "عرض أقل",
     exportDebtors: "تصدير المدينين",
+    agingDays: "{from}–{to} يوم",
+    agingDaysPlus: "{from}+ يوم",
+    unpaidOrders: "طلبات غير مدفوعة",
+    ageDays: "منذ {days} يوم",
+    debtorSearch: "بحث في المدينين...",
     periodComparison: "مقارنة الفترات",
     thisWeek: "هذا الأسبوع",
     thisMonth: "هذا الشهر",
@@ -1553,7 +1643,7 @@ const ar: DeepStringify<typeof en> = {
     refundedRevenue: "الإيرادات المستردة",
     reorderCount: "عدد إعادة الطلب",
     deadStockCount: "عدد المخزون الراكد",
-    topVariants: "أفضل المتغيرات",
+    topVariants: "أفضل الأصناف",
     totalSavedCustomers: "إجمالي العملاء المسجلين",
     avgOrderValue: "متوسط قيمة الطلبات",
     revenueTrend: "اتجاه الإيرادات",
@@ -1572,18 +1662,18 @@ const ar: DeepStringify<typeof en> = {
     deadStockDetection: "كشف المخزون الراكد",
     noDataYet: "لا توجد بيانات كافية للفترة المحددة.",
     noPayments: "لا توجد مدفوعات مسجلة بعد.",
-    noVariantPerf: "لا توجد بيانات أداء المتغيرات بعد.",
+    noVariantPerf: "لا توجد بيانات أداء الأصناف بعد.",
     noReorderAlerts: "لا توجد تنبيهات إعادة طلب عاجلة.",
     noDeadStock: "لا توجد مخاطر مخزون راكد حالياً.",
     orders: "طلبات",
     profit: "ربح",
     net: "صافي",
     catalogDepth: "عمق الكتالوج",
-    deadStockVariants: "متغيرات مخزون راكد",
+    deadStockVariants: "أصناف مخزون راكد",
     fastMovers: "سريعة الحركة",
     reorderAlerts: "تنبيهات إعادة الطلب",
-    productsVariants: "المنتجات / المتغيرات",
-    variantsNeedReorder: "متغيرات تحتاج إعادة طلب",
+    productsVariants: "المنتجات / الأصناف",
+    variantsNeedReorder: "أصناف تحتاج إعادة طلب",
     specificDay: "يوم محدد",
     last7days: "آخر 7 أيام",
     last30days: "آخر 30 يوم",
@@ -1617,6 +1707,7 @@ const ar: DeepStringify<typeof en> = {
     currencyCode: "كود (USD 100)",
     currencyNone: "رقم فقط (100)",
     customCurrency: "مخصص (رمز من 3 أحرف)",
+    currencyPlaceholder: "مثال GBP",
     currencySYP: "SYP - ليرة سورية",
     currencyUSD: "USD - دولار أمريكي",
     currencyEUR: "EUR - يورو",
@@ -1705,7 +1796,7 @@ const ar: DeepStringify<typeof en> = {
     uncategorized: "بدون فئة",
     sku: "SKU",
     editProduct: "تعديل",
-    addVariant: "+ متغير",
+    addVariant: "+ صنف",
     deleteProduct: "حذف",
     ordersRefunds: "الطلبات / المرتجعات",
     performanceSummary: "ملخص الأداء",
@@ -1776,4 +1867,48 @@ export function translatePaymentMethod(
         .toLowerCase()
         .replaceAll("_", " ")
         .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const INSIGHT_KEY_MAP: Record<string, keyof TranslationKeys["inventory"]> = {
+  deadStock: "insightDeadStock",
+  outOfStockActive: "insightOutOfStockActive",
+  outOfStockQuiet: "insightOutOfStockQuiet",
+  lowCoverage: "insightLowCoverage",
+  belowThreshold: "insightBelowThreshold",
+  tighteningCoverage: "insightTighteningCoverage",
+  slowedSales: "insightSlowedSales",
+  balanced: "insightBalanced",
+};
+
+export function translateInsightReason(
+  reasonKey: string,
+  locale: Locale,
+  params?: Record<string, string | number>,
+): string {
+  const key = INSIGHT_KEY_MAP[reasonKey];
+  if (!key) return reasonKey;
+  let text = translations[locale].inventory[key] as string;
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      text = text.replace(`{${k}}`, String(v));
+    }
+  }
+  return text;
+}
+
+const ADJUST_TYPE_MAP: Record<string, keyof TranslationKeys["inventory"]> = {
+  CORRECTION: "adjustTypeCORRECTION",
+  PURCHASE: "adjustTypePURCHASE",
+  DAMAGE: "adjustTypeDAMAGE",
+  RETURN: "adjustTypeRETURN",
+  SALE: "adjustTypeSALE",
+  TRANSFER: "adjustTypeTRANSFER",
+  OTHER: "adjustTypeOTHER",
+};
+
+export function translateAdjustType(type: string, locale: Locale): string {
+  const key = ADJUST_TYPE_MAP[type];
+  return key
+    ? (translations[locale].inventory[key] as string)
+    : type.replaceAll("_", " ");
 }

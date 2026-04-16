@@ -36,6 +36,7 @@ import {
 } from "@/lib/utils";
 import {
   t,
+  translateInsightReason,
   translatePaymentMethod,
   translateUnit,
   type Locale,
@@ -859,7 +860,11 @@ export function AnalyticsContent({
                           )}
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {item.reason}
+                          {translateInsightReason(
+                            item.reasonKey,
+                            language as Locale,
+                            item.reasonParams,
+                          )}
                         </p>
                       </div>
                       <Badge variant="warning">
@@ -902,7 +907,11 @@ export function AnalyticsContent({
                           )}
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {item.reason}
+                          {translateInsightReason(
+                            item.reasonKey,
+                            language as Locale,
+                            item.reasonParams,
+                          )}
                         </p>
                       </div>
                       <Badge variant="default">

@@ -17,6 +17,7 @@ import {
 } from "@/lib/utils";
 import {
   t,
+  translateInsightReason,
   translateUnit,
   type Locale,
   type TranslationKeys,
@@ -231,7 +232,13 @@ export function ProductInsightModal({
                 {i.productInsight.recommendedAction}
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                {insight?.reason || i.productInsight.noUrgentAction}
+                {insight
+                  ? translateInsightReason(
+                      insight.reasonKey,
+                      language as Locale,
+                      insight.reasonParams,
+                    )
+                  : i.productInsight.noUrgentAction}
               </p>
             </div>
 

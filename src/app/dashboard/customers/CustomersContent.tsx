@@ -6,6 +6,8 @@ import { useLocalCustomers, useLocalOrders } from "@/hooks/useLocalData";
 import { CustomerActions } from "./CustomerActions";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { RowActions } from "@/components/ui/RowActions";
+import { FloatingActionBar } from "@/components/ui/FloatingActionBar";
 import { offlineFetch } from "@/lib/offline-fetch";
 import {
   formatCurrency,
@@ -19,7 +21,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { StatCard } from "@/components/ui/Card";
 import { SearchInput } from "@/components/ui/SearchInput";
-import { db } from "@/lib/offlineDb";
+import { db, generateLocalId } from "@/lib/offlineDb";
 
 const PAGE_SIZE = 10;
 
@@ -153,7 +155,10 @@ export function CustomersContent({
       });
     } else {
       setSelectedIds((prev) => prev.filter((item) => item !== id));
-      setFeedback({ type: "success", text: `Deleted "${name}".` });
+      setFeedback({
+        type: "success",
+        text: i.common.deleted.replace("{name}", name),
+      });
       router.refresh();
     }
     setDeletingId(null);
@@ -183,7 +188,10 @@ export function CustomersContent({
     } else {
       setFeedback({
         type: "success",
-        text: `Deleted ${selectedIds.length} customers.`,
+        text: i.common.deletedCount.replace(
+          "{count}",
+          formatNumber(selectedIds.length, numberFormat),
+        ),
       });
       setSelectedIds([]);
       router.refresh();
@@ -199,39 +207,85 @@ export function CustomersContent({
 
     setCollectLoading(true);
     try {
-      const res = await fetch("/api/merchant/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: collectCustomer.id,
-          amount,
-          method: collectMethod,
-          note: collectNote.trim() || null,
-        }),
-      });
+      const actualAmount = Math.min(amount, collectCustomer.balance);
 
-      if (res.ok) {
-        const actualAmount = Math.min(amount, collectCustomer.balance);
-        // Update IndexedDB immediately
-        const customer = await db.customers.get(collectCustomer.id);
-        if (customer) {
-          await db.customers.update(collectCustomer.id, {
-            balance: Math.max(0, customer.balance - actualAmount),
+      // Offline-first: update IndexedDB immediately
+      const customer = await db.customers.get(collectCustomer.id);
+      if (customer) {
+        await db.customers.update(collectCustomer.id, {
+          balance: Math.max(0, customer.balance - actualAmount),
+        });
+      }
+      // Update payment status of credit orders for this customer
+      const creditOrders = await db.orders
+        .filter(
+          (o) =>
+            o.customerId === collectCustomer.id &&
+            o.status !== "VOIDED" &&
+            (o.paymentStatus === "credit" ||
+              o.paymentStatus === "partial_credit") &&
+            o.creditAmount > 0,
+        )
+        .toArray();
+      let remaining = actualAmount;
+      for (const order of creditOrders) {
+        if (remaining <= 0) break;
+        const applied = Math.min(remaining, order.creditAmount);
+        const newCredit = order.creditAmount - applied;
+        await db.orders.update(order.localId, {
+          creditAmount: Math.max(0, newCredit),
+          paymentStatus: newCredit <= 0 ? "settled" : "partial_credit",
+        });
+        remaining -= applied;
+      }
+
+      setFeedback({ type: "success", text: i.customers.paymentCollected });
+      setCollectCustomer(null);
+      setCollectAmount("");
+      setCollectNote("");
+      setCollectMethod("CASH");
+
+      // Try to sync to server in background
+      const paymentBody = {
+        customerId: collectCustomer.id,
+        amount,
+        method: collectMethod,
+        note: collectNote.trim() || null,
+      };
+      try {
+        const res = await fetch("/api/merchant/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(paymentBody),
+        });
+        if (!res.ok) {
+          await db.mutations.put({
+            id: generateLocalId(),
+            merchantId,
+            url: "/api/merchant/payments",
+            method: "POST",
+            body: JSON.stringify(paymentBody),
+            entity: "customer",
+            localEntityId: collectCustomer.id,
+            createdAt: Date.now(),
+            syncStatus: "pending",
+            syncError: null,
+            retryCount: 0,
           });
         }
-        setFeedback({ type: "success", text: i.customers.paymentCollected });
-        setCollectCustomer(null);
-        setCollectAmount("");
-        setCollectNote("");
-        setCollectMethod("CASH");
-        router.refresh();
-      } else {
-        const data = await res
-          .json()
-          .catch(() => ({ error: i.common.unknown }));
-        setFeedback({
-          type: "error",
-          text: data.error || i.customers.failedToCollect,
+      } catch {
+        await db.mutations.put({
+          id: generateLocalId(),
+          merchantId,
+          url: "/api/merchant/payments",
+          method: "POST",
+          body: JSON.stringify(paymentBody),
+          entity: "customer",
+          localEntityId: collectCustomer.id,
+          createdAt: Date.now(),
+          syncStatus: "pending",
+          syncError: null,
+          retryCount: 0,
         });
       }
     } catch {
@@ -410,13 +464,16 @@ export function CustomersContent({
               <th className="px-5 py-3.5 text-start font-semibold">
                 {i.customers.visits}
               </th>
+              <th className="px-4 py-3.5 text-end font-semibold">
+                {i.common.actions}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredCustomers.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {customers.length === 0
@@ -457,16 +514,16 @@ export function CustomersContent({
                     {fc(c.totalSpent)}
                   </td>
                   <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      {c.balance > 0 ? (
-                        <>
-                          <span className="text-sm font-bold text-amber-700 tabular-nums">
-                            {fc(c.balance)}
-                          </span>
-                          {/* Collect payment icon */}
+                    <div className="flex flex-col gap-1.5">
+                      <span
+                        className={`text-sm font-bold tabular-nums ${c.balance > 0 ? "text-amber-700" : "text-slate-300"}`}
+                      >
+                        {c.balance > 0 ? fc(c.balance) : "—"}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {c.balance > 0 && (
                           <button
                             type="button"
-                            title={i.customers.collectPayment}
                             onClick={() =>
                               setCollectCustomer({
                                 id: c.id,
@@ -474,56 +531,69 @@ export function CustomersContent({
                                 balance: c.balance,
                               })
                             }
-                            className="p-1.5 rounded-lg text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100 active:bg-amber-200 transition-colors cursor-pointer whitespace-nowrap"
                           >
                             <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="15"
-                              height="15"
+                              width="12"
+                              height="12"
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
-                              strokeWidth="2"
+                              strokeWidth="2.5"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             >
                               <line x1="12" y1="1" x2="12" y2="23" />
                               <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                             </svg>
+                            {i.customers.collect}
                           </button>
-                        </>
-                      ) : (
-                        <span className="text-sm text-slate-300">—</span>
-                      )}
-                      {/* Statement icon */}
-                      <button
-                        type="button"
-                        title={i.customers.statement}
-                        onClick={() => openStatement(c.id, c.name)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="15"
-                          height="15"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openStatement(c.id, c.name)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-50 text-slate-500 ring-1 ring-slate-200 hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer whitespace-nowrap"
                         >
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                          <line x1="16" y1="13" x2="8" y2="13" />
-                          <line x1="16" y1="17" x2="8" y2="17" />
-                          <polyline points="10 9 9 9 8 9" />
-                        </svg>
-                      </button>
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                          </svg>
+                          {i.customers.statement}
+                        </button>
+                      </div>
                     </div>
                   </td>
                   <td className="px-5 py-4 text-slate-500 tabular-nums">
                     {formatNumber(c.visitCount, numberFormat)}
+                  </td>
+                  <td className="px-4 py-4">
+                    <RowActions
+                      actions={[
+                        {
+                          icon: "edit",
+                          label: i.common.edit,
+                          onClick: () => setEditCustomer(c),
+                        },
+                        {
+                          icon: "delete",
+                          label: i.common.delete,
+                          variant: "danger",
+                          onClick: () =>
+                            setConfirmDelete({ id: c.id, name: c.name }),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))
@@ -568,32 +638,14 @@ export function CustomersContent({
         </div>
       )}
 
-      {/* Floating action bar for selection */}
-      {selectedIds.length > 0 && (
-        <div className="sticky bottom-4 z-20 mx-auto w-fit">
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-lg">
-            <span className="text-sm font-semibold text-slate-700">
-              {formatNumber(selectedIds.length, numberFormat)}{" "}
-              {i.common.selected}
-            </span>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={bulkDeleting}
-              onClick={() => setConfirmBulkDelete(true)}
-            >
-              {bulkDeleting ? i.common.deleting : i.common.delete}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setSelectedIds([])}
-            >
-              {i.common.cancel}
-            </Button>
-          </div>
-        </div>
-      )}
+      <FloatingActionBar
+        selectedCount={selectedIds.length}
+        onDelete={() => setConfirmBulkDelete(true)}
+        onCancel={() => setSelectedIds([])}
+        deleting={bulkDeleting}
+        numberFormat={numberFormat}
+        language={language}
+      />
 
       {editCustomer && (
         <CustomerActions

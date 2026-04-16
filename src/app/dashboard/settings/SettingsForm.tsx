@@ -180,7 +180,7 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
                 })
               }
               maxLength={3}
-              placeholder="e.g. GBP"
+              placeholder={i.settings.currencyPlaceholder}
               required
             />
           )}

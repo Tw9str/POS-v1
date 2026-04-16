@@ -27,6 +27,8 @@ import { ProductInsightModal } from "@/components/ProductInsightModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { IconCamera } from "@/components/Icons";
+import { RowActions } from "@/components/ui/RowActions";
+import { FloatingActionBar } from "@/components/ui/FloatingActionBar";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { Select } from "@/components/ui/Select";
 import {
@@ -145,7 +147,7 @@ export function ProductsContent({
               topSeller.product.name,
               topSeller.product.variantName,
             )
-          : "No sales yet",
+          : i.products.noSalesYet,
     };
   }, [products, performance]);
 
@@ -265,7 +267,10 @@ export function ProductsContent({
       });
     } else {
       setSelectedIds((prev) => prev.filter((item) => item !== id));
-      setFeedback({ type: "success", text: `Deleted "${name}".` });
+      setFeedback({
+        type: "success",
+        text: i.common.deleted.replace("{name}", name),
+      });
       router.refresh();
     }
     setDeletingId(null);
@@ -297,7 +302,10 @@ export function ProductsContent({
     } else {
       setFeedback({
         type: "success",
-        text: `Deleted ${selectedIds.length} products.`,
+        text: i.common.deletedCount.replace(
+          "{count}",
+          formatNumber(selectedIds.length, numberFormat),
+        ),
       });
       setSelectedIds([]);
       router.refresh();
@@ -611,56 +619,28 @@ export function ProductsContent({
                       )}
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          title={i.common.edit}
-                          onClick={() => setEditProduct(p)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          title={i.common.delete}
-                          onClick={() =>
-                            setConfirmDelete({
-                              id: p.id,
-                              name: getProductDisplayName(
-                                p.name,
-                                p.variantName,
-                              ),
-                            })
-                          }
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                          </svg>
-                        </button>
-                      </div>
+                      <RowActions
+                        actions={[
+                          {
+                            icon: "edit",
+                            label: i.common.edit,
+                            onClick: () => setEditProduct(p),
+                          },
+                          {
+                            icon: "delete",
+                            label: i.common.delete,
+                            variant: "danger",
+                            onClick: () =>
+                              setConfirmDelete({
+                                id: p.id,
+                                name: getProductDisplayName(
+                                  p.name,
+                                  p.variantName,
+                                ),
+                              }),
+                          },
+                        ]}
+                      />
                     </td>
                   </tr>
                 );
@@ -670,33 +650,14 @@ export function ProductsContent({
         </table>
       </div>
 
-      {/* Floating action bar */}
-      {selectedIds.length > 0 && (
-        <div className="sticky bottom-4 z-20 mx-auto w-fit">
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-lg">
-            <span className="text-sm font-medium text-slate-700">
-              {formatNumber(selectedIds.length, numberFormat)}{" "}
-              {i.common.selected}
-            </span>
-            <div className="w-px h-5 bg-slate-200" />
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={bulkDeleting}
-              onClick={() => setConfirmBulkDelete(true)}
-            >
-              {bulkDeleting ? i.common.deleting : i.common.deleteSelected}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setSelectedIds([])}
-            >
-              {i.common.cancel}
-            </Button>
-          </div>
-        </div>
-      )}
+      <FloatingActionBar
+        selectedCount={selectedIds.length}
+        onDelete={() => setConfirmBulkDelete(true)}
+        onCancel={() => setSelectedIds([])}
+        deleting={bulkDeleting}
+        numberFormat={numberFormat}
+        language={language}
+      />
 
       {filteredProducts.length > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

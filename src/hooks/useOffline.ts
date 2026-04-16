@@ -86,9 +86,39 @@ export function useOffline(merchantId: string): OfflineState {
       refreshPending();
     });
 
+    // Listen for SW-triggered sync requests (Background Sync API)
+    const handleSwSync = () => {
+      if (!navigator.onLine) return;
+      fullSync(merchantIdRef.current).then((result) => {
+        setLastSyncResult(result);
+        refreshPending();
+      });
+    };
+    window.addEventListener("sw-sync-requested", handleSwSync);
+
+    // Re-register background sync tag when coming online
+    const handleOnlineSync = () => {
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.ready.then((reg) => {
+          if ("sync" in reg) {
+            (
+              reg as unknown as {
+                sync: { register: (tag: string) => Promise<void> };
+              }
+            ).sync
+              .register("shampay-sync")
+              .catch(() => {});
+          }
+        });
+      }
+    };
+    window.addEventListener("online", handleOnlineSync);
+
     return () => {
       stopBackgroundSync();
       unsubscribe();
+      window.removeEventListener("sw-sync-requested", handleSwSync);
+      window.removeEventListener("online", handleOnlineSync);
     };
   }, [merchantId, refreshPending]);
 
