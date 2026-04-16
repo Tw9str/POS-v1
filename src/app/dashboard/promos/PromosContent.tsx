@@ -199,6 +199,31 @@ export function PromosContent({
     }
   }
 
+  async function handleToggleActive(p: Promotion) {
+    // Optimistic update
+    setPromos((prev) =>
+      prev.map((x) => (x.id === p.id ? { ...x, isActive: !p.isActive } : x)),
+    );
+    try {
+      const res = await fetch("/api/merchant/promotions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: p.id, isActive: !p.isActive }),
+      });
+      if (!res.ok) {
+        // Revert on failure
+        setPromos((prev) =>
+          prev.map((x) => (x.id === p.id ? { ...x, isActive: p.isActive } : x)),
+        );
+      }
+    } catch {
+      // Revert on failure
+      setPromos((prev) =>
+        prev.map((x) => (x.id === p.id ? { ...x, isActive: p.isActive } : x)),
+      );
+    }
+  }
+
   function getStatusBadge(p: Promotion) {
     if (!p.isActive)
       return <Badge variant="default">{i.promos.inactive}</Badge>;
@@ -224,7 +249,13 @@ export function PromosContent({
   function formatValue(p: Promotion) {
     return p.type === "PERCENT"
       ? `${formatNumber(p.value, numberFormat)}%`
-      : formatCurrency(p.value, currency, numberFormat, currencyFormat, language);
+      : formatCurrency(
+          p.value,
+          currency,
+          numberFormat,
+          currencyFormat,
+          language,
+        );
   }
 
   function formatScope(p: Promotion) {
@@ -497,7 +528,22 @@ export function PromosContent({
                     <td className="px-5 py-4 text-slate-500">
                       {formatScope(p)}
                     </td>
-                    <td className="px-5 py-4">{getStatusBadge(p)}</td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={p.isActive}
+                          onClick={() => handleToggleActive(p)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${p.isActive ? "bg-emerald-500" : "bg-slate-200"}`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform ${p.isActive ? "translate-x-4" : "translate-x-0"}`}
+                          />
+                        </button>
+                        {getStatusBadge(p)}
+                      </div>
+                    </td>
                     <td className="px-5 py-4 text-slate-500 tabular-nums">
                       {formatNumber(p.usedCount, numberFormat)}
                       {p.maxUses

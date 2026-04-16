@@ -93,6 +93,10 @@ export function InventoryContent({
     quantity: "0",
     reason: "",
   });
+  const [insightsOpen, setInsightsOpen] = useState(true);
+  const [inventoryTab, setInventoryTab] = useState<"stock" | "adjustments">(
+    "stock",
+  );
 
   const tracked = useMemo(
     () =>
@@ -312,7 +316,7 @@ export function InventoryContent({
     <div className="space-y-6">
       <PageHeader title={i.inventory.title} subtitle={i.inventory.subtitle} />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             {i.inventory.trackedItems}
@@ -320,22 +324,20 @@ export function InventoryContent({
           <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">
             {formatNumber(summary.tracked, numberFormat)}
           </p>
-        </div>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-            {i.inventory.lowStock}
-          </p>
-          <p className="mt-2 text-2xl font-bold text-amber-900 tabular-nums">
-            {formatNumber(summary.lowStock, numberFormat)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
-            {i.inventory.outOfStock}
-          </p>
-          <p className="mt-2 text-2xl font-bold text-red-900 tabular-nums">
-            {formatNumber(summary.outOfStock, numberFormat)}
-          </p>
+          <div className="mt-1 flex items-center gap-3 text-xs">
+            {summary.lowStock > 0 && (
+              <span className="text-amber-700">
+                {formatNumber(summary.lowStock, numberFormat)}{" "}
+                {i.inventory.lowStock}
+              </span>
+            )}
+            {summary.outOfStock > 0 && (
+              <span className="text-red-700">
+                {formatNumber(summary.outOfStock, numberFormat)}{" "}
+                {i.inventory.outOfStock}
+              </span>
+            )}
+          </div>
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
@@ -344,13 +346,9 @@ export function InventoryContent({
           <p className="mt-2 text-2xl font-bold text-emerald-900 tabular-nums">
             {formatNumber(summary.sold7d, numberFormat)}
           </p>
-        </div>
-        <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
+          <p className="mt-1 text-xs text-emerald-600">
+            {formatNumber(summary.fastMoving, numberFormat)}{" "}
             {i.inventory.fastMovers}
-          </p>
-          <p className="mt-2 text-2xl font-bold text-cyan-900 tabular-nums">
-            {formatNumber(summary.fastMoving, numberFormat)}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
@@ -363,109 +361,141 @@ export function InventoryContent({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                {i.inventory.urgentReorderList}
-              </p>
-              <p className="mt-1 text-sm text-amber-900">
-                {i.inventory.urgentReorderDesc}
-              </p>
+      {(urgentReorders.length > 0 || deadStockItems.length > 0) && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setInsightsOpen((prev) => !prev)}
+            className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors mb-3"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`transition-transform ${insightsOpen ? "rotate-90" : ""}`}
+            >
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+            {i.inventory.urgentReorderList} / {i.inventory.deadStockWatch}
+          </button>
+          {insightsOpen && (
+            <div className="grid gap-4 xl:grid-cols-2">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                      {i.inventory.urgentReorderList}
+                    </p>
+                    <p className="mt-1 text-sm text-amber-900">
+                      {i.inventory.urgentReorderDesc}
+                    </p>
+                  </div>
+                  <Badge variant="warning">
+                    {formatNumber(urgentReorders.length, numberFormat)} items
+                  </Badge>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {urgentReorders.length === 0 ? (
+                    <p className="text-sm text-slate-500">
+                      {i.inventory.noUrgentReorder}
+                    </p>
+                  ) : (
+                    urgentReorders.map((item) => {
+                      const product = tracked.find(
+                        (entry) => entry.id === item.productId,
+                      );
+                      if (!product) return null;
+
+                      return (
+                        <button
+                          key={item.productId}
+                          type="button"
+                          onClick={() => setSelectedInsightProduct(product)}
+                          className="w-full rounded-xl bg-white/80 px-3 py-2 text-start hover:bg-white transition-colors"
+                        >
+                          <p className="text-sm font-semibold text-slate-900">
+                            {getProductDisplayName(
+                              product.name,
+                              product.variantName,
+                            )}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {item.reason}
+                          </p>
+                          <p className="text-xs font-semibold text-amber-700 mt-1">
+                            {i.inventory.suggestedReorder} +
+                            {formatNumber(item.recommendedQty, numberFormat)}{" "}
+                            {translateUnit(product.unit, language as Locale)}
+                          </p>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+                      {i.inventory.deadStockWatch}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {i.inventory.deadStockDesc}
+                    </p>
+                  </div>
+                  <Badge variant="default">
+                    {formatNumber(deadStockItems.length, numberFormat)} items
+                  </Badge>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {deadStockItems.length === 0 ? (
+                    <p className="text-sm text-slate-500">
+                      {i.inventory.noDeadStock}
+                    </p>
+                  ) : (
+                    deadStockItems.map((item) => {
+                      const product = tracked.find(
+                        (entry) => entry.id === item.productId,
+                      );
+                      if (!product) return null;
+
+                      return (
+                        <button
+                          key={item.productId}
+                          type="button"
+                          onClick={() => setSelectedInsightProduct(product)}
+                          className="w-full rounded-xl bg-slate-50 px-3 py-2 text-start hover:bg-slate-100 transition-colors"
+                        >
+                          <p className="text-sm font-semibold text-slate-900">
+                            {getProductDisplayName(
+                              product.name,
+                              product.variantName,
+                            )}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {item.reason}
+                          </p>
+                          <p className="text-xs font-semibold text-slate-700 mt-1">
+                            {i.inventory.onHand}{" "}
+                            {formatNumber(product.stock, numberFormat)}{" "}
+                            {translateUnit(product.unit, language as Locale)}
+                          </p>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
-            <Badge variant="warning">
-              {formatNumber(urgentReorders.length, numberFormat)} items
-            </Badge>
-          </div>
-          <div className="mt-3 space-y-2">
-            {urgentReorders.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                {i.inventory.noUrgentReorder}
-              </p>
-            ) : (
-              urgentReorders.map((item) => {
-                const product = tracked.find(
-                  (entry) => entry.id === item.productId,
-                );
-                if (!product) return null;
-
-                return (
-                  <button
-                    key={item.productId}
-                    type="button"
-                    onClick={() => setSelectedInsightProduct(product)}
-                    className="w-full rounded-xl bg-white/80 px-3 py-2 text-start hover:bg-white transition-colors"
-                  >
-                    <p className="text-sm font-semibold text-slate-900">
-                      {getProductDisplayName(product.name, product.variantName)}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {item.reason}
-                    </p>
-                    <p className="text-xs font-semibold text-amber-700 mt-1">
-                      {i.inventory.suggestedReorder} +
-                      {formatNumber(item.recommendedQty, numberFormat)}{" "}
-                      {translateUnit(product.unit, language as Locale)}
-                    </p>
-                  </button>
-                );
-              })
-            )}
-          </div>
+          )}
         </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
-                {i.inventory.deadStockWatch}
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                {i.inventory.deadStockDesc}
-              </p>
-            </div>
-            <Badge variant="default">
-              {formatNumber(deadStockItems.length, numberFormat)} items
-            </Badge>
-          </div>
-          <div className="mt-3 space-y-2">
-            {deadStockItems.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                {i.inventory.noDeadStock}
-              </p>
-            ) : (
-              deadStockItems.map((item) => {
-                const product = tracked.find(
-                  (entry) => entry.id === item.productId,
-                );
-                if (!product) return null;
-
-                return (
-                  <button
-                    key={item.productId}
-                    type="button"
-                    onClick={() => setSelectedInsightProduct(product)}
-                    className="w-full rounded-xl bg-slate-50 px-3 py-2 text-start hover:bg-slate-100 transition-colors"
-                  >
-                    <p className="text-sm font-semibold text-slate-900">
-                      {getProductDisplayName(product.name, product.variantName)}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {item.reason}
-                    </p>
-                    <p className="text-xs font-semibold text-slate-700 mt-1">
-                      {i.inventory.onHand}{" "}
-                      {formatNumber(product.stock, numberFormat)}{" "}
-                      {translateUnit(product.unit, language as Locale)}
-                    </p>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </div>
+      )}
 
       <div className="grid gap-3 lg:grid-cols-4">
         <SearchInput
@@ -541,268 +571,204 @@ export function InventoryContent({
         </p>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-            {i.inventory.stockLevels}
-          </h2>
-        </div>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
-            <tr>
-              <SortableTh
-                label={i.inventory.product}
-                sortKey="name"
-                currentSort={sortKey}
-                currentDirection={sortDir}
-                onSort={(k) => {
-                  const r = toggleSort(k, sortKey, sortDir);
-                  setSortKey(r.sort);
-                  setSortDir(r.direction);
-                  setPage(1);
-                }}
-              />
-              <SortableTh
-                label={i.inventory.category}
-                sortKey="category"
-                currentSort={sortKey}
-                currentDirection={sortDir}
-                onSort={(k) => {
-                  const r = toggleSort(k, sortKey, sortDir);
-                  setSortKey(r.sort);
-                  setSortDir(r.direction);
-                  setPage(1);
-                }}
-              />
-              <SortableTh
-                label={i.inventory.sku}
-                sortKey="sku"
-                currentSort={sortKey}
-                currentDirection={sortDir}
-                onSort={(k) => {
-                  const r = toggleSort(k, sortKey, sortDir);
-                  setSortKey(r.sort);
-                  setSortDir(r.direction);
-                  setPage(1);
-                }}
-              />
-              <SortableTh
-                label={i.inventory.stockCol}
-                sortKey="stock"
-                currentSort={sortKey}
-                currentDirection={sortDir}
-                onSort={(k) => {
-                  const r = toggleSort(k, sortKey, sortDir);
-                  setSortKey(r.sort);
-                  setSortDir(r.direction);
-                  setPage(1);
-                }}
-              />
-              <SortableTh
-                label={i.inventory.lowAlert}
-                sortKey="lowAlert"
-                currentSort={sortKey}
-                currentDirection={sortDir}
-                onSort={(k) => {
-                  const r = toggleSort(k, sortKey, sortDir);
-                  setSortKey(r.sort);
-                  setSortDir(r.direction);
-                  setPage(1);
-                }}
-              />
-              <SortableTh
-                label={i.inventory.sold7d}
-                sortKey="sold7d"
-                currentSort={sortKey}
-                currentDirection={sortDir}
-                onSort={(k) => {
-                  const r = toggleSort(k, sortKey, sortDir);
-                  setSortKey(r.sort);
-                  setSortDir(r.direction);
-                  setPage(1);
-                }}
-              />
-              <SortableTh
-                label={i.inventory.net30d}
-                sortKey="net30d"
-                currentSort={sortKey}
-                currentDirection={sortDir}
-                onSort={(k) => {
-                  const r = toggleSort(k, sortKey, sortDir);
-                  setSortKey(r.sort);
-                  setSortDir(r.direction);
-                  setPage(1);
-                }}
-              />
-              <th className="px-5 py-3.5 text-start font-semibold">
-                {i.inventory.movementCol}
-              </th>
-              <th className="px-5 py-3.5 text-start font-semibold">
-                {i.inventory.statusCol}
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {filtered.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={9}
-                  className="px-5 py-12 text-center text-slate-400"
-                >
-                  {tracked.length === 0
-                    ? i.inventory.noTrackedProducts
-                    : i.inventory.noInventoryMatch}
-                </td>
-              </tr>
-            ) : (
-              pagedItems.map((p) => {
-                const threshold = Math.max(1, p.lowStockAt || 5);
-                const isOut = p.stock <= 0;
-                const isLow = !isOut && p.stock <= threshold;
-                const metric = performance.get(p.id);
-                const movementVariant =
-                  metric?.movement === "fast"
-                    ? "success"
-                    : metric?.movement === "steady"
-                      ? "info"
-                      : metric?.movement === "slow"
-                        ? "warning"
-                        : "default";
-
-                return (
-                  <tr
-                    key={p.id}
-                    className="hover:bg-slate-50/50 transition-colors"
-                  >
-                    <td className="px-5 py-4 text-slate-800">
-                      <button
-                        type="button"
-                        className="text-start group cursor-pointer"
-                        onClick={() => setSelectedInsightProduct(p)}
-                      >
-                        <p className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 group-hover:decoration-indigo-300 transition-all">
-                          {p.name}
-                        </p>
-                        <p className="text-xs font-medium text-slate-500">
-                          {p.variantName || i.inventory.singleDefaultItem}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-400">
-                          {metric?.lastSoldAt
-                            ? `${i.inventory.lastSold} ${formatDateTime(new Date(metric.lastSoldAt), "numeric", numberFormat)}`
-                            : i.inventory.noSalesYet}
-                        </p>
-                      </button>
-                    </td>
-                    <td className="px-5 py-4 text-slate-500 capitalize">
-                      {p.categoryName === "Other"
-                        ? i.products.categoryOther
-                        : p.categoryName || "·"}
-                    </td>
-                    <td className="px-5 py-4 text-slate-500 font-mono text-xs">
-                      {p.sku || "·"}
-                    </td>
-                    <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
-                      {formatNumber(p.stock, numberFormat)}{" "}
-                      {translateUnit(p.unit, language as Locale)}
-                    </td>
-                    <td className="px-5 py-4 text-slate-500 tabular-nums">
-                      {formatNumber(threshold, numberFormat)}{" "}
-                      {translateUnit(p.unit, language as Locale)}
-                    </td>
-                    <td className="px-5 py-4 text-slate-600 tabular-nums">
-                      {formatNumber(metric?.sold7d ?? 0, numberFormat)}
-                    </td>
-                    <td className="px-5 py-4 font-semibold text-slate-900 tabular-nums">
-                      {formatCurrency(
-                        metric?.netRevenue ?? 0,
-                        currency,
-                        numberFormat,
-                        currencyFormat,
-                        language,
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      <Badge variant={movementVariant}>
-                        {metric?.movement === "fast"
-                          ? i.inventory.fast
-                          : metric?.movement === "steady"
-                            ? i.inventory.steady
-                            : metric?.movement === "slow"
-                              ? i.inventory.slow
-                              : i.inventory.noMovement}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-4">
-                      <Badge
-                        variant={
-                          isOut ? "danger" : isLow ? "warning" : "success"
-                        }
-                      >
-                        {isOut
-                          ? i.inventory.outOfStock
-                          : isLow
-                            ? i.inventory.lowStock
-                            : i.inventory.inStock}
-                      </Badge>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {filtered.length > 0 && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-500">
-            {i.common.showing}{" "}
-            {formatNumber((currentPage - 1) * pageSize + 1, numberFormat)}-
-            {formatNumber(
-              Math.min(currentPage * pageSize, filtered.length),
-              numberFormat,
-            )}{" "}
-            {i.common.of} {formatNumber(filtered.length, numberFormat)}
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={currentPage === 1}
-              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+            <button
+              type="button"
+              onClick={() => setInventoryTab("stock")}
+              className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                inventoryTab === "stock"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
             >
-              {i.common.previous}
-            </Button>
-            <span className="text-sm text-slate-500">
-              {i.common.page} {formatNumber(currentPage, numberFormat)} /{" "}
-              {formatNumber(totalPages, numberFormat)}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              {i.inventory.stockLevels}
+            </button>
+            <button
+              type="button"
+              onClick={() => setInventoryTab("adjustments")}
+              className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                inventoryTab === "adjustments"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
             >
-              {i.common.next}
-            </Button>
+              {i.inventory.recentAdjustments}
+              {history.length > 0 && (
+                <span className="ms-1.5 text-[10px] bg-slate-200 text-slate-600 rounded-full px-1.5 py-0.5">
+                  {formatNumber(history.length, numberFormat)}
+                </span>
+              )}
+            </button>
           </div>
         </div>
-      )}
 
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-            {i.inventory.recentAdjustments}
-          </h2>
-          <p className="text-sm text-slate-500">
-            {historyLoading
-              ? i.common.loading
-              : `${formatNumber(history.length, numberFormat)} ${i.inventory.recentEntries}`}
-          </p>
-        </div>
-        {history.length === 0 ? (
+        {inventoryTab === "stock" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
+                <tr>
+                  <SortableTh
+                    label={i.inventory.product}
+                    sortKey="name"
+                    currentSort={sortKey}
+                    currentDirection={sortDir}
+                    onSort={(k) => {
+                      const r = toggleSort(k, sortKey, sortDir);
+                      setSortKey(r.sort);
+                      setSortDir(r.direction);
+                      setPage(1);
+                    }}
+                  />
+                  <SortableTh
+                    label={i.inventory.category}
+                    sortKey="category"
+                    currentSort={sortKey}
+                    currentDirection={sortDir}
+                    onSort={(k) => {
+                      const r = toggleSort(k, sortKey, sortDir);
+                      setSortKey(r.sort);
+                      setSortDir(r.direction);
+                      setPage(1);
+                    }}
+                  />
+                  <SortableTh
+                    label={i.inventory.stockCol}
+                    sortKey="stock"
+                    currentSort={sortKey}
+                    currentDirection={sortDir}
+                    onSort={(k) => {
+                      const r = toggleSort(k, sortKey, sortDir);
+                      setSortKey(r.sort);
+                      setSortDir(r.direction);
+                      setPage(1);
+                    }}
+                  />
+                  <SortableTh
+                    label={i.inventory.sold7d}
+                    sortKey="sold7d"
+                    currentSort={sortKey}
+                    currentDirection={sortDir}
+                    onSort={(k) => {
+                      const r = toggleSort(k, sortKey, sortDir);
+                      setSortKey(r.sort);
+                      setSortDir(r.direction);
+                      setPage(1);
+                    }}
+                  />
+                  <th className="px-5 py-3.5 text-start font-semibold">
+                    {i.inventory.statusCol}
+                  </th>
+                  <th className="px-4 py-3.5 text-end font-semibold">
+                    {i.common.actions}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-5 py-12 text-center text-slate-400"
+                    >
+                      {tracked.length === 0
+                        ? i.inventory.noTrackedProducts
+                        : i.inventory.noInventoryMatch}
+                    </td>
+                  </tr>
+                ) : (
+                  pagedItems.map((p) => {
+                    const threshold = Math.max(1, p.lowStockAt || 5);
+                    const isOut = p.stock <= 0;
+                    const isLow = !isOut && p.stock <= threshold;
+                    const metric = performance.get(p.id);
+
+                    return (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-slate-50/50 transition-colors group"
+                      >
+                        <td className="px-5 py-4 text-slate-800">
+                          <button
+                            type="button"
+                            className="text-start group/name cursor-pointer"
+                            onClick={() => setSelectedInsightProduct(p)}
+                          >
+                            <p className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 group-hover/name:decoration-indigo-300 transition-all">
+                              {p.name}
+                            </p>
+                            <p className="text-xs font-medium text-slate-500">
+                              {p.variantName || i.inventory.singleDefaultItem}
+                            </p>
+                            {p.sku && (
+                              <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                {p.sku}
+                              </p>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-5 py-4 text-slate-500 capitalize">
+                          {p.categoryName === "Other"
+                            ? i.products.categoryOther
+                            : p.categoryName || "·"}
+                        </td>
+                        <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
+                          {formatNumber(p.stock, numberFormat)}{" "}
+                          <span className="text-xs font-normal text-slate-400">
+                            {translateUnit(p.unit, language as Locale)}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-slate-600 tabular-nums">
+                          {formatNumber(metric?.sold7d ?? 0, numberFormat)}
+                        </td>
+                        <td className="px-5 py-4">
+                          <Badge
+                            variant={
+                              isOut ? "danger" : isLow ? "warning" : "success"
+                            }
+                          >
+                            {isOut
+                              ? i.inventory.outOfStock
+                              : isLow
+                                ? i.inventory.lowStock
+                                : i.inventory.inStock}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              title={i.inventory.adjustStock}
+                              onClick={() => openAdjustModal(p)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : /* Recent Adjustments tab */
+        history.length === 0 ? (
           <div className="px-6 py-10 text-center text-sm text-slate-400">
-            {i.inventory.noAdjustments}
+            {historyLoading ? i.common.loading : i.inventory.noAdjustments}
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -850,6 +816,42 @@ export function InventoryContent({
           </div>
         )}
       </div>
+
+      {filtered.length > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            {i.common.showing}{" "}
+            {formatNumber((currentPage - 1) * pageSize + 1, numberFormat)}-
+            {formatNumber(
+              Math.min(currentPage * pageSize, filtered.length),
+              numberFormat,
+            )}{" "}
+            {i.common.of} {formatNumber(filtered.length, numberFormat)}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={currentPage === 1}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            >
+              {i.common.previous}
+            </Button>
+            <span className="text-sm text-slate-500">
+              {i.common.page} {formatNumber(currentPage, numberFormat)} /{" "}
+              {formatNumber(totalPages, numberFormat)}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={currentPage === totalPages}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            >
+              {i.common.next}
+            </Button>
+          </div>
+        </div>
+      )}
 
       <ProductInsightModal
         open={Boolean(selectedInsightProduct)}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   useLocalProducts,
   useLocalCustomers,
@@ -260,281 +261,435 @@ export function ReportsContent({
         (o) =>
           o.paymentStatus === "credit" || o.paymentStatus === "partial_credit",
       ),
+      // Oldest credit order per customer
+      oldestDebtByCustomer: (() => {
+        const map = new Map<string, number>();
+        for (const o of saleOrders) {
+          if (
+            (o.paymentStatus === "credit" ||
+              o.paymentStatus === "partial_credit") &&
+            o.customerId
+          ) {
+            const existing = map.get(o.customerId);
+            if (!existing || o.createdAt < existing) {
+              map.set(o.customerId, o.createdAt);
+            }
+          }
+        }
+        return map;
+      })(),
     };
   }, [orders, products, customers, now]);
 
+  const router = useRouter();
+  const [showAllDebtors, setShowAllDebtors] = useState(false);
+  const [productTab, setProductTab] = useState<"products" | "variants">(
+    "products",
+  );
+
+  const sortedDebtors = useMemo(
+    () =>
+      [...stats.debtors].sort((a, b) => (b.balance || 0) - (a.balance || 0)),
+    [stats.debtors],
+  );
+
+  const visibleDebtors = showAllDebtors
+    ? sortedDebtors
+    : sortedDebtors.slice(0, 10);
+
+  const exportDebtorsCsv = useCallback(() => {
+    const header = [
+      i.common.name,
+      i.common.phone,
+      i.common.email,
+      i.reports.totalOutstanding,
+      i.reports.oldestDebt,
+    ].join(",");
+
+    const rows = sortedDebtors.map((d) => {
+      const oldest = stats.oldestDebtByCustomer.get(d.id);
+      return [
+        `"${(d.name || "").replace(/"/g, '""')}"`,
+        `"${d.phone || ""}"`,
+        `"${d.email || ""}"`,
+        d.balance || 0,
+        oldest ? new Date(oldest).toISOString().split("T")[0] : "",
+      ].join(",");
+    });
+
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "debtors.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [sortedDebtors, stats.oldestDebtByCustomer, i]);
+
+  const fc = (v: number) =>
+    formatCurrency(v, currency, numberFormat, currencyFormat, language);
+  const fn = (v: number) => formatNumber(v, numberFormat);
+
+  const topList =
+    productTab === "products" ? stats.topProducts : stats.topVariants;
+  const topColor = productTab === "products" ? "indigo" : "emerald";
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader title={i.reports.title} subtitle={i.reports.subtitle} />
 
-      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
-        <StatCard
-          title={i.reports.grossSales}
-          value={formatCurrency(
-            stats.allTime.grossSales,
-            currency,
-            numberFormat,
-            currencyFormat, language,
-          )}
-          subtitle={`${formatNumber(stats.allTime.orderCount, numberFormat)} ${i.reports.nonVoidedOrders}`}
-          icon={<IconMoney size={24} />}
-        />
-        <StatCard
-          title={i.reports.refundedRevenue}
-          value={formatCurrency(
-            stats.allTime.refundedRevenue,
-            currency,
-            numberFormat,
-            currencyFormat, language,
-          )}
-          subtitle={`${formatNumber(stats.refundedOrders.length, numberFormat)} ${i.reports.refundedOrders}`}
-          icon={<IconOrders size={24} />}
-        />
+      {/* ── Hero row ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           title={i.reports.netRevenue}
-          value={formatCurrency(
-            stats.allTime.netRevenue,
-            currency,
-            numberFormat,
-            currencyFormat, language,
-          )}
-          subtitle={`${formatCurrency(stats.allTime.avgOrder, currency, numberFormat, currencyFormat, language)} ${i.reports.avgOrderValue}`}
-          icon={<IconCustomers size={24} />}
-        />
-        <StatCard
-          title={i.reports.netCogs}
-          value={formatCurrency(
-            stats.allTime.netCogs,
-            currency,
-            numberFormat,
-            currencyFormat, language,
-          )}
-          subtitle={i.reports.netCogsDesc}
-          icon={<IconProducts size={24} />}
+          value={fc(stats.allTime.netRevenue)}
+          subtitle={`${fn(stats.allTime.orderCount)} ${i.reports.nonVoidedOrders}`}
+          icon={<IconMoney size={24} />}
         />
         <StatCard
           title={i.reports.grossProfit}
-          value={formatCurrency(
-            stats.allTime.grossProfit,
-            currency,
-            numberFormat,
-            currencyFormat, language,
-          )}
+          value={fc(stats.allTime.grossProfit)}
           subtitle={`${stats.allTime.margin.toFixed(1)}% ${i.reports.margin}`}
-          icon={<IconMoney size={24} />}
-        />
-        <StatCard
-          title={i.reports.refundRate}
-          value={`${stats.refundRate.toFixed(1)}%`}
-          subtitle={`${formatNumber(stats.voidedOrders.length, numberFormat)} ${i.reports.voidedOrders}`}
           icon={<IconOrders size={24} />}
         />
-      </div>
-
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
-          title={i.reports.todayNet}
-          value={formatCurrency(
-            stats.today.netRevenue,
-            currency,
-            numberFormat,
-            currencyFormat, language,
-          )}
-          subtitle={`${formatCurrency(stats.today.grossProfit, currency, numberFormat, currencyFormat, language)} ${i.reports.profit}`}
-          icon={<IconMoney size={22} />}
-        />
-        <StatCard
-          title={i.reports.thisWeekNet}
-          value={formatCurrency(
-            stats.week.netRevenue,
-            currency,
-            numberFormat,
-            currencyFormat, language,
-          )}
-          subtitle={`${formatCurrency(stats.week.grossProfit, currency, numberFormat, currencyFormat, language)} ${i.reports.profit}`}
-          icon={<IconOrders size={22} />}
-        />
-        <StatCard
-          title={i.reports.thisMonthNet}
-          value={formatCurrency(
-            stats.month.netRevenue,
-            currency,
-            numberFormat,
-            currencyFormat, language,
-          )}
-          subtitle={`${formatCurrency(stats.month.grossProfit, currency, numberFormat, currencyFormat, language)} ${i.reports.profit}`}
-          icon={<IconCustomers size={22} />}
-        />
-        <StatCard
-          title={i.reports.avgDailyOrders}
-          value={formatNumber(stats.avgDailyOrders, numberFormat)}
-          subtitle={`${formatNumber(stats.today.orderCount, numberFormat)} ${i.reports.ordersToday}`}
-          icon={<IconProducts size={22} />}
+          title={i.reports.creditReport}
+          value={fc(stats.totalOutstanding)}
+          subtitle={`${fn(stats.debtors.length)} ${i.reports.debtors.toLowerCase()}`}
+          icon={<IconCustomers size={24} />}
         />
       </div>
 
+      {/* ── Period comparison ── */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+            {i.reports.periodComparison}
+          </h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-slate-400">
+                <th className="px-6 py-3 text-start font-medium" />
+                <th className="px-4 py-3 text-end font-medium">
+                  {i.reports.netRevenue}
+                </th>
+                <th className="px-4 py-3 text-end font-medium">
+                  {i.reports.orders}
+                </th>
+                <th className="px-4 py-3 text-end font-medium">
+                  {i.reports.profit}
+                </th>
+                <th className="px-4 py-3 text-end font-medium">
+                  {i.reports.avgOrderValueLabel}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {(
+                [
+                  { label: i.common.today, data: stats.today },
+                  { label: i.reports.thisWeek, data: stats.week },
+                  { label: i.reports.thisMonth, data: stats.month },
+                  { label: i.reports.allTime, data: stats.allTime },
+                ] as const
+              ).map((row) => (
+                <tr key={row.label} className="hover:bg-slate-50/50">
+                  <td className="px-6 py-3 font-semibold text-slate-700">
+                    {row.label}
+                  </td>
+                  <td className="px-4 py-3 text-end tabular-nums font-bold text-slate-900">
+                    {fc(row.data.netRevenue)}
+                  </td>
+                  <td className="px-4 py-3 text-end tabular-nums text-slate-700">
+                    {fn(row.data.orderCount)}
+                  </td>
+                  <td className="px-4 py-3 text-end tabular-nums font-semibold text-emerald-700">
+                    {fc(row.data.grossProfit)}
+                  </td>
+                  <td className="px-4 py-3 text-end tabular-nums text-slate-600">
+                    {fc(row.data.avgOrder)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Two-column: Top Selling + Credit/Receivables ── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Top Selling (tabbed) */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              {i.reports.dailyPerformanceLast7}
+              {i.reports.topSelling}
             </h2>
+            <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+              <button
+                type="button"
+                onClick={() => setProductTab("products")}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  productTab === "products"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {i.reports.products}
+              </button>
+              <button
+                type="button"
+                onClick={() => setProductTab("variants")}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  productTab === "variants"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {i.reports.variants}
+              </button>
+            </div>
           </div>
           <div className="divide-y divide-slate-50">
-            {stats.dailyPerformance.length === 0 ? (
+            {topList.length === 0 ? (
               <div className="px-6 py-10 text-center text-slate-400 text-sm">
-                {i.reports.noSalesData}
+                {productTab === "products"
+                  ? i.reports.noProductData
+                  : i.reports.noVariantData}
               </div>
             ) : (
-              stats.dailyPerformance.map((day) => (
+              topList.map((item, index) => (
                 <div
-                  key={day.date}
+                  key={item.name}
                   className="px-6 py-3.5 flex items-center justify-between gap-4"
                 >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span
+                      className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${
+                        topColor === "indigo"
+                          ? "bg-indigo-50 text-indigo-700"
+                          : "bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      {fn(index + 1)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 capitalize truncate">
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {fn(item.quantity)} {i.reports.units} ·{" "}
+                        {fc(item.grossProfit)} {i.reports.profit}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-slate-900 tabular-nums whitespace-nowrap">
+                    {fc(item.netRevenue)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Credit / Receivables */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+              {i.reports.creditReport}
+            </h2>
+            <div className="flex items-center gap-4">
+              {stats.debtors.length > 0 && (
+                <button
+                  type="button"
+                  onClick={exportDebtorsCsv}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  {i.reports.exportDebtors}
+                </button>
+              )}
+              <div className="text-end">
+                <p className="text-xs text-slate-400">
+                  {i.reports.totalOutstanding}
+                </p>
+                <p className="text-lg font-bold text-amber-700 tabular-nums">
+                  {fc(stats.totalOutstanding)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {stats.debtors.length === 0 ? (
+              <div className="px-6 py-10 text-center text-slate-400 text-sm">
+                {i.reports.noDebtors}
+              </div>
+            ) : (
+              <>
+                {visibleDebtors.map((debtor) => {
+                  const oldestDebt = stats.oldestDebtByCustomer.get(debtor.id);
+                  return (
+                    <div
+                      key={debtor.id}
+                      className="px-6 py-3.5 flex items-center justify-between gap-4 hover:bg-slate-50 cursor-pointer transition-colors"
+                      onClick={() => router.push(`/dashboard/customers`)}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-blue-700 capitalize hover:underline">
+                          {debtor.name}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {(debtor.phone || debtor.email) && (
+                            <span className="text-xs text-slate-400">
+                              {debtor.phone || debtor.email}
+                            </span>
+                          )}
+                          {oldestDebt && (
+                            <>
+                              <span className="text-xs text-slate-300">·</span>
+                              <span className="text-xs text-slate-400">
+                                {i.reports.oldestDebt}:{" "}
+                                {formatDate(new Date(oldestDebt), dateFormat)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold text-amber-700 tabular-nums whitespace-nowrap">
+                        {fc(debtor.balance || 0)}
+                      </span>
+                    </div>
+                  );
+                })}
+                {sortedDebtors.length > 10 && (
+                  <div className="px-6 py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowAllDebtors((prev) => !prev)}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {showAllDebtors
+                        ? i.reports.showLess
+                        : `${i.reports.viewAll} (${sortedDebtors.length})`}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Daily Performance ── */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+            {i.reports.dailyPerformanceLast7}
+          </h2>
+        </div>
+        {stats.dailyPerformance.length === 0 ? (
+          <div className="px-6 py-10 text-center text-slate-400 text-sm">
+            {i.reports.noSalesData}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-400">
+                  <th className="px-6 py-3 text-start font-medium">
+                    {i.orders.date}
+                  </th>
+                  <th className="px-4 py-3 text-end font-medium">
+                    {i.reports.orders}
+                  </th>
+                  <th className="px-4 py-3 text-end font-medium">
+                    {i.reports.netRevenue}
+                  </th>
+                  <th className="px-4 py-3 text-end font-medium">
+                    {i.reports.profit}
+                  </th>
+                  <th className="px-4 py-3 text-end font-medium">
+                    {i.reports.refunds}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {stats.dailyPerformance.map((day) => (
+                  <tr key={day.date} className="hover:bg-slate-50/50">
+                    <td className="px-6 py-3 font-semibold text-slate-700">
                       {formatDate(day.date, dateFormat, numberFormat)}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {formatNumber(day.orderCount, numberFormat)}{" "}
-                      {i.reports.orders} ·{" "}
-                      {formatCurrency(
-                        day.refundedRevenue,
-                        currency,
-                        numberFormat,
-                        currencyFormat, language,
-                      )}{" "}
-                      {i.reports.refunds}
-                    </p>
-                  </div>
-                  <div className="text-end">
-                    <p className="text-sm font-bold text-slate-900 tabular-nums">
-                      {formatCurrency(
-                        day.netRevenue,
-                        currency,
-                        numberFormat,
-                        currencyFormat, language,
-                      )}
-                    </p>
-                    <p className="text-xs text-emerald-700 font-semibold">
-                      {i.reports.profit}{" "}
-                      {formatCurrency(
-                        day.grossProfit,
-                        currency,
-                        numberFormat,
-                        currencyFormat, language,
-                      )}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
+                    </td>
+                    <td className="px-4 py-3 text-end tabular-nums text-slate-700">
+                      {fn(day.orderCount)}
+                    </td>
+                    <td className="px-4 py-3 text-end tabular-nums font-bold text-slate-900">
+                      {fc(day.netRevenue)}
+                    </td>
+                    <td className="px-4 py-3 text-end tabular-nums font-semibold text-emerald-700">
+                      {fc(day.grossProfit)}
+                    </td>
+                    <td className="px-4 py-3 text-end tabular-nums text-slate-500">
+                      {fc(day.refundedRevenue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              {i.reports.topProducts}
-            </h2>
-          </div>
-          <div className="divide-y divide-slate-50">
-            {stats.topProducts.length === 0 ? (
-              <div className="px-6 py-10 text-center text-slate-400 text-sm">
-                {i.reports.noProductData}
-              </div>
-            ) : (
-              stats.topProducts.map((product, index) => (
-                <div
-                  key={product.name}
-                  className="px-6 py-3.5 flex items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold flex items-center justify-center">
-                      {formatNumber(index + 1, numberFormat)}
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800 capitalize">
-                        {product.name}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {formatNumber(product.quantity, numberFormat)}{" "}
-                        {i.reports.units} ·{" "}
-                        {formatCurrency(
-                          product.grossProfit,
-                          currency,
-                          numberFormat,
-                          currencyFormat, language,
-                        )}{" "}
-                        {i.reports.profit}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-sm font-bold text-slate-900 tabular-nums">
-                    {formatCurrency(
-                      product.netRevenue,
-                      currency,
-                      numberFormat,
-                      currencyFormat, language,
-                    )}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        )}
       </div>
 
+      {/* ── Financials + Store Overview ── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-              {i.reports.topSellingVariants}
-            </h2>
-          </div>
-          <div className="divide-y divide-slate-50">
-            {stats.topVariants.length === 0 ? (
-              <div className="px-6 py-10 text-center text-slate-400 text-sm">
-                {i.reports.noVariantData}
-              </div>
-            ) : (
-              stats.topVariants.map((variant, index) => (
-                <div
-                  key={variant.name}
-                  className="px-6 py-3.5 flex items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center justify-center">
-                      {formatNumber(index + 1, numberFormat)}
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800 capitalize">
-                        {variant.name}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {formatNumber(variant.quantity, numberFormat)}{" "}
-                        {i.reports.units} ·{" "}
-                        {formatCurrency(
-                          variant.grossProfit,
-                          currency,
-                          numberFormat,
-                          currencyFormat, language,
-                        )}{" "}
-                        {i.reports.profit}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-sm font-bold text-slate-900 tabular-nums">
-                    {formatCurrency(
-                      variant.netRevenue,
-                      currency,
-                      numberFormat,
-                      currencyFormat, language,
-                    )}
-                  </span>
-                </div>
-              ))
-            )}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-5">
+            {i.reports.financials}
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-5 gap-x-4">
+            <div>
+              <p className="text-xs text-slate-400">{i.reports.grossSales}</p>
+              <p className="text-lg font-bold text-slate-900 mt-0.5 tabular-nums">
+                {fc(stats.allTime.grossSales)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">
+                {i.reports.refundedRevenue}
+              </p>
+              <p className="text-lg font-bold text-rose-700 mt-0.5 tabular-nums">
+                {fc(stats.allTime.refundedRevenue)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">{i.reports.netCogs}</p>
+              <p className="text-lg font-bold text-slate-900 mt-0.5 tabular-nums">
+                {fc(stats.allTime.netCogs)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">{i.reports.refundRate}</p>
+              <p className="text-lg font-bold text-slate-900 mt-0.5 tabular-nums">
+                {stats.refundRate.toFixed(1)}%
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">{i.reports.refundVoid}</p>
+              <p className="text-lg font-bold text-rose-700 mt-0.5 tabular-nums">
+                {fn(stats.refundedOrders.length)} /{" "}
+                {fn(stats.voidedOrders.length)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">
+                {i.reports.avgDailyOrders}
+              </p>
+              <p className="text-lg font-bold text-slate-900 mt-0.5 tabular-nums">
+                {fn(stats.avgDailyOrders)}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -542,117 +697,40 @@ export function ReportsContent({
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-5">
             {i.reports.storeOverview}
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-5 gap-x-4">
             <div>
-              <p className="text-sm text-slate-500">{i.reports.products}</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-                {formatNumber(stats.productCount, numberFormat)}
+              <p className="text-xs text-slate-400">{i.reports.products}</p>
+              <p className="text-lg font-bold text-slate-900 mt-0.5 tabular-nums">
+                {fn(stats.productCount)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">{i.reports.variants}</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-                {formatNumber(stats.variantCount, numberFormat)}
+              <p className="text-xs text-slate-400">{i.reports.variants}</p>
+              <p className="text-lg font-bold text-slate-900 mt-0.5 tabular-nums">
+                {fn(stats.variantCount)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">{i.reports.customers}</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-                {formatNumber(customers.length, numberFormat)}
+              <p className="text-xs text-slate-400">{i.reports.customers}</p>
+              <p className="text-lg font-bold text-slate-900 mt-0.5 tabular-nums">
+                {fn(customers.length)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">
+              <p className="text-xs text-slate-400">
                 {i.reports.avgOrderValueLabel}
               </p>
-              <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-                {formatCurrency(
-                  stats.allTime.avgOrder,
-                  currency,
-                  numberFormat,
-                  currencyFormat, language,
-                )}
+              <p className="text-lg font-bold text-slate-900 mt-0.5 tabular-nums">
+                {fc(stats.allTime.avgOrder)}
               </p>
             </div>
             <div>
-              <p className="text-sm text-slate-500">{i.reports.lowOutStock}</p>
-              <p className="text-2xl font-bold text-amber-700 mt-1 tabular-nums">
-                {formatNumber(stats.lowStockCount, numberFormat)} /{" "}
-                {formatNumber(stats.outOfStockCount, numberFormat)}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500">{i.reports.refundVoid}</p>
-              <p className="text-2xl font-bold text-rose-700 mt-1 tabular-nums">
-                {formatNumber(stats.refundedOrders.length, numberFormat)} /{" "}
-                {formatNumber(stats.voidedOrders.length, numberFormat)}
+              <p className="text-xs text-slate-400">{i.reports.lowOutStock}</p>
+              <p className="text-lg font-bold text-amber-700 mt-0.5 tabular-nums">
+                {fn(stats.lowStockCount)} / {fn(stats.outOfStockCount)}
               </p>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Credit / Receivables */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-            {i.reports.creditReport}
-          </h2>
-          <div className="flex items-center gap-4">
-            <div className="text-end">
-              <p className="text-xs text-slate-400">
-                {i.reports.totalOutstanding}
-              </p>
-              <p className="text-lg font-bold text-amber-700 tabular-nums">
-                {formatCurrency(
-                  stats.totalOutstanding,
-                  currency,
-                  numberFormat,
-                  currencyFormat, language,
-                )}
-              </p>
-            </div>
-            <div className="text-end">
-              <p className="text-xs text-slate-400">{i.reports.debtors}</p>
-              <p className="text-lg font-bold text-slate-900 tabular-nums">
-                {formatNumber(stats.debtors.length, numberFormat)}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="divide-y divide-slate-50">
-          {stats.debtors.length === 0 ? (
-            <div className="px-6 py-10 text-center text-slate-400 text-sm">
-              {i.reports.noDebtors}
-            </div>
-          ) : (
-            stats.debtors
-              .sort((a, b) => (b.balance || 0) - (a.balance || 0))
-              .slice(0, 10)
-              .map((debtor) => (
-                <div
-                  key={debtor.id}
-                  className="px-6 py-3.5 flex items-center justify-between gap-4"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800 capitalize">
-                      {debtor.name}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {debtor.phone || debtor.email || ""}
-                    </p>
-                  </div>
-                  <span className="text-sm font-bold text-amber-700 tabular-nums">
-                    {formatCurrency(
-                      debtor.balance || 0,
-                      currency,
-                      numberFormat,
-                      currencyFormat, language,
-                    )}
-                  </span>
-                </div>
-              ))
-          )}
         </div>
       </div>
     </div>

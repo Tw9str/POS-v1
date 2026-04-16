@@ -577,13 +577,14 @@ export function OrdersContent({
                   setPage(1);
                 }}
               />
+              <th className="px-3 py-3.5 w-10" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredOrders.length === 0 ? (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {orders.length === 0
@@ -663,11 +664,69 @@ export function OrdersContent({
                         numberFormat,
                       )}
                     </td>
+                    <td className="px-3 py-4">
+                      <button
+                        type="button"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                        title={i.orders.orderDetails}
+                        onClick={() => {
+                          setSelectedOrder(o);
+                          setActionReason("");
+                          setPartialRefundAmount("");
+                        }}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </button>
+                    </td>
                   </tr>
                 );
               })
             )}
           </tbody>
+          {pagedOrders.length > 0 && (
+            <tfoot>
+              <tr className="bg-slate-50 border-t border-slate-200 font-semibold text-slate-700">
+                <td className="px-5 py-3 text-xs uppercase tracking-wider">
+                  {i.orders.pageTotal}
+                </td>
+                <td className="px-5 py-3" />
+                <td className="px-5 py-3" />
+                <td className="px-5 py-3 tabular-nums">
+                  {formatNumber(
+                    pagedOrders.reduce((s, o) => s + o.items.length, 0),
+                    numberFormat,
+                  )}
+                </td>
+                <td className="px-5 py-3 font-bold text-slate-900 tabular-nums">
+                  {formatCurrency(
+                    pagedOrders.reduce((s, o) => s + o.total, 0),
+                    currency,
+                    numberFormat,
+                    currencyFormat,
+                    language,
+                  )}
+                </td>
+                <td className="px-5 py-3" />
+                <td className="px-5 py-3" />
+                <td className="px-5 py-3" />
+                <td className="px-5 py-3" />
+                <td className="px-3 py-3" />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 

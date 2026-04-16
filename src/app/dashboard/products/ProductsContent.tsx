@@ -59,7 +59,6 @@ export function ProductsContent({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [editMode, setEditMode] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -339,22 +338,32 @@ export function ProductsContent({
         </div>
       </PageHeader>
 
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-5">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
             {i.products.title}
           </p>
           <p className="mt-2 text-2xl font-bold text-indigo-900 tabular-nums">
             {formatNumber(productSummary.productCount, numberFormat)}
+            <span className="text-sm font-medium text-indigo-600 ms-1.5">
+              / {formatNumber(productSummary.variantCount, numberFormat)}{" "}
+              {i.products.variants}
+            </span>
           </p>
-        </div>
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
-            {i.products.soldToday}
-          </p>
-          <p className="mt-2 text-2xl font-bold text-violet-900 tabular-nums">
-            {formatNumber(productSummary.unitsSoldToday, numberFormat)}
-          </p>
+          <div className="mt-1 flex items-center gap-3 text-xs text-indigo-600">
+            {productSummary.lowStock > 0 && (
+              <span className="text-amber-700">
+                {formatNumber(productSummary.lowStock, numberFormat)}{" "}
+                {i.products.lowStock}
+              </span>
+            )}
+            {productSummary.outOfStock > 0 && (
+              <span className="text-red-700">
+                {formatNumber(productSummary.outOfStock, numberFormat)}{" "}
+                {i.products.outOfStock}
+              </span>
+            )}
+          </div>
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
@@ -363,109 +372,86 @@ export function ProductsContent({
           <p className="mt-2 text-2xl font-bold text-emerald-900 tabular-nums">
             {formatNumber(productSummary.totalSold7d, numberFormat)}
           </p>
-        </div>
-        <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
-            {i.products.fastMovers}
+          <p className="mt-1 text-xs text-emerald-600">
+            {i.products.soldToday}:{" "}
+            {formatNumber(productSummary.unitsSoldToday, numberFormat)}
+            {productSummary.fastMoving > 0 && (
+              <>
+                {" "}
+                · {formatNumber(productSummary.fastMoving, numberFormat)}{" "}
+                {i.products.fastMovers}
+              </>
+            )}
           </p>
-          <p className="mt-2 text-2xl font-bold text-cyan-900 tabular-nums">
-            {formatNumber(productSummary.fastMoving, numberFormat)}
-          </p>
         </div>
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
             {i.products.topSeller30d}
           </p>
-          <p className="mt-2 text-sm font-bold text-red-900 line-clamp-2">
+          <p className="mt-2 text-base font-bold text-violet-900 line-clamp-2">
             {productSummary.topSellerName}
           </p>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="flex flex-1 flex-col gap-3 md:flex-row">
-          <SearchInput
-            id="product-search"
-            label={i.common.search}
-            placeholder={i.products.searchPlaceholder}
-            value={search}
-            onChange={(v) => {
-              setSearch(v);
-              setPage(1);
-            }}
-            resultCount={filteredProducts.length}
-            totalCount={products.length}
-            numberFormat={numberFormat}
-            onScan={() => setScannerOpen(true)}
-            language={language}
-            className="w-full md:max-w-sm"
-          />
-          <Select
-            id="product-category-filter"
-            label={i.products.category}
-            value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
-              setPage(1);
-            }}
-            options={[
-              { value: "all", label: i.products.allCategories },
-              ...categories.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-          />
-          <Select
-            id="product-stock-filter"
-            label={i.products.stock}
-            value={stockFilter}
-            onChange={(e) => {
-              setStockFilter(e.target.value);
-              setPage(1);
-            }}
-            options={[
-              { value: "all", label: i.products.allStock },
-              { value: "in", label: i.products.inStock },
-              { value: "low", label: i.products.lowStock },
-              { value: "out", label: i.products.outOfStock },
-            ]}
-          />
-          <Select
-            id="product-page-size"
-            label={i.common.perPage}
-            value={String(pageSize)}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setPage(1);
-            }}
-            options={PAGE_SIZES.map((s) => ({
-              value: String(s),
-              label: `${s} ${i.common.rows}`,
-            }))}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={editMode ? "primary" : "outline"}
-            size="sm"
-            onClick={() => {
-              setEditMode((prev) => !prev);
-              if (editMode) setSelectedIds([]);
-            }}
-          >
-            {editMode ? i.common.done : i.common.edit}
-          </Button>
-          {editMode && selectedIds.length > 0 && (
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={bulkDeleting}
-              onClick={() => setConfirmBulkDelete(true)}
-            >
-              {bulkDeleting
-                ? i.common.deleting
-                : `${i.common.deleteSelected} (${formatNumber(selectedIds.length, numberFormat)})`}
-            </Button>
-          )}
-        </div>
+      <div className="flex flex-1 flex-col gap-3 md:flex-row md:items-end">
+        <SearchInput
+          id="product-search"
+          label={i.common.search}
+          placeholder={i.products.searchPlaceholder}
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          resultCount={filteredProducts.length}
+          totalCount={products.length}
+          numberFormat={numberFormat}
+          onScan={() => setScannerOpen(true)}
+          language={language}
+          className="w-full md:max-w-sm"
+        />
+        <Select
+          id="product-category-filter"
+          label={i.products.category}
+          value={categoryFilter}
+          onChange={(e) => {
+            setCategoryFilter(e.target.value);
+            setPage(1);
+          }}
+          options={[
+            { value: "all", label: i.products.allCategories },
+            ...categories.map((c) => ({ value: c.id, label: c.name })),
+          ]}
+        />
+        <Select
+          id="product-stock-filter"
+          label={i.products.stock}
+          value={stockFilter}
+          onChange={(e) => {
+            setStockFilter(e.target.value);
+            setPage(1);
+          }}
+          options={[
+            { value: "all", label: i.products.allStock },
+            { value: "in", label: i.products.inStock },
+            { value: "low", label: i.products.lowStock },
+            { value: "out", label: i.products.outOfStock },
+          ]}
+        />
+        <Select
+          id="product-page-size"
+          label={i.common.perPage}
+          value={String(pageSize)}
+          onChange={(e) => {
+            setPageSize(Number(e.target.value));
+            setPage(1);
+          }}
+          options={PAGE_SIZES.map((s) => ({
+            value: String(s),
+            label: `${s} ${i.common.rows}`,
+          }))}
+        />
       </div>
 
       {feedback && (
@@ -484,16 +470,14 @@ export function ProductsContent({
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              {editMode && (
-                <th className="px-4 py-3.5 text-start">
-                  <input
-                    type="checkbox"
-                    checked={allPageSelected}
-                    onChange={toggleSelectPage}
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                </th>
-              )}
+              <th className="px-4 py-3.5 text-start w-10">
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  onChange={toggleSelectPage}
+                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+              </th>
               <SortableTh
                 label={i.products.product}
                 sortKey="name"
@@ -519,32 +503,8 @@ export function ProductsContent({
                 }}
               />
               <SortableTh
-                label={i.products.sku}
-                sortKey="sku"
-                currentSort={sortKey}
-                currentDirection={sortDir}
-                onSort={(k) => {
-                  const r = toggleSort(k, sortKey, sortDir);
-                  setSortKey(r.sort);
-                  setSortDir(r.direction);
-                  setPage(1);
-                }}
-              />
-              <SortableTh
                 label={i.products.price}
                 sortKey="price"
-                currentSort={sortKey}
-                currentDirection={sortDir}
-                onSort={(k) => {
-                  const r = toggleSort(k, sortKey, sortDir);
-                  setSortKey(r.sort);
-                  setSortDir(r.direction);
-                  setPage(1);
-                }}
-              />
-              <SortableTh
-                label={i.products.cost}
-                sortKey="cost"
                 currentSort={sortKey}
                 currentDirection={sortDir}
                 onSort={(k) => {
@@ -578,13 +538,14 @@ export function ProductsContent({
                   setPage(1);
                 }}
               />
+              <th className="px-4 py-3.5 text-end">{i.common.actions}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredProducts.length === 0 ? (
               <tr>
                 <td
-                  colSpan={editMode ? 9 : 8}
+                  colSpan={7}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {products.length === 0
@@ -599,27 +560,30 @@ export function ProductsContent({
                 return (
                   <tr
                     key={p.id}
-                    className="hover:bg-slate-50/50 transition-colors"
+                    className="hover:bg-slate-50/50 transition-colors group"
                   >
-                    {editMode && (
-                      <td className="px-4 py-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(p.id)}
-                          onChange={() => toggleSelected(p.id)}
-                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                      </td>
-                    )}
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(p.id)}
+                        onChange={() => toggleSelected(p.id)}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </td>
                     <td className="px-5 py-4 text-slate-800">
                       <button
                         type="button"
-                        className="text-start group cursor-pointer"
+                        className="text-start group/name cursor-pointer"
                         onClick={() => setSelectedInsightProduct(p)}
                       >
-                        <p className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 group-hover:decoration-indigo-300 transition-all">
+                        <p className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 group-hover/name:decoration-indigo-300 transition-all">
                           {getProductDisplayName(p.name, p.variantName)}
                         </p>
+                        {p.sku && (
+                          <p className="text-xs text-slate-400 font-mono mt-0.5">
+                            {p.sku}
+                          </p>
+                        )}
                       </button>
                     </td>
                     <td className="px-5 py-4 text-slate-500 capitalize">
@@ -627,21 +591,9 @@ export function ProductsContent({
                         ? i.products.categoryOther
                         : p.categoryName || "·"}
                     </td>
-                    <td className="px-5 py-4 text-slate-500 font-mono text-xs">
-                      {p.sku || "·"}
-                    </td>
                     <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
                       {formatCurrency(
                         p.price,
-                        currency,
-                        numberFormat,
-                        currencyFormat,
-                        language,
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-slate-500 tabular-nums">
-                      {formatCurrency(
-                        p.costPrice,
                         currency,
                         numberFormat,
                         currencyFormat,
@@ -658,6 +610,58 @@ export function ProductsContent({
                         numberFormat,
                       )}
                     </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          title={i.common.edit}
+                          onClick={() => setEditProduct(p)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          title={i.common.delete}
+                          onClick={() =>
+                            setConfirmDelete({
+                              id: p.id,
+                              name: getProductDisplayName(
+                                p.name,
+                                p.variantName,
+                              ),
+                            })
+                          }
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M3 6h18" />
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })
@@ -665,6 +669,34 @@ export function ProductsContent({
           </tbody>
         </table>
       </div>
+
+      {/* Floating action bar */}
+      {selectedIds.length > 0 && (
+        <div className="sticky bottom-4 z-20 mx-auto w-fit">
+          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-lg">
+            <span className="text-sm font-medium text-slate-700">
+              {formatNumber(selectedIds.length, numberFormat)}{" "}
+              {i.common.selected}
+            </span>
+            <div className="w-px h-5 bg-slate-200" />
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={bulkDeleting}
+              onClick={() => setConfirmBulkDelete(true)}
+            >
+              {bulkDeleting ? i.common.deleting : i.common.deleteSelected}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setSelectedIds([])}
+            >
+              {i.common.cancel}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {filteredProducts.length > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

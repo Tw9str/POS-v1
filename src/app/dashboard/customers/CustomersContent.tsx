@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useLocalCustomers, useLocalOrders } from "@/hooks/useLocalData";
 import { CustomerActions } from "./CustomerActions";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { offlineFetch } from "@/lib/offline-fetch";
 import {
@@ -18,6 +17,8 @@ import {
 import { t, translatePaymentMethod, type Locale } from "@/lib/i18n";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { StatCard } from "@/components/ui/Card";
+import { SearchInput } from "@/components/ui/SearchInput";
 import { db } from "@/lib/offlineDb";
 
 const PAGE_SIZE = 10;
@@ -39,12 +40,13 @@ export function CustomersContent({
 }) {
   const i = t(language as Locale);
   const router = useRouter();
+  const fc = (v: number) =>
+    formatCurrency(v, currency, numberFormat, currencyFormat, language);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [editMode, setEditMode] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -317,6 +319,15 @@ export function CustomersContent({
     [allOrders],
   );
 
+  const customerStats = useMemo(() => {
+    const totalOutstanding = customers.reduce((s, c) => s + c.balance, 0);
+    const avgSpend =
+      customers.length > 0
+        ? customers.reduce((s, c) => s + c.totalSpent, 0) / customers.length
+        : 0;
+    return { totalOutstanding, avgSpend };
+  }, [customers]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -326,43 +337,38 @@ export function CustomersContent({
         <CustomerActions merchantId={merchantId} language={language} />
       </PageHeader>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="w-full md:max-w-sm">
-          <Input
-            id="customer-search"
-            label={i.common.search}
-            placeholder={i.customers.searchPlaceholder}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={editMode ? "primary" : "outline"}
-            size="sm"
-            onClick={() => {
-              setEditMode((prev) => !prev);
-              if (editMode) setSelectedIds([]);
-            }}
-          >
-            {editMode ? i.common.done : i.common.edit}
-          </Button>
-          {editMode && selectedIds.length > 0 && (
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={bulkDeleting}
-              onClick={() => setConfirmBulkDelete(true)}
-            >
-              {bulkDeleting
-                ? i.common.deleting
-                : `${i.common.deleteSelected} (${formatNumber(selectedIds.length, numberFormat)})`}
-            </Button>
-          )}
-        </div>
+      {/* Stat cards */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <StatCard
+          title={i.customers.title}
+          value={formatNumber(customers.length, numberFormat)}
+          subtitle={`${formatNumber(filteredCustomers.filter((c) => c.balance > 0).length, numberFormat)} ${i.customers.owes}`}
+        />
+        <StatCard
+          title={i.customers.totalOutstanding}
+          value={fc(customerStats.totalOutstanding)}
+        />
+        <StatCard
+          title={i.customers.avgSpend}
+          value={fc(customerStats.avgSpend)}
+        />
+      </div>
+
+      <div className="w-full max-w-md">
+        <SearchInput
+          id="customer-search"
+          label={i.common.search}
+          placeholder={i.customers.searchPlaceholder}
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          resultCount={filteredCustomers.length}
+          totalCount={customers.length}
+          numberFormat={numberFormat}
+          language={language}
+        />
       </div>
 
       {feedback && (
@@ -381,24 +387,19 @@ export function CustomersContent({
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              {editMode && (
-                <th className="px-4 py-3.5 text-start">
-                  <input
-                    type="checkbox"
-                    checked={allPageSelected}
-                    onChange={toggleSelectPage}
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                </th>
-              )}
+              <th className="px-4 py-3.5 text-start w-10">
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  onChange={toggleSelectPage}
+                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+              </th>
               <th className="px-5 py-3.5 text-start font-semibold">
                 {i.common.name}
               </th>
               <th className="px-5 py-3.5 text-start font-semibold">
                 {i.common.phone}
-              </th>
-              <th className="px-5 py-3.5 text-start font-semibold">
-                {i.common.email}
               </th>
               <th className="px-5 py-3.5 text-start font-semibold">
                 {i.customers.totalSpent}
@@ -409,16 +410,13 @@ export function CustomersContent({
               <th className="px-5 py-3.5 text-start font-semibold">
                 {i.customers.visits}
               </th>
-              <th className="px-5 py-3.5 text-start font-semibold">
-                {i.common.notes}
-              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filteredCustomers.length === 0 ? (
               <tr>
                 <td
-                  colSpan={editMode ? 8 : 7}
+                  colSpan={6}
                   className="px-5 py-12 text-center text-slate-400"
                 >
                   {customers.length === 0
@@ -430,18 +428,16 @@ export function CustomersContent({
               pagedCustomers.map((c) => (
                 <tr
                   key={c.id}
-                  className="hover:bg-slate-50/50 transition-colors"
+                  className="group hover:bg-slate-50/50 transition-colors"
                 >
-                  {editMode && (
-                    <td className="px-4 py-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(c.id)}
-                        onChange={() => toggleSelected(c.id)}
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                    </td>
-                  )}
+                  <td className="px-4 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(c.id)}
+                      onChange={() => toggleSelected(c.id)}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </td>
                   <td className="px-5 py-4">
                     <button
                       type="button"
@@ -452,56 +448,82 @@ export function CustomersContent({
                         {c.name}
                       </span>
                     </button>
-                  </td>
-                  <td className="px-5 py-4 text-slate-500">{c.phone || "·"}</td>
-                  <td className="px-5 py-4 text-slate-500">{c.email || "·"}</td>
-                  <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
-                    {formatCurrency(
-                      c.totalSpent,
-                      currency,
-                      numberFormat,
-                      currencyFormat,
-                      language,
+                    {c.email && (
+                      <p className="text-xs text-slate-400 mt-0.5">{c.email}</p>
                     )}
                   </td>
+                  <td className="px-5 py-4 text-slate-500">{c.phone || "·"}</td>
+                  <td className="px-5 py-4 font-bold text-slate-900 tabular-nums">
+                    {fc(c.totalSpent)}
+                  </td>
                   <td className="px-5 py-4">
-                    <div className="flex items-center gap-1.5">
-                      {c.balance > 0 && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setCollectCustomer({
-                              id: c.id,
-                              name: c.name,
-                              balance: c.balance,
-                            })
-                          }
-                          className="text-xs font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded-lg transition-colors tabular-nums cursor-pointer"
-                        >
-                          {i.customers.owes}{" "}
-                          {formatCurrency(
-                            c.balance,
-                            currency,
-                            numberFormat,
-                            currencyFormat,
-                            language,
-                          )}
-                        </button>
+                    <div className="flex items-center gap-2">
+                      {c.balance > 0 ? (
+                        <>
+                          <span className="text-sm font-bold text-amber-700 tabular-nums">
+                            {fc(c.balance)}
+                          </span>
+                          {/* Collect payment icon */}
+                          <button
+                            type="button"
+                            title={i.customers.collectPayment}
+                            onClick={() =>
+                              setCollectCustomer({
+                                id: c.id,
+                                name: c.name,
+                                balance: c.balance,
+                              })
+                            }
+                            className="p-1.5 rounded-lg text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="15"
+                              height="15"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <line x1="12" y1="1" x2="12" y2="23" />
+                              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                            </svg>
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-sm text-slate-300">—</span>
                       )}
+                      {/* Statement icon */}
                       <button
                         type="button"
+                        title={i.customers.statement}
                         onClick={() => openStatement(c.id, c.name)}
-                        className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
                       >
-                        {i.customers.statement}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="15"
+                          height="15"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
+                          <polyline points="10 9 9 9 8 9" />
+                        </svg>
                       </button>
                     </div>
                   </td>
                   <td className="px-5 py-4 text-slate-500 tabular-nums">
                     {formatNumber(c.visitCount, numberFormat)}
-                  </td>
-                  <td className="px-5 py-4 text-slate-400 text-xs max-w-[200px] truncate">
-                    {c.notes || "·"}
                   </td>
                 </tr>
               ))
@@ -541,6 +563,33 @@ export function CustomersContent({
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
               {i.common.next}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating action bar for selection */}
+      {selectedIds.length > 0 && (
+        <div className="sticky bottom-4 z-20 mx-auto w-fit">
+          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-lg">
+            <span className="text-sm font-semibold text-slate-700">
+              {formatNumber(selectedIds.length, numberFormat)}{" "}
+              {i.common.selected}
+            </span>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={bulkDeleting}
+              onClick={() => setConfirmBulkDelete(true)}
+            >
+              {bulkDeleting ? i.common.deleting : i.common.delete}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setSelectedIds([])}
+            >
+              {i.common.cancel}
             </Button>
           </div>
         </div>
@@ -981,6 +1030,41 @@ export function CustomersContent({
                 });
               })()}
             </div>
+
+            {/* Collect payment shortcut from statement */}
+            {(() => {
+              const totalDebit = ledgerEntries.reduce((s, e) => s + e.debit, 0);
+              const totalCredit = ledgerEntries.reduce(
+                (s, e) => s + e.credit,
+                0,
+              );
+              const remaining = totalDebit - totalCredit;
+              if (remaining <= 0 || !historyCustomer) return null;
+              return (
+                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-sm text-slate-500">
+                    {i.customers.balance}:{" "}
+                    <span className="font-bold text-amber-700 tabular-nums">
+                      {fc(remaining)}
+                    </span>
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setCollectCustomer({
+                        id: historyCustomer.id,
+                        name: historyCustomer.name,
+                        balance: remaining,
+                      });
+                      setHistoryCustomer(null);
+                      setLedgerEntries([]);
+                    }}
+                  >
+                    {i.customers.collectPayment}
+                  </Button>
+                </div>
+              );
+            })()}
           </div>
         )}
       </Modal>
