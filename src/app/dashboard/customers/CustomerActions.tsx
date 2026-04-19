@@ -1,12 +1,11 @@
 "use client";
+import type React from "react";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { IconPlus } from "@/components/Icons";
-import { useRouter } from "next/navigation";
-import { offlineFetch } from "@/lib/offline-fetch";
 import { t, type Locale } from "@/lib/i18n";
 
 interface EditableCustomer {
@@ -18,12 +17,20 @@ interface EditableCustomer {
   notes?: string | null;
 }
 
+interface SavedCustomer extends EditableCustomer {
+  totalSpent: number;
+  visitCount: number;
+  balance: number;
+  createdAt: string;
+}
+
 interface CustomerActionsProps {
-  merchantId: string;
+  merchantId?: string;
   customer?: EditableCustomer;
   externalOpen?: boolean;
   onExternalClose?: () => void;
   onDelete?: () => void;
+  onSaved?: (customer: SavedCustomer) => void;
   language?: string;
 }
 
@@ -33,10 +40,10 @@ export function CustomerActions({
   externalOpen,
   onExternalClose,
   onDelete,
+  onSaved,
   language = "en",
 }: CustomerActionsProps) {
   const i = t(language as Locale);
-  const router = useRouter();
   const isEdit = Boolean(customer);
   const [open, setOpen] = useState(false);
   const isModalOpen = externalOpen ?? open;
@@ -69,31 +76,32 @@ export function CustomerActions({
     setOpen(true);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
-      const result = await offlineFetch({
-        url: "/api/merchant/customers",
+      const res = await fetch("/api/merchant/customers", {
         method: isEdit ? "PUT" : "POST",
-        body: isEdit ? { id: customer?.id, ...form } : form,
-        entity: "customer",
-        merchantId,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isEdit ? { id: customer?.id, ...form } : form),
       });
 
-      if (!result.ok) {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
         setError(
-          result.error ||
+          (err as Record<string, string>).error ||
             (isEdit ? i.customers.failedToUpdate : i.customers.failedToAdd),
         );
         return;
       }
 
+      const savedCustomer = (await res.json()) as SavedCustomer;
+
       closeModal();
       setForm({ name: "", phone: "", email: "", address: "", notes: "" });
-      router.refresh();
+      onSaved?.(savedCustomer);
     } catch {
       setError(i.common.somethingWentWrong);
     } finally {

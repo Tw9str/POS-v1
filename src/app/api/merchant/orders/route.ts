@@ -1,18 +1,36 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
-import { requireStaffForApi } from "@/lib/staff";
+import { requireStaffForApi, getStaff } from "@/lib/staff";
 import { generateOrderNumber, SUPPORTED_PAYMENT_METHODS } from "@/lib/utils";
+import { apiError } from "@/lib/apiError";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const merchant = await getMerchantFromSession();
     if (!merchant)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const { error: staffError } = await requireStaffForApi(
+      "/api/merchant/orders",
+    );
+    if (staffError) return staffError;
+
+    const { searchParams } = new URL(req.url);
+    const customerId = searchParams.get("customerId");
+    const creditOnly = searchParams.get("credit") === "true";
+
+    const where: Record<string, unknown> = { merchantId: merchant.id };
+    if (customerId) where.customerId = customerId;
+    if (creditOnly) {
+      where.status = { not: "VOIDED" };
+      where.paymentStatus = { in: ["credit", "partial_credit", "settled"] };
+    }
+
     const orders = await prisma.order.findMany({
-      where: { merchantId: merchant.id },
+      where,
       orderBy: { createdAt: "desc" },
       take: 200,
       include: {
@@ -34,11 +52,7 @@ export async function GET() {
 
     return NextResponse.json(orders);
   } catch (err) {
-    console.error("GET /api/merchant/orders error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "GET /api/merchant/orders");
   }
 }
 
@@ -54,9 +68,7 @@ const orderItemSchema = z.object({
 
 const orderSchema = z.object({
   items: z.array(orderItemSchema).min(1),
-  localId: z.string().nullable().optional(),
   customerId: z.string().nullable().optional(),
-  staffId: z.string().nullable().optional(),
   paymentMethod: z.enum(SUPPORTED_PAYMENT_METHODS),
   paidAmount: z.number().min(0),
   creditAmount: z.number().min(0).default(0),
@@ -94,9 +106,7 @@ export async function POST(req: Request) {
 
     const {
       items,
-      localId,
       customerId,
-      staffId,
       paymentMethod,
       paidAmount,
       creditAmount,
@@ -106,18 +116,9 @@ export async function POST(req: Request) {
       total,
     } = parsed.data;
 
-    // Dedup: if localId already exists, return existing order
-    if (localId) {
-      const existing = await prisma.order.findFirst({
-        where: { merchantId: merchant.id, localId },
-      });
-      if (existing) {
-        return NextResponse.json(
-          { id: existing.id, orderNumber: existing.orderNumber },
-          { status: 409 },
-        );
-      }
-    }
+    // Use authenticated staff session instead of client-provided staffId
+    const staff = await getStaff();
+    const staffId = staff?.staffId ?? null;
 
     const changeAmount = Math.max(0, paidAmount - total);
     const orderNumber = generateOrderNumber();
@@ -139,81 +140,84 @@ export async function POST(req: Request) {
     }
 
     // Use a transaction to create order + update stock + update customer
-    const order = await prisma.$transaction(async (tx) => {
-      // Create order
-      const newOrder = await tx.order.create({
-        data: {
-          merchantId: merchant.id,
-          staffId: staffId || null,
-          customerId: customerId || null,
-          orderNumber,
-          status: "COMPLETED",
-          subtotal,
-          taxAmount,
-          total,
-          paidAmount,
-          creditAmount,
-          changeAmount,
-          paymentStatus,
-          localId: localId || null,
-          syncStatus: localId ? "SYNCED" : "SYNCED",
-          paymentMethod: paymentMethod as
-            | "CASH"
-            | "CARD"
-            | "MOBILE_MONEY"
-            | "CREDIT",
-          notes: notes || null,
-          items: {
-            create: items.map((item) => ({
-              productId: item.productId,
-              name: item.name,
-              sku: item.sku,
-              price: item.price,
-              costPrice: item.costPrice,
-              quantity: item.quantity,
-              discount: item.discount,
-              total: item.price * item.quantity - item.discount,
-            })),
-          },
-        },
-      });
-
-      // Update stock for each item
-      for (const item of items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
-        });
-
-        // Create inventory adjustment
-        await tx.inventoryAdjustment.create({
+    const order = await prisma.$transaction(
+      async (tx) => {
+        // Create order
+        const newOrder = await tx.order.create({
           data: {
             merchantId: merchant.id,
-            productId: item.productId,
-            type: "SALE",
-            quantity: -item.quantity,
-            reason: `Sale: ${orderNumber}`,
+            staffId: staffId || null,
+            customerId: customerId || null,
+            orderNumber,
+            status: "COMPLETED",
+            subtotal,
+            taxAmount,
+            total,
+            paidAmount,
+            creditAmount,
+            changeAmount,
+            paymentStatus,
+            paymentMethod: paymentMethod as
+              | "CASH"
+              | "CARD"
+              | "MOBILE_MONEY"
+              | "CREDIT",
+            notes: notes || null,
+            items: {
+              create: items.map((item) => ({
+                productId: item.productId,
+                name: item.name,
+                sku: item.sku,
+                price: item.price,
+                costPrice: item.costPrice,
+                quantity: item.quantity,
+                discount: item.discount,
+                total: item.price * item.quantity - item.discount,
+              })),
+            },
           },
         });
-      }
 
-      // Update customer stats if attached
-      if (customerId) {
-        const customerUpdate: Record<string, unknown> = {
-          totalSpent: { increment: total },
-          visitCount: { increment: 1 },
-        };
-        if (creditAmount > 0) {
-          customerUpdate.balance = { increment: creditAmount };
+        // Update stock + create inventory adjustments in parallel per item
+        await Promise.all(
+          items.map((item) =>
+            Promise.all([
+              tx.product.update({
+                where: { id: item.productId },
+                data: { stock: { decrement: item.quantity } },
+              }),
+              tx.inventoryAdjustment.create({
+                data: {
+                  merchantId: merchant.id,
+                  productId: item.productId,
+                  type: "SALE",
+                  quantity: -item.quantity,
+                  reason: `Sale: ${orderNumber}`,
+                },
+              }),
+            ]),
+          ),
+        );
+
+        // Update customer stats if attached
+        if (customerId) {
+          const customerUpdate: Record<string, unknown> = {
+            totalSpent: { increment: total },
+            visitCount: { increment: 1 },
+          };
+          if (creditAmount > 0) {
+            customerUpdate.balance = { increment: creditAmount };
+          }
+          await tx.customer.update({
+            where: { id: customerId },
+            data: customerUpdate,
+          });
         }
-        await tx.customer.update({
-          where: { id: customerId },
-          data: customerUpdate,
-        });
-      }
 
-      return newOrder;
-    });
+        return newOrder;
+      },
+      { timeout: 15000 },
+    );
 
     // Log activity (outside transaction for non-critical)
     await prisma.activityLog
@@ -227,16 +231,13 @@ export async function POST(req: Request) {
       })
       .catch(() => {});
 
+    revalidatePath("/dashboard", "layout");
     return NextResponse.json(
       { id: order.id, orderNumber: order.orderNumber },
       { status: 201 },
     );
   } catch (err) {
-    console.error("POST /api/merchant/orders error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/orders");
   }
 }
 
@@ -268,7 +269,7 @@ export async function PUT(req: Request) {
     const existing = await prisma.order.findFirst({
       where: {
         merchantId: merchant.id,
-        OR: [{ id: parsed.data.id }, { localId: parsed.data.id }],
+        id: parsed.data.id,
       },
       include: {
         items: true,
@@ -396,17 +397,14 @@ export async function PUT(req: Request) {
       })
       .catch(() => {});
 
+    revalidatePath("/dashboard", "layout");
     return NextResponse.json({
-      id: existing.localId || updatedOrder.id,
+      id: updatedOrder.id,
       status: updatedOrder.status,
       refundedAmount:
         action === "PARTIAL_REFUND" ? partialRefundAmount : existing.total,
     });
   } catch (err) {
-    console.error("PUT /api/merchant/orders error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "PUT /api/merchant/orders");
   }
 }

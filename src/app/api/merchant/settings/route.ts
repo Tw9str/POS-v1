@@ -3,6 +3,8 @@ import { setMerchantSession } from "@/lib/merchantAuth";
 import { getMerchantFromSession } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
 import { normalizeDateFormat } from "@/lib/utils";
+import { apiError } from "@/lib/apiError";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -90,12 +92,9 @@ export async function PUT(req: Request) {
       })
       .catch(() => {});
 
+    revalidatePath("/dashboard", "layout");
     return NextResponse.json(updated);
   } catch (err) {
-    console.error("PUT /api/merchant/settings error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "PUT /api/merchant/settings");
   }
 }

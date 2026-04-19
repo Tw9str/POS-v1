@@ -1,11 +1,10 @@
 "use client";
+import type React from "react";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { useRouter } from "next/navigation";
-import { offlineFetch } from "@/lib/offline-fetch";
 import { normalizeDateFormat } from "@/lib/utils";
 import { t, type Locale } from "@/lib/i18n";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
@@ -31,7 +30,6 @@ const DEFAULT_CURRENCIES = ["USD", "EUR", "SAR", "SYP", "TRY", "AED"] as const;
 type DefaultCurrency = (typeof DEFAULT_CURRENCIES)[number];
 
 export function SettingsForm({ merchant }: SettingsFormProps) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -56,37 +54,38 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
 
   const i = t(form.language as Locale);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
     setSuccess("");
 
     try {
-      const result = await offlineFetch({
-        url: "/api/merchant/settings",
+      const res = await fetch("/api/merchant/settings", {
         method: "PUT",
-        body: {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           ...form,
           currency: form.currency.toUpperCase(),
           taxRate: parseFloat(form.taxRate) || 0,
           shamcashId: form.shamcashId,
-        },
-        entity: "settings",
-        merchantId: merchant.id,
+        }),
       });
 
-      if (!result.ok) {
-        setError(result.error || i.settings.failedToUpdate);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(err.error || i.settings.failedToUpdate);
         return;
       }
 
-      setSuccess(
-        result.offline
-          ? i.settings.settingsSavedOffline
-          : i.settings.settingsSaved,
-      );
-      if (!result.offline) router.refresh();
+      // Sync dir/lang on the layout wrapper for instant RTL/LTR switch
+      const wrapper = document.querySelector("[dir]");
+      if (wrapper) {
+        const dir = form.language === "ar" ? "rtl" : "ltr";
+        wrapper.setAttribute("dir", dir);
+        wrapper.setAttribute("lang", form.language);
+      }
+      setSuccess(i.settings.settingsSaved);
     } catch {
       setError(i.common.somethingWentWrong);
     } finally {

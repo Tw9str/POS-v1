@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { getMerchantSession, setMerchantSession } from "@/lib/merchantAuth";
+import { checkMerchantLicense } from "@/lib/licenseCheck";
 import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 
 export async function getMerchantFromSession() {
   const cached = await getMerchantSession();
@@ -46,12 +48,11 @@ export async function getMerchantFromSession() {
 
     return merchant;
   } catch {
-    // DB unreachable (offline) · return cached merchant data from cookie
+    // DB unreachable · return cached merchant data from cookie
     return {
       id: cached.id,
       name: cached.name,
       slug: "",
-      accessCode: "",
       phone: cached.phone,
       address: cached.address,
       logo: null,
@@ -78,4 +79,26 @@ export async function requireMerchant() {
     redirect("/store");
   }
   return merchant;
+}
+
+/**
+ * For write APIs: requires both a valid merchant session AND an active license.
+ * Returns {error, merchant, license} – if error is set, return it immediately.
+ */
+export async function requireActiveMerchant() {
+  const merchant = await getMerchantFromSession();
+  if (!merchant) {
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      merchant: null,
+      license: null,
+    };
+  }
+
+  const { error, license } = await checkMerchantLicense(merchant.id);
+  if (error) {
+    return { error, merchant: null, license: null };
+  }
+
+  return { error: null, merchant, license };
 }

@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans_Arabic, IBM_Plex_Mono } from "next/font/google";
-import { ServiceWorkerRegister } from "@/components/SwRegister";
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans_Arabic({
@@ -16,13 +15,15 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Shampay POS",
+  title: {
+    template: "%s | ShamPay",
+    default: "ShamPay POS",
+  },
   description: "Advanced SaaS Point of Sale System",
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Shampay POS",
+    title: "ShamPay POS",
   },
   formatDetection: {
     telephone: false,
@@ -48,10 +49,7 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        <ServiceWorkerRegister />
-        {children}
-      </body>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }

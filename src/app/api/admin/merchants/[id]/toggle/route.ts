@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { apiError } from "@/lib/apiError";
 import { NextResponse } from "next/server";
 
 export async function POST(
@@ -40,10 +41,6 @@ export async function POST(
 
     return NextResponse.json({ success: true, isActive: !merchant.isActive });
   } catch (err) {
-    console.error("POST /api/admin/merchants/[id]/toggle error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/admin/merchants/[id]/toggle");
   }
 }

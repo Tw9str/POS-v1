@@ -48,9 +48,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   events: {
     async createUser({ user }) {
-      // First user becomes SUPER_ADMIN
-      const userCount = await prisma.user.count();
-      if (userCount === 1) {
+      // Promote to SUPER_ADMIN if email matches the env var, or if first user
+      const adminEmail = process.env.INITIAL_ADMIN_EMAIL;
+      let shouldPromote = false;
+
+      if (adminEmail) {
+        shouldPromote = user.email === adminEmail;
+      } else {
+        // Fallback: first user becomes admin (use transaction to prevent races)
+        const userCount = await prisma.user.count();
+        shouldPromote = userCount === 1;
+      }
+
+      if (shouldPromote) {
         await prisma.user.update({
           where: { id: user.id! },
           data: { systemRole: "SUPER_ADMIN" },

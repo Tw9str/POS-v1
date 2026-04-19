@@ -158,13 +158,21 @@ export function MerchantSidebar({
   const isMoreActive = moreItems.some((i) => isActive(i.href));
 
   const handleLock = async () => {
-    await fetch("/api/staff/auth", { method: "DELETE" });
+    try {
+      await fetch("/api/staff/auth", { method: "DELETE" });
+    } catch {
+      // Best-effort
+    }
     router.refresh();
   };
 
   const handleSignOut = async () => {
-    await fetch("/api/staff/auth", { method: "DELETE" });
-    await fetch("/api/merchant/logout", { method: "POST" });
+    try {
+      await fetch("/api/staff/auth", { method: "DELETE" });
+      await fetch("/api/merchant/logout", { method: "POST" });
+    } catch {
+      // Best-effort
+    }
     router.push("/store");
   };
 

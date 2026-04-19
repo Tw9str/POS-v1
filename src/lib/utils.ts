@@ -188,9 +188,9 @@ export function formatDateTime(
 export function generateOrderNumber(): string {
   const now = new Date();
   const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
-  const rand = Math.floor(Math.random() * 10000)
-    .toString()
-    .padStart(4, "0");
+  const arr = new Uint16Array(1);
+  crypto.getRandomValues(arr);
+  const rand = (arr[0] % 10000).toString().padStart(4, "0");
   return `ORD-${date}-${rand}`;
 }
 

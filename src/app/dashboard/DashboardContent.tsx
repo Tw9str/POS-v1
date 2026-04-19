@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  useLocalProducts,
-  useLocalCustomers,
-  useLocalOrders,
-} from "@/hooks/useLocalData";
-import type { LocalOrder } from "@/lib/offlineDb";
+import type { Order, Product, Customer } from "@/types/pos";
 import {
   IconPOS,
   IconProducts,
@@ -23,11 +18,10 @@ import {
   IconPromo,
 } from "@/components/Icons";
 import { formatCurrency, formatNumber, type NumberFormat } from "@/lib/utils";
-import { t, type Locale } from "@/lib/i18n";
+import { getDirection, t, type Locale } from "@/lib/i18n";
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { offlineFetch } from "@/lib/offline-fetch";
 
 const NAV_CARDS = [
   {
@@ -103,7 +97,7 @@ const NAV_CARDS = [
 ];
 
 function getRefundAmount(
-  order: Pick<LocalOrder, "status" | "total" | "notes">,
+  order: Pick<Order, "status" | "total" | "notes">,
 ): number {
   if (order.status !== "REFUNDED" && order.status !== "PARTIALLY_REFUNDED") {
     return 0;
@@ -114,7 +108,7 @@ function getRefundAmount(
   return Number.isFinite(amount) ? Math.min(amount, order.total) : order.total;
 }
 
-function getOrderCost(order: Pick<LocalOrder, "items">): number {
+function getOrderCost(order: Pick<Order, "items">): number {
   return order.items.reduce(
     (sum, item) => sum + item.costPrice * item.quantity,
     0,
@@ -131,6 +125,9 @@ export function DashboardContent({
   language = "en",
   staffRole,
   allowedPages,
+  products,
+  customers,
+  orders,
 }: {
   merchantId: string;
   merchantName: string;
@@ -141,12 +138,28 @@ export function DashboardContent({
   language?: string;
   staffRole: string;
   allowedPages: string[];
+  products: Product[];
+  customers: Customer[];
+  orders: Order[];
 }) {
   const router = useRouter();
-  const i = t(language as Locale);
-  const products = useLocalProducts(merchantId);
-  const customers = useLocalCustomers(merchantId);
-  const orders = useLocalOrders(merchantId, 200);
+  const [uiLanguage, setUiLanguage] = useState(language);
+  const [uiCurrencyFormat, setUiCurrencyFormat] =
+    useState<typeof currencyFormat>(currencyFormat);
+  const [uiNumberFormat, setUiNumberFormat] =
+    useState<NumberFormat>(numberFormat);
+  const [uiDateFormat, setUiDateFormat] = useState(dateFormat);
+  const i = t(uiLanguage as Locale);
+
+  // Sync dir/lang on the layout wrapper when language changes client-side
+  useEffect(() => {
+    const dir = getDirection(uiLanguage as Locale);
+    const wrapper = document.querySelector("[dir]");
+    if (wrapper) {
+      wrapper.setAttribute("dir", dir);
+      wrapper.setAttribute("lang", uiLanguage);
+    }
+  }, [uiLanguage]);
 
   // Quick settings
   const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
@@ -167,23 +180,36 @@ export function DashboardContent({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [quickSettingsOpen]);
 
+  useEffect(() => {
+    setUiLanguage(language);
+    setUiCurrencyFormat(currencyFormat);
+    setUiNumberFormat(numberFormat);
+    setUiDateFormat(dateFormat);
+  }, [language, currencyFormat, numberFormat, dateFormat]);
+
   const handleQuickSetting = useCallback(
     async (field: string, value: string) => {
       setQuickSettingsLoading(true);
       try {
-        await offlineFetch({
-          url: "/api/merchant/settings",
+        await fetch("/api/merchant/settings", {
           method: "PUT",
-          body: { [field]: value },
-          entity: "settings",
-          merchantId,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [field]: value }),
         });
-        router.refresh();
+
+        if (field === "language") setUiLanguage(value);
+        if (field === "currencyFormat") {
+          setUiCurrencyFormat(value as "symbol" | "code" | "none");
+        }
+        if (field === "numberFormat") {
+          setUiNumberFormat(value as NumberFormat);
+        }
+        if (field === "dateFormat") setUiDateFormat(value);
       } finally {
         setQuickSettingsLoading(false);
       }
     },
-    [merchantId, router],
+    [],
   );
 
   const todayStart = useMemo(() => {
@@ -198,9 +224,6 @@ export function DashboardContent({
       (order) =>
         order.status === "REFUNDED" || order.status === "PARTIALLY_REFUNDED",
     );
-    const pendingSyncCount = orders.filter(
-      (order) => order.syncStatus === "pending",
-    ).length;
 
     const todayOrders = saleOrders.filter(
       (order) => order.createdAt >= todayStart,
@@ -252,7 +275,6 @@ export function DashboardContent({
       customerCount: customers.length,
       lowStockCount,
       outOfStockCount,
-      pendingSyncCount,
       refundedTodayCount: refundedOrders.filter(
         (order) => order.createdAt >= todayStart,
       ).length,
@@ -268,13 +290,21 @@ export function DashboardContent({
   );
 
   const handleLock = async () => {
-    await fetch("/api/staff/auth", { method: "DELETE" });
-    router.refresh();
+    try {
+      await fetch("/api/staff/auth", { method: "DELETE" });
+    } catch {
+      // Best-effort — navigate regardless
+    }
+    router.push("/dashboard");
   };
 
   const handleSignOut = async () => {
-    await fetch("/api/staff/auth", { method: "DELETE" });
-    await fetch("/api/merchant/logout", { method: "POST" });
+    try {
+      await fetch("/api/staff/auth", { method: "DELETE" });
+      await fetch("/api/merchant/logout", { method: "POST" });
+    } catch {
+      // Best-effort — navigate regardless
+    }
     router.push("/store");
   };
 
@@ -282,11 +312,14 @@ export function DashboardContent({
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-linear-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <Link
+            href="/dashboard"
+            className="w-14 h-14 bg-linear-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20"
+          >
             <span className="text-2xl font-bold text-white">
               {merchantName.charAt(0).toUpperCase()}
             </span>
-          </div>
+          </Link>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">
               {merchantName}
@@ -338,7 +371,7 @@ export function DashboardContent({
                         <button
                           key={val}
                           onClick={() => handleQuickSetting("language", val)}
-                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${language === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${uiLanguage === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
                         >
                           {label}
                         </button>
@@ -364,7 +397,7 @@ export function DashboardContent({
                           onClick={() =>
                             handleQuickSetting("currencyFormat", val)
                           }
-                          className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${currencyFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
+                          className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${uiCurrencyFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
                         >
                           {label}
                         </button>
@@ -389,7 +422,7 @@ export function DashboardContent({
                           onClick={() =>
                             handleQuickSetting("numberFormat", val)
                           }
-                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${numberFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${uiNumberFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
                         >
                           {label}
                         </button>
@@ -413,7 +446,7 @@ export function DashboardContent({
                         <button
                           key={val}
                           onClick={() => handleQuickSetting("dateFormat", val)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-start cursor-pointer ${dateFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-start cursor-pointer ${uiDateFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
                         >
                           {label}
                         </button>

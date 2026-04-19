@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { getLocalStaff } from "@/lib/offline-sync";
 import { t, type Locale } from "@/lib/i18n";
 
 interface PinPadProps {
@@ -11,18 +10,7 @@ interface PinPadProps {
   language?: string;
 }
 
-async function verifyPinOffline(
-  merchantId: string,
-  pin: string,
-): Promise<{ id: string; name: string; role: string } | null> {
-  const staffList = await getLocalStaff(merchantId);
-  const match = staffList.find((s) => s.pin === pin && s.isActive);
-  if (!match) return null;
-  return { id: match.id, name: match.name, role: match.role };
-}
-
 export function PinPad({
-  merchantId,
   onSuccess,
   merchantName,
   language = "en",
@@ -31,7 +19,7 @@ export function PinPad({
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const maxLength = 6;
+  const maxLength = 4;
 
   const handleDigit = useCallback(
     (digit: string) => {
@@ -54,7 +42,7 @@ export function PinPad({
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (pin.length < 4) {
+    if (pin.length !== maxLength) {
       setError(i.pin.pinMinDigits);
       return;
     }
@@ -76,55 +64,15 @@ export function PinPad({
         return;
       }
 
-      // If server is offline (503), try verifying PIN locally
-      if (res.status === 503 && merchantId) {
-        const localMatch = await verifyPinOffline(merchantId, pin);
-        if (localMatch) {
-          // Set the session cookie via API with offline-verified data
-          const offlineRes = await fetch("/api/staff/auth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              pin,
-              offlineVerified: true,
-              staffId: localMatch.id,
-              staffName: localMatch.name,
-              staffRole: localMatch.role,
-            }),
-          }).catch(() => null);
-
-          if (offlineRes?.ok) {
-            const offlineData = await offlineRes.json();
-            onSuccess(offlineData.staff);
-          } else {
-            // Cookie couldn't be set but still let them in
-            onSuccess(localMatch);
-          }
-          return;
-        }
-      }
-
       setError(data.error || i.pin.invalidPin);
       setPin("");
     } catch {
-      // Network completely down · try offline verification
-      if (merchantId) {
-        try {
-          const localMatch = await verifyPinOffline(merchantId, pin);
-          if (localMatch) {
-            onSuccess(localMatch);
-            return;
-          }
-        } catch {
-          // IndexedDB also failed
-        }
-      }
       setError(i.pin.connectionError);
       setPin("");
     } finally {
       setLoading(false);
     }
-  }, [pin, onSuccess, merchantId]);
+  }, [pin, onSuccess]);
 
   // Auto-submit when PIN reaches max length
   useEffect(() => {
@@ -140,7 +88,7 @@ export function PinPad({
         handleDigit(e.key);
       } else if (e.key === "Backspace") {
         handleBackspace();
-      } else if (e.key === "Enter" && pin.length >= 4) {
+      } else if (e.key === "Enter" && pin.length === maxLength) {
         handleSubmit();
       } else if (e.key === "Escape") {
         handleClear();
@@ -241,7 +189,7 @@ export function PinPad({
         {/* Submit button */}
         <button
           onClick={handleSubmit}
-          disabled={loading || pin.length < 4}
+          disabled={loading || pin.length !== maxLength}
           className="w-full h-14 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-lg transition-all cursor-pointer active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/30"
         >
           {loading ? (

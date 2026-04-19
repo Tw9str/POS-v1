@@ -1,4 +1,5 @@
 "use client";
+import type React from "react";
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -54,7 +55,7 @@ function LoginContent() {
     }
   }, [searchParams]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");

@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import type { LocalProduct } from "@/lib/offlineDb";
+import type { Product } from "@/types/pos";
 import type {
   InventoryInsight,
   ProductPerformanceMetric,
@@ -26,16 +26,16 @@ import {
 interface ProductInsightModalProps {
   open: boolean;
   onClose: () => void;
-  product: LocalProduct | null;
+  product: Product | null;
   metric?: ProductPerformanceMetric;
   insight?: InventoryInsight;
   currency: string;
   currencyFormat?: "symbol" | "code" | "none";
   numberFormat?: NumberFormat;
   language?: string;
-  onEdit?: (product: LocalProduct) => void;
-  onAddVariant?: (product: LocalProduct) => void;
-  onDelete?: (product: LocalProduct) => void;
+  onEdit?: (product: Product) => void;
+  onAddVariant?: (product: Product) => void;
+  onDelete?: (product: Product) => void;
   deleting?: boolean;
 }
 

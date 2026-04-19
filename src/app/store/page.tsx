@@ -1,4 +1,5 @@
 "use client";
+import type React from "react";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -12,7 +13,7 @@ export default function StorePage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setLoading(true);

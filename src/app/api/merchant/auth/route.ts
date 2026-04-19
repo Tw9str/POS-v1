@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 import { setMerchantSession } from "@/lib/merchantAuth";
+import { hashAccessCode } from "@/lib/accessCode";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -7,8 +9,22 @@ const authSchema = z.object({
   accessCode: z.string().min(1, "Access code is required"),
 });
 
+const loginLimiter = rateLimit({ limit: 10, windowSeconds: 60 });
+
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req);
+    const rl = loginLimiter.check(ip);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rl.retryAfterSeconds) },
+        },
+      );
+    }
+
     const body = await req.json();
     const parsed = authSchema.safeParse(body);
 
@@ -20,9 +36,11 @@ export async function POST(req: Request) {
     }
 
     const code = parsed.data.accessCode.toUpperCase().trim();
+    const digest = hashAccessCode(code);
 
+    // Look up by SHA-256 digest — no plaintext stored
     const merchant = await prisma.merchant.findUnique({
-      where: { accessCode: code },
+      where: { accessCodeDigest: digest },
       select: {
         id: true,
         name: true,

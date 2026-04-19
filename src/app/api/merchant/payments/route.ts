@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
+import { requireStaffForApi } from "@/lib/staff";
+import { apiError } from "@/lib/apiError";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -16,6 +19,11 @@ export async function GET(req: Request) {
     const merchant = await getMerchantFromSession();
     if (!merchant)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { error: staffError } = await requireStaffForApi(
+      "/api/merchant/payments",
+    );
+    if (staffError) return staffError;
 
     const { searchParams } = new URL(req.url);
     const customerId = searchParams.get("customerId");
@@ -35,11 +43,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(payments);
   } catch (err) {
-    console.error("GET /api/merchant/payments error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "GET /api/merchant/payments");
   }
 }
 
@@ -48,6 +52,11 @@ export async function POST(req: Request) {
     const merchant = await getMerchantFromSession();
     if (!merchant)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { error: staffError } = await requireStaffForApi(
+      "/api/merchant/payments",
+    );
+    if (staffError) return staffError;
 
     const body = await req.json();
     const parsed = paymentSchema.safeParse(body);
@@ -102,8 +111,9 @@ export async function POST(req: Request) {
         data: { balance: { decrement: actualAmount } },
       });
 
-      // If payment is against a specific order, update its status
+      // Update credit order(s)
       if (orderId) {
+        // Single order specified
         const order = await tx.order.findFirst({
           where: { id: orderId, merchantId: merchant.id },
         });
@@ -122,6 +132,55 @@ export async function POST(req: Request) {
             },
           });
         }
+      } else {
+        // No specific order: distribute payment across all credit orders
+        // Create separate payment records per order so the ledger can track them
+        const creditOrders = await tx.order.findMany({
+          where: {
+            merchantId: merchant.id,
+            customerId,
+            status: { not: "VOIDED" },
+            paymentStatus: { in: ["credit", "partial_credit"] },
+            creditAmount: { gt: 0 },
+          },
+          orderBy: { createdAt: "asc" },
+        });
+        let remaining = actualAmount;
+        let isFirst = true;
+        for (const order of creditOrders) {
+          if (remaining <= 0) break;
+          const applied = Math.min(remaining, order.creditAmount);
+          const newCreditAmount = Math.max(0, order.creditAmount - applied);
+          await tx.order.update({
+            where: { id: order.id },
+            data: {
+              creditAmount: newCreditAmount,
+              paidAmount: { increment: applied },
+              paymentStatus:
+                newCreditAmount <= 0 ? "settled" : "partial_credit",
+            },
+          });
+          // Create linked payment for each order (skip first — already created above)
+          if (isFirst) {
+            await tx.payment.update({
+              where: { id: newPayment.id },
+              data: { orderId: order.id, amount: applied },
+            });
+            isFirst = false;
+          } else {
+            await tx.payment.create({
+              data: {
+                merchantId: merchant.id,
+                customerId,
+                orderId: order.id,
+                amount: applied,
+                method: method as "CASH" | "CARD" | "MOBILE_MONEY",
+                note: note || null,
+              },
+            });
+          }
+          remaining -= applied;
+        }
       }
 
       return newPayment;
@@ -139,12 +198,9 @@ export async function POST(req: Request) {
       })
       .catch(() => {});
 
+    revalidatePath("/dashboard/customers");
     return NextResponse.json(payment, { status: 201 });
   } catch (err) {
-    console.error("POST /api/merchant/payments error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/payments");
   }
 }

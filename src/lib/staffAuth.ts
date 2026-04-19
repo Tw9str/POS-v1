@@ -17,7 +17,8 @@ function getSecret(): string {
 }
 
 function sign(payload: StaffPayload): string {
-  const data = `${payload.staffId}:${payload.merchantId}:${payload.role}`;
+  const iat = Math.floor(Date.now() / 1000);
+  const data = `${payload.staffId}:${payload.merchantId}:${payload.role}:${iat}`;
   const sig = createHmac("sha256", getSecret()).update(data).digest("hex");
   return `${data}.${sig}`;
 }
@@ -41,13 +42,18 @@ function verify(token: string): StaffPayload | null {
   }
 
   const parts = data.split(":");
-  if (parts.length !== 3) return null;
+  if (parts.length < 3) return null;
 
-  return {
-    staffId: parts[0],
-    merchantId: parts[1],
-    role: parts[2],
-  };
+  const [staffId, merchantId, role, iatStr] = parts;
+
+  // Reject expired tokens (server-side enforcement)
+  if (iatStr) {
+    const iat = Number(iatStr);
+    const age = Math.floor(Date.now() / 1000) - iat;
+    if (age > MAX_AGE) return null;
+  }
+
+  return { staffId, merchantId, role };
 }
 
 export async function setStaffSession(payload: StaffPayload): Promise<void> {

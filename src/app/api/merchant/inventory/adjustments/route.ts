@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
+import { apiError } from "@/lib/apiError";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -51,11 +53,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(adjustments);
   } catch (err) {
-    console.error("GET /api/merchant/inventory/adjustments error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "GET /api/merchant/inventory/adjustments");
   }
 }
 
@@ -144,6 +142,9 @@ export async function POST(req: Request) {
       })
       .catch(() => {});
 
+    revalidatePath("/dashboard/inventory");
+    revalidatePath("/dashboard/products");
+    revalidatePath("/dashboard/pos");
     return NextResponse.json({
       success: true,
       productId: updated.id,
@@ -151,10 +152,6 @@ export async function POST(req: Request) {
       stock: updated.stock,
     });
   } catch (err) {
-    console.error("POST /api/merchant/inventory/adjustments error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/inventory/adjustments");
   }
 }

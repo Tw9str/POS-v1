@@ -3,17 +3,32 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { setStaffSession, clearStaffSession } from "@/lib/staffAuth";
 import { getMerchantSession } from "@/lib/merchantAuth";
+import { verifyPin } from "@/lib/pinHash";
+import { rateLimit, getClientIp } from "@/lib/rateLimit";
 
 const pinSchema = z.object({
-  pin: z.string().min(4).max(6).regex(/^\d+$/, "PIN must be digits only"),
-  offlineVerified: z.boolean().optional(),
-  staffId: z.string().optional(),
-  staffName: z.string().optional(),
-  staffRole: z.string().optional(),
+  pin: z
+    .string()
+    .length(4)
+    .regex(/^\d{4}$/, "PIN must be exactly 4 digits"),
 });
+
+const pinLimiter = rateLimit({ limit: 5, windowSeconds: 60 });
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req);
+    const rl = pinLimiter.check(ip);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Too many PIN attempts. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rl.retryAfterSeconds) },
+        },
+      );
+    }
+
     const body = await req.json();
     const parsed = pinSchema.safeParse(body);
 
@@ -55,8 +70,11 @@ export async function POST(req: Request) {
         },
       });
     } catch {
-      // DB unreachable (offline) · use cached merchant data for PIN verification
-      merchant = { ...merchantSession, isActive: true };
+      // DB unreachable — fail closed; cannot verify merchant status
+      return NextResponse.json(
+        { error: "Unable to verify store status. Please try again later." },
+        { status: 503 },
+      );
     }
 
     if (!merchant || !merchant.isActive) {
@@ -66,7 +84,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Find staff by plain PIN within this merchant
+    // Find staff by comparing PIN against hashed values
     let staff: {
       id: string;
       name: string;
@@ -74,41 +92,32 @@ export async function POST(req: Request) {
       isActive: boolean;
     } | null = null;
     try {
-      staff = await prisma.staff.findUnique({
-        where: {
-          merchantId_pin: { merchantId: merchant.id, pin },
-        },
+      const allStaff = await prisma.staff.findMany({
+        where: { merchantId: merchant.id, isActive: true },
         select: {
           id: true,
           name: true,
           role: true,
+          pin: true,
           isActive: true,
         },
       });
-    } catch {
-      // DB unreachable · if client already verified PIN against IndexedDB, trust it
-      if (
-        parsed.data.offlineVerified &&
-        parsed.data.staffId &&
-        parsed.data.staffRole
-      ) {
-        await setStaffSession({
-          staffId: parsed.data.staffId,
-          merchantId: merchant.id,
-          role: parsed.data.staffRole,
-        });
-        return NextResponse.json({
-          staff: {
-            id: parsed.data.staffId,
-            name: parsed.data.staffName || "Staff",
-            role: parsed.data.staffRole,
-          },
-        });
+      for (const s of allStaff) {
+        if (await verifyPin(pin, s.pin)) {
+          staff = {
+            id: s.id,
+            name: s.name,
+            role: s.role,
+            isActive: s.isActive,
+          };
+          break;
+        }
       }
+    } catch {
+      // DB unreachable · cannot verify PIN
       return NextResponse.json(
         {
-          error:
-            "Cannot verify PIN while offline. Please try again when connected.",
+          error: "Cannot verify PIN right now. Please try again later.",
         },
         { status: 503 },
       );
@@ -152,6 +161,10 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE() {
-  await clearStaffSession();
+  try {
+    await clearStaffSession();
+  } catch {
+    // Best-effort cookie clear
+  }
   return NextResponse.json({ success: true });
 }

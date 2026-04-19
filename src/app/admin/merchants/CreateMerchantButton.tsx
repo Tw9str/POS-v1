@@ -1,4 +1,5 @@
 "use client";
+import type React from "react";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -20,7 +21,7 @@ export function CreateMerchantButton() {
   const [address, setAddress] = useState("");
   const [currency, setCurrency] = useState("USD");
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setLoading(true);

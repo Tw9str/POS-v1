@@ -1,8 +1,7 @@
 "use client";
+import type React from "react";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useLocalOrders, useLocalProducts } from "@/hooks/useLocalData";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -19,8 +18,7 @@ import {
   useSortToggle,
   type SortDirection,
 } from "@/components/ui/SortableTh";
-import type { LocalProduct } from "@/lib/offlineDb";
-import { offlineFetch } from "@/lib/offline-fetch";
+import type { Product, Order } from "@/types/pos";
 import {
   formatCurrency,
   formatDateTime,
@@ -63,18 +61,24 @@ export function InventoryContent({
   currencyFormat = "symbol",
   numberFormat = "western",
   language = "en",
+  products,
+  orders,
 }: {
   merchantId: string;
   currency: string;
   currencyFormat: "symbol" | "code" | "none";
   numberFormat?: NumberFormat;
   language?: string;
+  products: Product[];
+  orders: Order[];
 }) {
-  const router = useRouter();
   const i = t(language as Locale);
-  const products = useLocalProducts(merchantId);
-  const orders = useLocalOrders(merchantId, 500);
+  const [localProducts, setLocalProducts] = useState(products);
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    setLocalProducts(products);
+  }, [products]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [movementFilter, setMovementFilter] = useState("all");
@@ -83,12 +87,10 @@ export function InventoryContent({
   const toggleSort = useSortToggle();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
-  const [selectedProduct, setSelectedProduct] = useState<LocalProduct | null>(
-    null,
-  );
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedInsightProduct, setSelectedInsightProduct] =
-    useState<LocalProduct | null>(null);
-  const [adjusting, setAdjusting] = useState(false);
+    useState<Product | null>(null);
+  const [isAdjusting, startAdjustTransition] = useTransition();
   const [history, setHistory] = useState<InventoryAdjustmentEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -107,13 +109,15 @@ export function InventoryContent({
 
   const tracked = useMemo(
     () =>
-      products.filter((p) => p.trackStock).sort((a, b) => a.stock - b.stock),
-    [products],
+      localProducts
+        .filter((p) => p.trackStock)
+        .sort((a, b) => a.stock - b.stock),
+    [localProducts],
   );
 
   const performance = useMemo(
-    () => buildProductPerformance(orders, products),
-    [orders, products],
+    () => buildProductPerformance(orders, localProducts),
+    [orders, localProducts],
   );
   const inventoryInsights = useMemo(
     () => buildInventoryInsights(tracked, performance),
@@ -257,7 +261,7 @@ export function InventoryContent({
     void loadHistory();
   }, [merchantId]);
 
-  function openAdjustModal(product: LocalProduct) {
+  function openAdjustModal(product: Product) {
     setSelectedProduct(product);
     setAdjustmentForm({
       type: product.stock <= 0 ? "PURCHASE" : "CORRECTION",
@@ -266,7 +270,7 @@ export function InventoryContent({
     });
   }
 
-  async function handleAdjustStock(e: React.FormEvent<HTMLFormElement>) {
+  async function handleAdjustStock(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!selectedProduct) return;
 
@@ -283,40 +287,50 @@ export function InventoryContent({
       return;
     }
 
-    setAdjusting(true);
     setFeedback(null);
 
-    const result = await offlineFetch({
-      url: "/api/merchant/inventory/adjustments",
-      method: "POST",
-      body: {
-        productId: selectedProduct.id,
-        type: adjustmentForm.type,
-        quantity,
-        reason: adjustmentForm.reason || null,
-      },
-      entity: "inventory",
-      merchantId,
+    startAdjustTransition(async () => {
+      try {
+        const res = await fetch("/api/merchant/inventory/adjustments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId: selectedProduct.id,
+            type: adjustmentForm.type,
+            quantity,
+            reason: adjustmentForm.reason || null,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setFeedback({
+            type: "error",
+            text: err.error || i.inventory.failedToAdjust,
+          });
+        } else {
+          const data = (await res.json()) as {
+            productId: string;
+            stock: number;
+          };
+          setFeedback({
+            type: "success",
+            text: `${i.inventory.stockUpdated} "${getProductDisplayName(selectedProduct.name, selectedProduct.variantName)}".`,
+          });
+          setLocalProducts((prev) =>
+            prev.map((product) =>
+              product.id === data.productId
+                ? { ...product, stock: data.stock }
+                : product,
+            ),
+          );
+          setSelectedProduct(null);
+          await loadHistory();
+        }
+      } catch {
+        setFeedback({ type: "error", text: i.inventory.failedToAdjust });
+      }
     });
-
-    if (!result.ok) {
-      setFeedback({
-        type: "error",
-        text: result.error || i.inventory.failedToAdjust,
-      });
-    } else {
-      setFeedback({
-        type: "success",
-        text: result.offline
-          ? `${i.inventory.stockUpdateOffline} "${getProductDisplayName(selectedProduct.name, selectedProduct.variantName)}" ${i.common.offlineSaved}`
-          : `${i.inventory.stockUpdated} "${getProductDisplayName(selectedProduct.name, selectedProduct.variantName)}".`,
-      });
-      setSelectedProduct(null);
-      await loadHistory();
-      router.refresh();
-    }
-
-    setAdjusting(false);
   }
 
   return (
@@ -879,7 +893,7 @@ export function InventoryContent({
         numberFormat={numberFormat}
         onEdit={(p) => {
           setSelectedInsightProduct(null);
-          openAdjustModal(p as LocalProduct);
+          openAdjustModal(p as Product);
         }}
       />
 
@@ -953,7 +967,7 @@ export function InventoryContent({
               >
                 {i.common.cancel}
               </Button>
-              <Button type="submit" loading={adjusting}>
+              <Button type="submit" loading={isAdjusting}>
                 {i.inventory.adjustStock}
               </Button>
             </div>

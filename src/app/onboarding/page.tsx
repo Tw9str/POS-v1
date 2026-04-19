@@ -1,6 +1,9 @@
 import { getMerchantFromSession } from "@/lib/merchant";
 import { redirect } from "next/navigation";
 import { OnboardingForm } from "./OnboardingForm";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Setup Your Store" };
 
 export default async function OnboardingPage() {
   const merchant = await getMerchantFromSession();

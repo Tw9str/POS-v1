@@ -55,11 +55,6 @@ enum OrderStatus {
   VOIDED
 }
 
-enum SyncStatus {
-  PENDING
-  SYNCED
-  FAILED
-}
 
 enum AdjustmentType {
   PURCHASE
@@ -150,7 +145,7 @@ model Merchant {
   id           String   @id @default(cuid())
   name         String
   slug         String   @unique
-  accessCode   String   @unique
+  accessCodeDigest String  @unique @map("access_code_digest")
   phone        String?
   address      String?
   logo         String?
@@ -243,7 +238,6 @@ model Staff {
   orders   Order[]
   shifts   Shift[]
 
-  @@unique([merchantId, pin])
   @@index([merchantId])
   @@map("staff")
 }
@@ -352,8 +346,6 @@ model Order {
   paymentMethod  PaymentMethod @default(CASH)
   paymentStatus  String        @default("paid")
   notes          String?
-  syncStatus     SyncStatus    @default(PENDING)
-  localId        String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -367,7 +359,6 @@ model Order {
   @@unique([merchantId, orderNumber])
   @@index([merchantId])
   @@index([merchantId, createdAt])
-  @@index([syncStatus])
   @@map("orders")
 }
 

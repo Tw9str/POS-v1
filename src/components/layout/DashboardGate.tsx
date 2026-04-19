@@ -2,6 +2,7 @@
 
 import { PinPad } from "@/components/pos/PinPad";
 import { useRouter } from "next/navigation";
+import { useCallback } from "react";
 
 interface DashboardGateProps {
   merchantId: string;
@@ -16,15 +17,17 @@ export function DashboardGate({
 }: DashboardGateProps) {
   const router = useRouter();
 
+  const handleSuccess = useCallback(() => {
+    // Force server layout to re-run so it detects the new staff session cookie
+    router.refresh();
+  }, [router]);
+
   return (
     <PinPad
       merchantId={merchantId}
       merchantName={merchantName}
       language={language}
-      onSuccess={() => {
-        // Staff auth API sets the cookie · just reload to re-render layout
-        router.refresh();
-      }}
+      onSuccess={handleSuccess}
     />
   );
 }

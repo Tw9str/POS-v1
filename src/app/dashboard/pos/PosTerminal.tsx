@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  useCallback,
+  useTransition,
+} from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -25,8 +32,6 @@ import { BackButton } from "@/components/layout/PageHeader";
 import { useRouter } from "next/navigation";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { QRCodeDisplay } from "@/components/QrCode";
-import { useOffline } from "@/hooks/useOffline";
-import { createOfflineOrder, saveOrderLocally } from "@/lib/offline-sync";
 import {
   formatCurrency,
   formatDateTime,
@@ -37,14 +42,7 @@ import {
   type SupportedPaymentMethod,
 } from "@/lib/utils";
 import { t, translatePaymentMethod, type Locale } from "@/lib/i18n";
-import {
-  useLocalProducts,
-  useLocalCategories,
-  useLocalCustomers,
-  useLocalStaff,
-  useLocalPromotions,
-} from "@/hooks/useLocalData";
-import { db } from "@/lib/offlineDb";
+import type { Promotion } from "@/types/pos";
 
 // ─────────────────────────────────────────────
 // Types
@@ -111,6 +109,11 @@ interface POSTerminalProps {
     dateFormat?: DateFormat;
     shamcashId?: string | null;
   };
+  products: POSProduct[];
+  categories: POSCategory[];
+  customers: POSCustomer[];
+  staff: POSStaff[];
+  promotions: Promotion[];
 }
 
 // ─────────────────────────────────────────────
@@ -184,21 +187,28 @@ export function POSTerminal({
   staffRole,
   language,
   merchant,
+  products,
+  categories,
+  customers,
+  staff,
+  promotions: localPromotions,
 }: POSTerminalProps) {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
   const i = t(language as Locale);
   const isCashier = staffRole === "CASHIER";
 
-  // Offline support
-  const offline = useOffline(merchant.id);
+  // Local customers list — keeps server data in sync + allows instant client-side additions
+  const [localCustomers, setLocalCustomers] = useState(customers);
+  useEffect(() => {
+    setLocalCustomers(customers);
+  }, [customers]);
 
-  // Read all data from IndexedDB (live - auto-updates)
-  const products = useLocalProducts(merchant.id) as POSProduct[];
-  const categories = useLocalCategories(merchant.id) as POSCategory[];
-  const customers = useLocalCustomers(merchant.id) as POSCustomer[];
-  const staff = useLocalStaff(merchant.id) as POSStaff[];
-  const localPromotions = useLocalPromotions(merchant.id);
+  // Local products list — allows instant stock updates after checkout
+  const [localProducts, setLocalProducts] = useState(products);
+  useEffect(() => {
+    setLocalProducts(products);
+  }, [products]);
 
   // State
   const [search, setSearch] = useState("");
@@ -212,7 +222,7 @@ export function POSTerminal({
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [quickAddName, setQuickAddName] = useState("");
   const [quickAddPhone, setQuickAddPhone] = useState("");
-  const [quickAddLoading, setQuickAddLoading] = useState(false);
+  const [isQuickAdding, startQuickAddTransition] = useTransition();
   const customerPickerRef = useRef<HTMLDivElement>(null);
   const selectedStaff = useMemo(
     () => staff.find((s) => s.id === currentStaffId) ?? null,
@@ -224,7 +234,7 @@ export function POSTerminal({
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [paidAmount, setPaidAmount] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
-  const [processing, setProcessing] = useState(false);
+  const [isProcessing, startProcessTransition] = useTransition();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [lastOrder, setLastOrder] = useState<{
     orderNumber: string;
@@ -285,62 +295,48 @@ export function POSTerminal({
 
   // Filtered customers for picker
   const filteredCustomers = useMemo(() => {
-    if (!customerSearch.trim()) return customers;
+    if (!customerSearch.trim()) return localCustomers;
     const q = customerSearch.toLowerCase();
-    return customers.filter(
+    return localCustomers.filter(
       (c) =>
         c.name.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q),
     );
-  }, [customers, customerSearch]);
+  }, [localCustomers, customerSearch]);
 
   // Quick-add customer inline
   async function handleQuickAddCustomer() {
     const name = quickAddName.trim();
     if (!name) return;
-    setQuickAddLoading(true);
-    try {
-      const res = await fetch("/api/merchant/customers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          phone: quickAddPhone.trim() || undefined,
-        }),
-      });
-      if (res.ok) {
-        const created = await res.json();
-        const newCustomer: POSCustomer = {
-          id: created.id,
-          name: created.name,
-          phone: created.phone ?? null,
-          balance: 0,
-        };
-        // Write to IndexedDB so useLiveQuery picks it up immediately
-        await db.customers.put({
-          id: created.id,
-          merchantId: merchant.id,
-          name: created.name,
-          phone: created.phone ?? null,
-          email: created.email ?? null,
-          address: created.address ?? null,
-          notes: created.notes ?? null,
-          totalSpent: 0,
-          visitCount: 0,
-          balance: 0,
-          createdAt: created.createdAt ?? new Date().toISOString(),
+    startQuickAddTransition(async () => {
+      try {
+        const res = await fetch("/api/merchant/customers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            phone: quickAddPhone.trim() || undefined,
+          }),
         });
-        setSelectedCustomer(newCustomer);
-        setQuickAddOpen(false);
-        setQuickAddName("");
-        setQuickAddPhone("");
-        setCustomerSearch("");
-        setCustomerDropdownOpen(false);
+        if (res.ok) {
+          const created = await res.json();
+          const newCustomer: POSCustomer = {
+            id: created.id,
+            name: created.name,
+            phone: created.phone ?? null,
+            balance: 0,
+          };
+          setLocalCustomers((prev) => [...prev, newCustomer]);
+          setSelectedCustomer(newCustomer);
+          setQuickAddOpen(false);
+          setQuickAddName("");
+          setQuickAddPhone("");
+          setCustomerSearch("");
+          setCustomerDropdownOpen(false);
+        }
+      } catch {
+        // silently fail — customer just won't be added
       }
-    } catch {
-      // silently fail — customer just won't be added
-    } finally {
-      setQuickAddLoading(false);
-    }
+    });
   }
 
   // Keyboard shortcut: F2 = focus search, F9 = checkout
@@ -361,7 +357,7 @@ export function POSTerminal({
 
   // Filtered products
   const filteredProducts = useMemo(() => {
-    let list = products;
+    let list = localProducts;
     if (activeCategory) {
       list = list.filter((p) => p.categoryId === activeCategory);
     }
@@ -376,7 +372,7 @@ export function POSTerminal({
       );
     }
     return list;
-  }, [products, activeCategory, search]);
+  }, [localProducts, activeCategory, search]);
 
   // Cart calculations
   const subtotal = cart.reduce((sum, item) => {
@@ -471,7 +467,7 @@ export function POSTerminal({
   const handleCameraScan = useCallback(
     (barcode: string) => {
       setScannerOpen(false);
-      const found = products.find(
+      const found = localProducts.find(
         (p) => p.barcode?.toLowerCase() === barcode.toLowerCase(),
       );
       if (found) {
@@ -480,7 +476,7 @@ export function POSTerminal({
         setSearch(barcode);
       }
     },
-    [products, addToCart],
+    [localProducts, addToCart],
   );
 
   // ─────────────────────────────────────────────
@@ -552,130 +548,39 @@ export function POSTerminal({
 
     const code = promoCode.trim().toUpperCase();
 
-    // Try online first, fall back to local
     try {
-      if (navigator.onLine) {
-        const res = await fetch("/api/merchant/promotions/validate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            code,
-            subtotal,
-            items: cart.map((item) => ({
-              productId: item.product.id,
-              categoryId: item.product.categoryId,
-              quantity: item.quantity,
-              lineTotal: (item.unitPrice ?? item.product.price) * item.quantity,
-            })),
-          }),
+      const res = await fetch("/api/merchant/promotions/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          subtotal,
+          items: cart.map((item) => ({
+            productId: item.product.id,
+            categoryId: item.product.categoryId,
+            quantity: item.quantity,
+            lineTotal: (item.unitPrice ?? item.product.price) * item.quantity,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setPromoApplied({
+          code: data.promo.code,
+          id: data.promo.id,
+          discountAmount: data.discountAmount,
+          type: data.promo.type,
+          value: data.promo.value,
         });
-        const data = await res.json();
-        if (data.valid) {
-          setPromoApplied({
-            code: data.promo.code,
-            id: data.promo.id,
-            discountAmount: data.discountAmount,
-            type: data.promo.type,
-            value: data.promo.value,
-          });
-          setPromoCode("");
-          setPromoLoading(false);
-          return;
-        } else {
-          setPromoError(data.reason || i.pos.invalidPromoCode);
-          setPromoLoading(false);
-          return;
-        }
+        setPromoCode("");
+      } else {
+        setPromoError(data.reason || i.pos.invalidPromoCode);
       }
     } catch {
-      // Network error — fall through to offline
-    }
-
-    // Offline validation using locally cached promotions
-    const promo = localPromotions.find((p) => p.code === code);
-    if (!promo) {
-      setPromoError(i.pos.unknownPromoCode);
+      setPromoError(i.pos.invalidPromoCode);
+    } finally {
       setPromoLoading(false);
-      return;
     }
-    if (!promo.isActive) {
-      setPromoError(i.pos.promoInactive);
-      setPromoLoading(false);
-      return;
-    }
-    const now = new Date();
-    if (promo.startsAt && now < new Date(promo.startsAt)) {
-      setPromoError(i.pos.promoNotStarted);
-      setPromoLoading(false);
-      return;
-    }
-    if (promo.endsAt && now > new Date(promo.endsAt)) {
-      setPromoError(i.pos.promoExpired);
-      setPromoLoading(false);
-      return;
-    }
-    if (promo.maxUses && promo.usedCount >= promo.maxUses) {
-      setPromoError(i.pos.promoFullyUsed);
-      setPromoLoading(false);
-      return;
-    }
-    if (promo.minSubtotal > 0 && subtotal < promo.minSubtotal) {
-      setPromoError(
-        `${i.pos.minSubtotal} ${formatMoney(promo.minSubtotal, merchant.currency, merchant.numberFormat, merchant.currencyFormat, language)}`,
-      );
-      setPromoLoading(false);
-      return;
-    }
-
-    // Calculate discount
-    let discountAmount = 0;
-    if (promo.scope === "ORDER") {
-      discountAmount =
-        promo.type === "PERCENT" ? subtotal * (promo.value / 100) : promo.value;
-    } else if (promo.scope === "PRODUCT" && promo.scopeTargetId) {
-      const matching = cart.filter((c) => c.product.id === promo.scopeTargetId);
-      const matchTotal = matching.reduce(
-        (s, c) => s + (c.unitPrice ?? c.product.price) * c.quantity,
-        0,
-      );
-      discountAmount =
-        promo.type === "PERCENT"
-          ? matchTotal * (promo.value / 100)
-          : promo.value;
-    } else if (promo.scope === "CATEGORY" && promo.scopeTargetId) {
-      const matching = cart.filter(
-        (c) => c.product.categoryId === promo.scopeTargetId,
-      );
-      const matchTotal = matching.reduce(
-        (s, c) => s + (c.unitPrice ?? c.product.price) * c.quantity,
-        0,
-      );
-      discountAmount =
-        promo.type === "PERCENT"
-          ? matchTotal * (promo.value / 100)
-          : promo.value;
-    }
-
-    if (promo.maxDiscount && discountAmount > promo.maxDiscount) {
-      discountAmount = promo.maxDiscount;
-    }
-    discountAmount = Math.min(discountAmount, subtotal);
-
-    if (discountAmount <= 0) {
-      setPromoError(i.pos.noApplicableItems);
-      setPromoLoading(false);
-      return;
-    }
-
-    setPromoApplied({
-      code: promo.code,
-      id: promo.id,
-      discountAmount,
-      type: promo.type,
-      value: promo.value,
-    });
-    setPromoCode("");
-    setPromoLoading(false);
   };
 
   const removePromo = () => {
@@ -696,55 +601,55 @@ export function POSTerminal({
       return;
     }
 
-    setProcessing(true);
+    startProcessTransition(async () => {
+      const paid =
+        paymentMethod === "CREDIT" ? 0 : parseFloat(paidAmount) || total;
+      const creditAmt = paymentMethod === "CREDIT" ? total : 0;
+      const change = paymentMethod === "CREDIT" ? 0 : Math.max(0, paid - total);
 
-    const paid =
-      paymentMethod === "CREDIT" ? 0 : parseFloat(paidAmount) || total;
-    const creditAmt = paymentMethod === "CREDIT" ? total : 0;
-    const change = paymentMethod === "CREDIT" ? 0 : Math.max(0, paid - total);
+      const orderItems = cart.map((item) => ({
+        productId: item.product.id,
+        name: getProductDisplayName(
+          item.product.name,
+          item.product.variantName,
+        ),
+        sku: item.product.sku,
+        price: item.product.price,
+        costPrice: item.product.costPrice,
+        quantity: item.quantity,
+        discount: item.discount,
+        originalPrice: item.unitPrice !== null ? item.product.price : undefined,
+        unitPrice: item.unitPrice ?? item.product.price,
+        discountType: item.discountType ?? undefined,
+        discountValue: item.discountValue,
+      }));
 
-    const orderItems = cart.map((item) => ({
-      productId: item.product.id,
-      name: getProductDisplayName(item.product.name, item.product.variantName),
-      sku: item.product.sku,
-      price: item.product.price,
-      costPrice: item.product.costPrice,
-      quantity: item.quantity,
-      discount: item.discount,
-      originalPrice: item.unitPrice !== null ? item.product.price : undefined,
-      unitPrice: item.unitPrice ?? item.product.price,
-      discountType: item.discountType ?? undefined,
-      discountValue: item.discountValue,
-    }));
+      const finishOrder = (orderNumber: string) => {
+        setLastOrder({
+          orderNumber,
+          items: [...cart],
+          subtotal,
+          tax: taxAmount,
+          total,
+          paid,
+          change,
+          creditAmount: creditAmt,
+          paymentMethod,
+          customer: selectedCustomer,
+          staff: selectedStaff,
+          date: new Date(),
+          promoCode: promoApplied?.code ?? null,
+          promoDiscount,
+        });
 
-    const finishOrder = (orderNumber: string) => {
-      setLastOrder({
-        orderNumber,
-        items: [...cart],
-        subtotal,
-        tax: taxAmount,
-        total,
-        paid,
-        change,
-        creditAmount: creditAmt,
-        paymentMethod,
-        customer: selectedCustomer,
-        staff: selectedStaff,
-        date: new Date(),
-        promoCode: promoApplied?.code ?? null,
-        promoDiscount,
-      });
+        setCheckoutOpen(false);
+        setReceiptOpen(true);
+        clearCart();
+        setPaidAmount("");
+        setOrderNotes("");
+      };
 
-      setCheckoutOpen(false);
-      setReceiptOpen(true);
-      clearCart();
-      setPaidAmount("");
-      setOrderNotes("");
-    };
-
-    try {
-      if (navigator.onLine) {
-        // Online: try server first
+      try {
         const res = await fetch("/api/merchant/orders", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -771,71 +676,40 @@ export function POSTerminal({
             orderNumber: string;
           };
 
-          await saveOrderLocally({
-            merchantId: merchant.id,
-            localId: order.id,
-            orderNumber: order.orderNumber,
-            items: orderItems,
-            customerId: selectedCustomer?.id || null,
-            customerName: selectedCustomer?.name || null,
-            staffId: selectedStaff?.id || null,
-            staffName: selectedStaff?.name || null,
-            paymentMethod,
-            subtotal,
-            taxAmount,
-            total,
-            paidAmount: paid,
-            creditAmount: creditAmt,
-            notes: orderNotes || null,
-            status: "COMPLETED",
-            syncStatus: "synced",
-          });
+          setLocalProducts((prev) =>
+            prev.map((product) => {
+              const purchased = cart.find(
+                (item) => item.product.id === product.id,
+              );
+              if (!purchased || !product.trackStock) return product;
+              return {
+                ...product,
+                stock: Math.max(0, product.stock - purchased.quantity),
+              };
+            }),
+          );
+
+          if (paymentMethod === "CREDIT" && selectedCustomer) {
+            const nextBalance = selectedCustomer.balance + creditAmt;
+            setLocalCustomers((prev) =>
+              prev.map((customer) =>
+                customer.id === selectedCustomer.id
+                  ? { ...customer, balance: nextBalance }
+                  : customer,
+              ),
+            );
+          }
 
           finishOrder(order.orderNumber);
-          router.refresh();
           return;
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || i.pos.failedToSaveOrder);
         }
-      }
-
-      // Offline or server failed: save locally
-      const localOrder = await createOfflineOrder({
-        merchantId: merchant.id,
-        items: orderItems,
-        customerId: selectedCustomer?.id || null,
-        staffId: selectedStaff?.id || null,
-        paymentMethod,
-        subtotal,
-        taxAmount,
-        total,
-        paidAmount: paid,
-        creditAmount: creditAmt,
-        notes: orderNotes || null,
-      });
-
-      finishOrder(localOrder.orderNumber);
-    } catch {
-      // Network error: save locally
-      try {
-        const localOrder = await createOfflineOrder({
-          merchantId: merchant.id,
-          items: orderItems,
-          customerId: selectedCustomer?.id || null,
-          staffId: selectedStaff?.id || null,
-          paymentMethod,
-          subtotal,
-          taxAmount,
-          total,
-          paidAmount: paid,
-          creditAmount: creditAmt,
-          notes: orderNotes || null,
-        });
-        finishOrder(localOrder.orderNumber);
       } catch {
         alert(i.pos.failedToSaveOrder);
       }
-    } finally {
-      setProcessing(false);
-    }
+    });
   };
 
   // ─────────────────────────────────────────────
@@ -863,15 +737,19 @@ export function POSTerminal({
     >
       {/* ─── Left: Product Grid ─── */}
       <div className="flex-1 flex flex-col min-w-0 bg-slate-50">
-        {/* Search & Offline Status */}
+        {/* Search */}
         <div className="p-4 bg-white border-b border-slate-200/80 space-y-3">
           {/* Search */}
           <div className="flex gap-2">
             {isCashier ? (
               <button
                 onClick={async () => {
-                  await fetch("/api/staff/auth", { method: "DELETE" });
-                  router.refresh();
+                  try {
+                    await fetch("/api/staff/auth", { method: "DELETE" });
+                  } catch {
+                    // Best-effort
+                  }
+                  router.push("/dashboard");
                 }}
                 className="flex items-center gap-2 px-3 h-11 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 active:scale-95 transition-all shrink-0 text-sm font-semibold cursor-pointer"
               >
@@ -1273,10 +1151,10 @@ export function POSTerminal({
                         <button
                           type="button"
                           onClick={handleQuickAddCustomer}
-                          disabled={!quickAddName.trim() || quickAddLoading}
+                          disabled={!quickAddName.trim() || isQuickAdding}
                           className="px-2.5 py-1 text-[11px] font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                         >
-                          {quickAddLoading ? "..." : i.common.save}
+                          {isQuickAdding ? "..." : i.common.save}
                         </button>
                       </div>
                     </div>
@@ -1958,7 +1836,7 @@ export function POSTerminal({
             <Button
               className="flex-1"
               size="lg"
-              loading={processing}
+              loading={isProcessing}
               onClick={handleCheckout}
               disabled={
                 (paymentMethod === "CASH" &&

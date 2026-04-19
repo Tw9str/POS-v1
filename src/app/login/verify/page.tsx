@@ -1,5 +1,8 @@
 import { Card } from "@/components/ui/Card";
 import Link from "next/link";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Verify Email" };
 
 export default function VerifyPage() {
   return (

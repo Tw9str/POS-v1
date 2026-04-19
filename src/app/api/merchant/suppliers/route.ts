@@ -1,13 +1,15 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
+import { apiError } from "@/lib/apiError";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const supplierSchema = z.object({
   name: z.string().min(1).max(200),
   phone: z.string().max(30).optional().default(""),
-  email: z.string().email().optional().or(z.literal("")),
+  email: z.email().optional().or(z.literal("")),
   address: z.string().max(500).optional().default(""),
   notes: z.string().max(1000).optional().default(""),
 });
@@ -44,11 +46,7 @@ export async function GET() {
       })),
     );
   } catch (err) {
-    console.error("GET /api/merchant/suppliers error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "GET /api/merchant/suppliers");
   }
 }
 
@@ -93,13 +91,10 @@ export async function POST(req: Request) {
       })
       .catch(() => {});
 
+    revalidatePath("/dashboard/suppliers");
     return NextResponse.json(supplier, { status: 201 });
   } catch (err) {
-    console.error("POST /api/merchant/suppliers error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/suppliers");
   }
 }
 
@@ -142,13 +137,10 @@ export async function PUT(req: Request) {
       },
     });
 
+    revalidatePath("/dashboard/suppliers");
     return NextResponse.json(supplier);
   } catch (err) {
-    console.error("PUT /api/merchant/suppliers error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "PUT /api/merchant/suppliers");
   }
 }
 
@@ -181,12 +173,9 @@ export async function DELETE(req: Request) {
     }
 
     await prisma.supplier.delete({ where: { id: parsed.data.id } });
+    revalidatePath("/dashboard/suppliers");
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DELETE /api/merchant/suppliers error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "DELETE /api/merchant/suppliers");
   }
 }

@@ -2,12 +2,7 @@
 
 import { useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  useLocalProducts,
-  useLocalCustomers,
-  useLocalOrders,
-} from "@/hooks/useLocalData";
-import type { LocalOrder } from "@/lib/offlineDb";
+import type { Order, Product, Customer } from "@/types/pos";
 import { StatCard } from "@/components/ui/Card";
 import {
   IconMoney,
@@ -37,7 +32,7 @@ type MetricSnapshot = {
 };
 
 function getRefundAmount(
-  order: Pick<LocalOrder, "status" | "total" | "notes">,
+  order: Pick<Order, "status" | "total" | "notes">,
 ): number {
   if (order.status !== "REFUNDED" && order.status !== "PARTIALLY_REFUNDED") {
     return 0;
@@ -48,7 +43,7 @@ function getRefundAmount(
   return Number.isFinite(amount) ? Math.min(amount, order.total) : order.total;
 }
 
-function getOrderCost(order: Pick<LocalOrder, "items">): number {
+function getOrderCost(order: Pick<Order, "items">): number {
   return order.items.reduce(
     (sum, item) => sum + item.costPrice * item.quantity,
     0,
@@ -59,7 +54,7 @@ function getBaseProductName(name: string): string {
   return name.split(" · ")[0]?.trim() || name;
 }
 
-function buildSnapshot(list: LocalOrder[]): MetricSnapshot {
+function buildSnapshot(list: Order[]): MetricSnapshot {
   const grossSales = list.reduce((sum, order) => sum + order.total, 0);
   const refundedRevenue = list.reduce(
     (sum, order) => sum + getRefundAmount(order),
@@ -97,6 +92,9 @@ export function ReportsContent({
   numberFormat = "western",
   dateFormat = "long",
   language = "en",
+  products,
+  customers,
+  orders,
 }: {
   merchantId: string;
   currency: string;
@@ -104,11 +102,11 @@ export function ReportsContent({
   numberFormat?: NumberFormat;
   dateFormat?: DateFormat;
   language?: string;
+  products: Product[];
+  customers: Customer[];
+  orders: Order[];
 }) {
   const i = t(language as Locale);
-  const products = useLocalProducts(merchantId);
-  const customers = useLocalCustomers(merchantId);
-  const orders = useLocalOrders(merchantId, 500);
 
   const now = useMemo(() => {
     const d = new Date();
@@ -145,7 +143,7 @@ export function ReportsContent({
       (order) => order.createdAt >= now.monthStart,
     );
 
-    const dailyBuckets = new Map<string, LocalOrder[]>();
+    const dailyBuckets = new Map<string, Order[]>();
     for (const order of weekOrders) {
       const date = new Date(order.createdAt).toISOString().split("T")[0];
       const list = dailyBuckets.get(date) ?? [];

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
+import { apiError } from "@/lib/apiError";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
@@ -14,8 +15,8 @@ export async function GET(req: Request) {
     // Build prefix from category name or default "PRD"
     let prefix = "PRD";
     if (categoryId) {
-      const category = await prisma.category.findUnique({
-        where: { id: categoryId },
+      const category = await prisma.category.findFirst({
+        where: { id: categoryId, merchantId: merchant.id },
         select: { name: true },
       });
       if (category) {
@@ -40,10 +41,6 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ sku });
   } catch (err) {
-    console.error("GET /api/merchant/products/generate-sku error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "GET /api/merchant/products/generate-sku");
   }
 }

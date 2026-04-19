@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
+import { apiError } from "@/lib/apiError";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -154,10 +155,6 @@ export async function POST(req: Request) {
       discountAmount,
     });
   } catch (err) {
-    console.error("POST /api/merchant/promotions/validate error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/promotions/validate");
   }
 }

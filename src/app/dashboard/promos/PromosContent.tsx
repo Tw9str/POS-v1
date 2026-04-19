@@ -1,4 +1,5 @@
 "use client";
+import type React from "react";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/Button";
@@ -149,7 +150,7 @@ export function PromosContent({
     setModalOpen(true);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaving(true);
     setError("");

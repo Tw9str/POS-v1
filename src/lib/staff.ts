@@ -49,11 +49,13 @@ const ROLE_APIS: Record<StaffRole, string[]> = {
     "/api/merchant/suppliers",
     "/api/merchant/inventory",
     "/api/merchant/promotions",
+    "/api/merchant/payments",
   ],
   CASHIER: [
     "/api/merchant/orders",
     "/api/merchant/products",
     "/api/merchant/promotions",
+    "/api/merchant/payments",
   ],
   STOCK_CLERK: [
     "/api/merchant/products",

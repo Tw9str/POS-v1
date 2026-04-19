@@ -1,11 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  useLocalCustomers,
-  useLocalOrders,
-  useLocalProducts,
-} from "@/hooks/useLocalData";
+import type { Order, Product, Customer } from "@/types/pos";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatCard } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -20,7 +16,6 @@ import {
   IconOrders,
   IconProducts,
 } from "@/components/Icons";
-import type { LocalOrder } from "@/lib/offlineDb";
 import {
   buildInventoryInsights,
   buildProductPerformance,
@@ -82,14 +77,14 @@ const RANGE_META: Record<
   all: { labelKey: "allTime", days: null, trendDays: 12 },
 };
 
-function getOrderCost(order: Pick<LocalOrder, "items">): number {
+function getOrderCost(order: Pick<Order, "items">): number {
   return order.items.reduce(
     (sum, item) => sum + item.costPrice * item.quantity,
     0,
   );
 }
 
-function buildSnapshot(list: LocalOrder[]): MetricSnapshot {
+function buildSnapshot(list: Order[]): MetricSnapshot {
   const grossSales = list.reduce((sum, order) => sum + order.total, 0);
   const refundedRevenue = list.reduce(
     (sum, order) => sum + getRefundAmount(order),
@@ -158,6 +153,9 @@ export function AnalyticsContent({
   numberFormat = "western",
   dateFormat = "long",
   language = "en",
+  products,
+  customers,
+  orders,
 }: {
   merchantId: string;
   currency: string;
@@ -165,6 +163,9 @@ export function AnalyticsContent({
   numberFormat?: NumberFormat;
   dateFormat?: DateFormat;
   language?: string;
+  products: Product[];
+  customers: Customer[];
+  orders: Order[];
 }) {
   const i = t(language as Locale);
   const [range, setRange] = useState<AnalyticsRange>("30d");
@@ -179,10 +180,6 @@ export function AnalyticsContent({
   const [customEnd, setCustomEnd] = useState(() =>
     formatDateInputValue(new Date()),
   );
-  const products = useLocalProducts(merchantId);
-  const customers = useLocalCustomers(merchantId);
-  const orders = useLocalOrders(merchantId, 800);
-
   const rangeMeta = RANGE_META[range];
   const saleOrders = useMemo(
     () => orders.filter((order) => order.status !== "VOIDED"),

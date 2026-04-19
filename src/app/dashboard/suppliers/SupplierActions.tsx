@@ -1,12 +1,11 @@
 "use client";
+import type React from "react";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { IconPlus } from "@/components/Icons";
-import { useRouter } from "next/navigation";
-import { offlineFetch } from "@/lib/offline-fetch";
 import { t, type Locale } from "@/lib/i18n";
 
 interface EditableSupplier {
@@ -24,6 +23,7 @@ interface SupplierActionsProps {
   externalOpen?: boolean;
   onExternalClose?: () => void;
   onDelete?: () => void;
+  onSaved?: (supplier: EditableSupplier & { _orderCount?: number }) => void;
   language?: string;
 }
 
@@ -33,10 +33,10 @@ export function SupplierActions({
   externalOpen,
   onExternalClose,
   onDelete,
+  onSaved,
   language = "en",
 }: SupplierActionsProps) {
   const i = t(language as Locale);
-  const router = useRouter();
   const isEdit = Boolean(supplier);
   const [open, setOpen] = useState(false);
   const isModalOpen = externalOpen ?? open;
@@ -66,31 +66,34 @@ export function SupplierActions({
     setOpen(true);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
-      const result = await offlineFetch({
-        url: "/api/merchant/suppliers",
+      const res = await fetch("/api/merchant/suppliers", {
         method: isEdit ? "PUT" : "POST",
-        body: isEdit ? { id: supplier?.id, ...form } : form,
-        entity: "supplier",
-        merchantId,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isEdit ? { id: supplier?.id, ...form } : form),
       });
 
-      if (!result.ok) {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
         setError(
-          result.error ||
+          err.error ||
             (isEdit ? i.suppliers.failedToUpdate : i.suppliers.failedToAdd),
         );
         return;
       }
 
+      const savedSupplier = (await res.json()) as EditableSupplier & {
+        _orderCount?: number;
+      };
+
       closeModal();
       setForm({ name: "", phone: "", email: "", address: "", notes: "" });
-      router.refresh();
+      onSaved?.(savedSupplier);
     } catch {
       setError(i.common.somethingWentWrong);
     } finally {

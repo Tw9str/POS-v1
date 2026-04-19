@@ -1,14 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useLocalStaff } from "@/hooks/useLocalData";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { StaffActions } from "./StaffActions";
 import { Button } from "@/components/ui/Button";
 import { RowActions } from "@/components/ui/RowActions";
 import { FloatingActionBar } from "@/components/ui/FloatingActionBar";
 import { StatusToggle } from "@/components/ui/StatusToggle";
-import { offlineFetch } from "@/lib/offline-fetch";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
@@ -36,15 +33,28 @@ export function StaffContent({
   merchantId,
   numberFormat = "western",
   language = "en",
+  staff,
 }: {
   merchantId: string;
   numberFormat?: NumberFormat;
   language?: string;
+  staff: {
+    id: string;
+    name: string;
+    pin: string;
+    role: string;
+    isActive: boolean;
+    maxDiscountPercent: number;
+  }[];
 }) {
   const i = t(language as Locale);
-  const router = useRouter();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [localStaff, setLocalStaff] = useState(staff);
+  const [isDeleting, startDeleteTransition] = useTransition();
+
+  useEffect(() => {
+    setLocalStaff(staff);
+  }, [staff]);
+  const [isBulkDeleting, startBulkDeleteTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -64,19 +74,18 @@ export function StaffContent({
     role: string;
     isActive?: boolean;
   } | null>(null);
-  const staff = useLocalStaff(merchantId);
 
   const filteredStaff = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return staff;
+    if (!query) return localStaff;
 
-    return staff.filter(
+    return localStaff.filter(
       (member) =>
         member.name.toLowerCase().includes(query) ||
         member.role.toLowerCase().includes(query) ||
         formatStaffRoleLabel(member.role, i).toLowerCase().includes(query),
     );
-  }, [staff, search]);
+  }, [localStaff, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredStaff.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -103,30 +112,33 @@ export function StaffContent({
   }
 
   async function handleDeleteStaff(id: string, name: string) {
-    setDeletingId(id);
     setFeedback(null);
-    const result = await offlineFetch({
-      url: "/api/merchant/staff",
-      method: "DELETE",
-      body: { id },
-      entity: "staff",
-      merchantId,
-    });
+    startDeleteTransition(async () => {
+      try {
+        const res = await fetch("/api/merchant/staff", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
 
-    if (!result.ok) {
-      setFeedback({
-        type: "error",
-        text: result.error || i.staff.failedToDelete,
-      });
-    } else {
-      setSelectedIds((prev) => prev.filter((item) => item !== id));
-      setFeedback({
-        type: "success",
-        text: i.common.deleted.replace("{name}", name),
-      });
-      router.refresh();
-    }
-    setDeletingId(null);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setFeedback({
+            type: "error",
+            text: err.error || i.staff.failedToDelete,
+          });
+        } else {
+          setLocalStaff((prev) => prev.filter((member) => member.id !== id));
+          setSelectedIds((prev) => prev.filter((item) => item !== id));
+          setFeedback({
+            type: "success",
+            text: i.common.deleted.replace("{name}", name),
+          });
+        }
+      } catch {
+        setFeedback({ type: "error", text: i.staff.failedToDelete });
+      }
+    });
   }
 
   async function handleToggleActive(
@@ -135,71 +147,106 @@ export function StaffContent({
     currentActive: boolean,
   ) {
     setFeedback(null);
-    const result = await offlineFetch({
-      url: "/api/merchant/staff",
-      method: "PUT",
-      body: { id, isActive: !currentActive },
-      entity: "staff",
-      merchantId,
-    });
+    try {
+      const res = await fetch("/api/merchant/staff", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, isActive: !currentActive }),
+      });
 
-    if (!result.ok) {
-      setFeedback({
-        type: "error",
-        text: result.error || i.staff.failedToUpdate,
-      });
-    } else {
-      setFeedback({
-        type: "success",
-        text: `${name} ${currentActive ? i.staff.deactivated : i.staff.activated}.`,
-      });
-      router.refresh();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setFeedback({
+          type: "error",
+          text: err.error || i.staff.failedToUpdate,
+        });
+      } else {
+        setLocalStaff((prev) =>
+          currentActive
+            ? prev.filter((member) => member.id !== id)
+            : prev.map((member) =>
+                member.id === id
+                  ? { ...member, isActive: !currentActive }
+                  : member,
+              ),
+        );
+        setFeedback({
+          type: "success",
+          text: `${name} ${currentActive ? i.staff.deactivated : i.staff.activated}.`,
+        });
+      }
+    } catch {
+      setFeedback({ type: "error", text: i.staff.failedToUpdate });
     }
   }
 
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return;
 
-    setBulkDeleting(true);
     setFeedback(null);
-    const failures: string[] = [];
+    startBulkDeleteTransition(async () => {
+      const failures: string[] = [];
 
-    for (const id of selectedIds) {
-      const result = await offlineFetch({
-        url: "/api/merchant/staff",
-        method: "DELETE",
-        body: { id },
-        entity: "staff",
-        merchantId,
-      });
+      for (const id of selectedIds) {
+        try {
+          const res = await fetch("/api/merchant/staff", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          });
 
-      if (!result.ok) failures.push(result.error || i.common.deleteFailed);
-    }
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            failures.push(err.error || i.common.deleteFailed);
+          }
+        } catch {
+          failures.push(i.common.deleteFailed);
+        }
+      }
 
-    if (failures.length > 0) {
-      setFeedback({ type: "error", text: failures[0] });
-    } else {
-      setFeedback({
-        type: "success",
-        text: i.common.deletedCount.replace(
-          "{count}",
-          String(selectedIds.length),
-        ),
-      });
-      setSelectedIds([]);
-      router.refresh();
-    }
-
-    setBulkDeleting(false);
+      if (failures.length > 0) {
+        setFeedback({ type: "error", text: failures[0] });
+      } else {
+        setFeedback({
+          type: "success",
+          text: i.common.deletedCount.replace(
+            "{count}",
+            String(selectedIds.length),
+          ),
+        });
+        setLocalStaff((prev) =>
+          prev.filter((member) => !selectedIds.includes(member.id)),
+        );
+        setSelectedIds([]);
+      }
+    });
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={i.staff.title}
-        subtitle={`${formatNumber(staff.length, numberFormat)} ${i.staff.teamMembers}`}
+        subtitle={`${formatNumber(localStaff.length, numberFormat)} ${i.staff.teamMembers}`}
       >
-        <StaffActions merchantId={merchantId} language={language} />
+        <StaffActions
+          merchantId={merchantId}
+          language={language}
+          onSaved={(savedStaff) => {
+            const normalized = {
+              ...savedStaff,
+              isActive: savedStaff.isActive ?? true,
+            };
+            setLocalStaff((prev) => {
+              const next = prev.some((member) => member.id === normalized.id)
+                ? prev.map((member) =>
+                    member.id === normalized.id ? normalized : member,
+                  )
+                : [normalized, ...prev];
+
+              return [...next].sort((a, b) => a.name.localeCompare(b.name));
+            });
+          }}
+        />
       </PageHeader>
 
       <div className="w-full md:max-w-sm">
@@ -213,7 +260,7 @@ export function StaffContent({
             setPage(1);
           }}
           resultCount={filteredStaff.length}
-          totalCount={staff.length}
+          totalCount={localStaff.length}
           numberFormat={numberFormat}
           language={language}
         />
@@ -267,7 +314,7 @@ export function StaffContent({
                   colSpan={6}
                   className="px-5 py-12 text-center text-slate-400"
                 >
-                  {staff.length === 0
+                  {localStaff.length === 0
                     ? i.staff.noStaffYet
                     : i.staff.noStaffMatch}
                 </td>
@@ -383,7 +430,7 @@ export function StaffContent({
         selectedCount={selectedIds.length}
         onDelete={() => setConfirmBulkDelete(true)}
         onCancel={() => setSelectedIds([])}
-        deleting={bulkDeleting}
+        deleting={isBulkDeleting}
         numberFormat={numberFormat}
         language={language}
       />
@@ -395,6 +442,19 @@ export function StaffContent({
           staff={editStaff}
           externalOpen
           onExternalClose={() => setEditStaff(null)}
+          onSaved={(savedStaff) => {
+            const normalized = {
+              ...savedStaff,
+              isActive: savedStaff.isActive ?? true,
+            };
+            setLocalStaff((prev) =>
+              prev
+                .map((member) =>
+                  member.id === normalized.id ? normalized : member,
+                )
+                .sort((a, b) => a.name.localeCompare(b.name)),
+            );
+          }}
           onDelete={() => {
             const { id, name } = editStaff;
             setEditStaff(null);
@@ -418,7 +478,7 @@ export function StaffContent({
           confirmDelete?.name ?? "",
         )}
         confirmLabel={i.common.delete}
-        loading={Boolean(deletingId)}
+        loading={isDeleting}
       />
 
       <ConfirmModal

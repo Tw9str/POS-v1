@@ -1,13 +1,15 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
+import { apiError } from "@/lib/apiError";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const customerSchema = z.object({
   name: z.string().min(1).max(200),
   phone: z.string().max(50).optional(),
-  email: z.string().email().optional().or(z.literal("")),
+  email: z.email().optional().or(z.literal("")),
   address: z.string().max(500).optional(),
   notes: z.string().max(1000).optional(),
 });
@@ -45,11 +47,7 @@ export async function GET() {
 
     return NextResponse.json(customers);
   } catch (err) {
-    console.error("GET /api/merchant/customers error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "GET /api/merchant/customers");
   }
 }
 
@@ -80,13 +78,11 @@ export async function POST(req: Request) {
       },
     });
 
+    revalidatePath("/dashboard/customers");
+    revalidatePath("/dashboard/pos");
     return NextResponse.json(customer, { status: 201 });
   } catch (err) {
-    console.error("POST /api/merchant/customers error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/customers");
   }
 }
 
@@ -129,13 +125,11 @@ export async function PUT(req: Request) {
       },
     });
 
+    revalidatePath("/dashboard/customers");
+    revalidatePath("/dashboard/pos");
     return NextResponse.json(customer);
   } catch (err) {
-    console.error("PUT /api/merchant/customers error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "PUT /api/merchant/customers");
   }
 }
 
@@ -168,12 +162,10 @@ export async function DELETE(req: Request) {
     }
 
     await prisma.customer.delete({ where: { id: parsed.data.id } });
+    revalidatePath("/dashboard/customers");
+    revalidatePath("/dashboard/pos");
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DELETE /api/merchant/customers error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "DELETE /api/merchant/customers");
   }
 }

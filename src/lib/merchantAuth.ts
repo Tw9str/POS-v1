@@ -19,6 +19,11 @@ export interface MerchantCacheData {
   onboardingDone: boolean;
 }
 
+/** Internal type that includes the issued-at timestamp for expiry validation */
+interface SignedPayload extends MerchantCacheData {
+  iat: number;
+}
+
 function getSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET;
   if (!secret) throw new Error("NEXTAUTH_SECRET is not set");
@@ -26,8 +31,11 @@ function getSecret(): string {
 }
 
 function sign(data: MerchantCacheData): string {
-  const payload = JSON.stringify(data);
-  const encoded = Buffer.from(payload).toString("base64url");
+  const payload: SignedPayload = {
+    ...data,
+    iat: Math.floor(Date.now() / 1000),
+  };
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = createHmac("sha256", getSecret()).update(encoded).digest("hex");
   return `${encoded}.${sig}`;
 }
@@ -54,9 +62,18 @@ function verify(token: string): MerchantCacheData | null {
 
   try {
     const payload = Buffer.from(encoded, "base64url").toString("utf8");
-    const data = JSON.parse(payload) as MerchantCacheData;
+    const data = JSON.parse(payload) as SignedPayload;
     if (!data.id || !data.name) return null;
-    return data;
+
+    // Reject expired tokens (server-side enforcement)
+    if (data.iat) {
+      const age = Math.floor(Date.now() / 1000) - data.iat;
+      if (age > MAX_AGE) return null;
+    }
+
+    // Strip internal field before returning
+    const { iat: _iat, ...merchantData } = data;
+    return merchantData;
   } catch {
     return null;
   }

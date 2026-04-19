@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
+import { apiError } from "@/lib/apiError";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -32,11 +34,7 @@ export async function GET() {
 
     return NextResponse.json(categories);
   } catch (err) {
-    console.error("GET /api/merchant/categories error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "GET /api/merchant/categories");
   }
 }
 
@@ -82,13 +80,11 @@ export async function POST(req: Request) {
       },
     });
 
+    revalidatePath("/dashboard/products");
+    revalidatePath("/dashboard/pos");
     return NextResponse.json(category, { status: 201 });
   } catch (err) {
-    console.error("POST /api/merchant/categories error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/categories");
   }
 }
 
@@ -146,13 +142,11 @@ export async function PUT(req: Request) {
       },
     });
 
+    revalidatePath("/dashboard/products");
+    revalidatePath("/dashboard/pos");
     return NextResponse.json(updated);
   } catch (err) {
-    console.error("PUT /api/merchant/categories error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "PUT /api/merchant/categories");
   }
 }
 
@@ -217,12 +211,10 @@ export async function DELETE(req: Request) {
       data: { isActive: false },
     });
 
+    revalidatePath("/dashboard/products");
+    revalidatePath("/dashboard/pos");
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DELETE /api/merchant/categories error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "DELETE /api/merchant/categories");
   }
 }

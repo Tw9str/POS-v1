@@ -1,4 +1,5 @@
 "use client";
+import type React from "react";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -14,8 +15,7 @@ import {
   IconSettings,
 } from "@/components/Icons";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
-import { useRouter } from "next/navigation";
-import { offlineFetch } from "@/lib/offline-fetch";
+
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { t, type Locale } from "@/lib/i18n";
 
@@ -50,6 +50,9 @@ interface ProductActionsProps {
   initialBarcode?: string;
   externalOpen?: boolean;
   onExternalClose?: () => void;
+  onProductSaved?: (product: EditableProduct & Record<string, unknown>) => void;
+  onCategorySaved?: (category: Category & { merchantId?: string }) => void;
+  onCategoryDeleted?: (categoryId: string) => void;
   language?: string;
 }
 
@@ -62,9 +65,11 @@ export function ProductActions({
   initialBarcode,
   externalOpen,
   onExternalClose,
+  onProductSaved,
+  onCategorySaved,
+  onCategoryDeleted,
   language = "en",
 }: ProductActionsProps) {
-  const router = useRouter();
   const i = t(language as Locale);
   const isEdit = Boolean(product);
   const isVariantPrefill = !isEdit && Boolean(prefillProduct);
@@ -175,16 +180,16 @@ export function ProductActions({
     setOpen(true);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
-      const result = await offlineFetch({
-        url: "/api/merchant/products",
+      const res = await fetch("/api/merchant/products", {
         method: isEdit ? "PUT" : "POST",
-        body: {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           ...(isEdit ? { id: product?.id } : {}),
           ...form,
           variantName: form.variantName || null,
@@ -196,15 +201,17 @@ export function ProductActions({
             form.categoryId ||
             categories.find((c) => c.name === "Other")?.id ||
             categories[0]?.id,
-        },
-        entity: "product",
-        merchantId,
+        }),
       });
 
-      if (!result.ok) {
-        setError(result.error || i.products.somethingWentWrong);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(err.error || i.products.somethingWentWrong);
         return;
       }
+
+      const savedProduct = (await res.json()) as EditableProduct &
+        Record<string, unknown>;
 
       closeModal();
       if (!isEdit) {
@@ -222,7 +229,7 @@ export function ProductActions({
           trackStock: true,
         });
       }
-      router.refresh();
+      onProductSaved?.(savedProduct);
     } catch {
       setError(i.products.somethingWentWrong);
     } finally {
@@ -230,16 +237,16 @@ export function ProductActions({
     }
   }
 
-  async function handleCategorySubmit(e: React.FormEvent) {
+  async function handleCategorySubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setCategoryLoading(true);
     setCategoryError("");
 
     try {
-      const result = await offlineFetch({
-        url: "/api/merchant/categories",
+      const res = await fetch("/api/merchant/categories", {
         method: editingCategoryId ? "PUT" : "POST",
-        body: {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           ...(editingCategoryId ? { id: editingCategoryId } : {}),
           name: categoryForm.name,
           color: categoryForm.color,
@@ -249,18 +256,20 @@ export function ProductActions({
               ? (categories.find((c) => c.id === editingCategoryId)
                   ?.sortOrder ?? 0)
               : categories.length,
-        },
-        entity: "category",
-        merchantId,
+        }),
       });
 
-      if (!result.ok) {
-        setCategoryError(result.error || i.products.failedToSaveCategory);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setCategoryError(err.error || i.products.failedToSaveCategory);
         return;
       }
 
+      const savedCategory = (await res.json()) as Category & {
+        merchantId?: string;
+      };
       resetCategoryForm();
-      router.refresh();
+      onCategorySaved?.(savedCategory);
     } catch {
       setCategoryError(i.products.somethingWentWrong);
     } finally {
@@ -278,21 +287,25 @@ export function ProductActions({
   }
 
   async function handleDeleteCategory(id: string, name: string) {
-    const result = await offlineFetch({
-      url: "/api/merchant/categories",
-      method: "DELETE",
-      body: { id },
-      entity: "category",
-      merchantId,
-    });
+    try {
+      const res = await fetch("/api/merchant/categories", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
 
-    if (!result.ok) {
-      setCategoryError(result.error || i.products.failedToDeleteCategory);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setCategoryError(err.error || i.products.failedToDeleteCategory);
+        return;
+      }
+    } catch {
+      setCategoryError(i.products.failedToDeleteCategory);
       return;
     }
 
     if (editingCategoryId === id) resetCategoryForm();
-    router.refresh();
+    onCategoryDeleted?.(id);
   }
 
   return (
@@ -376,17 +389,24 @@ export function ProductActions({
                 if (catId && !form.sku) generateSku(catId);
               }}
               onCreateCategory={async (name, color) => {
-                const result = await offlineFetch({
-                  url: "/api/merchant/categories",
-                  method: "POST",
-                  body: { name, color, sortOrder: categories.length },
-                  entity: "category",
-                  merchantId,
-                });
-                if (result.ok && result.data?.id) {
-                  router.refresh();
-                  return result.data.id as string;
-                }
+                try {
+                  const res = await fetch("/api/merchant/categories", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      name,
+                      color,
+                      sortOrder: categories.length,
+                    }),
+                  });
+                  if (res.ok) {
+                    const data = (await res.json()) as Category & {
+                      merchantId?: string;
+                    };
+                    onCategorySaved?.(data);
+                    return data.id as string;
+                  }
+                } catch {}
                 return null;
               }}
             />

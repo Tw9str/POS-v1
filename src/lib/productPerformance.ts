@@ -1,4 +1,4 @@
-import type { LocalOrder, LocalProduct } from "@/lib/offlineDb";
+import type { Order, Product } from "@/types/pos";
 
 export type ProductMovement = "fast" | "steady" | "slow" | "dead";
 export type InventoryAction = "reorder" | "watch" | "dead" | "healthy";
@@ -29,7 +29,7 @@ export interface InventoryInsight {
 }
 
 export function getRefundAmount(
-  order: Pick<LocalOrder, "status" | "total" | "notes">,
+  order: Pick<Order, "status" | "total" | "notes">,
 ): number {
   if (order.status !== "REFUNDED" && order.status !== "PARTIALLY_REFUNDED") {
     return 0;
@@ -41,8 +41,8 @@ export function getRefundAmount(
 }
 
 export function buildProductPerformance(
-  orders: LocalOrder[],
-  products: LocalProduct[],
+  orders: Order[],
+  products: Product[],
 ): Map<string, ProductPerformanceMetric> {
   const now = Date.now();
   const todayStart = new Date(new Date(now).setHours(0, 0, 0, 0)).getTime();
@@ -121,7 +121,7 @@ export function buildProductPerformance(
 }
 
 export function buildInventoryInsights(
-  products: LocalProduct[],
+  products: Product[],
   performance: Map<string, ProductPerformanceMetric>,
 ): InventoryInsight[] {
   return products

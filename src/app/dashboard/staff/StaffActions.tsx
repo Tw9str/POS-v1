@@ -1,4 +1,5 @@
 "use client";
+import type React from "react";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -6,8 +7,6 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
 import { IconPlus } from "@/components/Icons";
-import { useRouter } from "next/navigation";
-import { offlineFetch } from "@/lib/offline-fetch";
 import { t, type Locale } from "@/lib/i18n";
 
 interface EditableStaff {
@@ -24,6 +23,7 @@ interface StaffActionsProps {
   externalOpen?: boolean;
   onExternalClose?: () => void;
   onDelete?: () => void;
+  onSaved?: (staff: EditableStaff & { maxDiscountPercent: number }) => void;
   language?: string;
 }
 
@@ -33,10 +33,10 @@ export function StaffActions({
   externalOpen,
   onExternalClose,
   onDelete,
+  onSaved,
   language = "en",
 }: StaffActionsProps) {
   const i = t(language as Locale);
-  const router = useRouter();
   const isEdit = Boolean(staff);
   const [open, setOpen] = useState(false);
   const isModalOpen = externalOpen ?? open;
@@ -62,31 +62,33 @@ export function StaffActions({
     setOpen(true);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
-      const result = await offlineFetch({
-        url: "/api/merchant/staff",
+      const res = await fetch("/api/merchant/staff", {
         method: isEdit ? "PUT" : "POST",
-        body: isEdit ? { id: staff?.id, ...form } : form,
-        entity: "staff",
-        merchantId,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isEdit ? { id: staff?.id, ...form } : form),
       });
 
-      if (!result.ok) {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
         setError(
-          result.error ||
-            (isEdit ? i.staff.failedToUpdate : i.staff.failedToAdd),
+          err.error || (isEdit ? i.staff.failedToUpdate : i.staff.failedToAdd),
         );
         return;
       }
 
+      const savedStaff = (await res.json()) as EditableStaff & {
+        maxDiscountPercent: number;
+      };
+
       closeModal();
       setForm({ name: "", pin: "", role: "CASHIER" });
-      router.refresh();
+      onSaved?.(savedStaff);
     } catch {
       setError(i.common.somethingWentWrong);
     } finally {
@@ -124,8 +126,8 @@ export function StaffActions({
             id="pin"
             label={i.staff.pinCode}
             type="text"
-            pattern="[0-9]{4,6}"
-            maxLength={6}
+            pattern="[0-9]{4}"
+            maxLength={4}
             value={form.pin}
             onChange={(e) =>
               setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })

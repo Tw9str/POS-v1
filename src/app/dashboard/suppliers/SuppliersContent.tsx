@@ -1,13 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useLocalSuppliers } from "@/hooks/useLocalData";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { SupplierActions } from "./SupplierActions";
 import { Button } from "@/components/ui/Button";
 import { RowActions } from "@/components/ui/RowActions";
 import { FloatingActionBar } from "@/components/ui/FloatingActionBar";
-import { offlineFetch } from "@/lib/offline-fetch";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
@@ -20,15 +17,29 @@ export function SuppliersContent({
   merchantId,
   numberFormat = "western",
   language = "en",
+  suppliers,
 }: {
   merchantId: string;
   numberFormat?: NumberFormat;
   language?: string;
+  suppliers: {
+    id: string;
+    name: string;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    notes: string | null;
+    _orderCount?: number;
+  }[];
 }) {
   const i = t(language as Locale);
-  const router = useRouter();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [localSuppliers, setLocalSuppliers] = useState(suppliers);
+  const [isDeleting, startDeleteTransition] = useTransition();
+  const [isBulkDeleting, startBulkDeleteTransition] = useTransition();
+
+  useEffect(() => {
+    setLocalSuppliers(suppliers);
+  }, [suppliers]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -49,20 +60,19 @@ export function SuppliersContent({
     address: string | null;
     notes?: string | null;
   } | null>(null);
-  const suppliers = useLocalSuppliers(merchantId);
 
   const filteredSuppliers = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return suppliers;
+    if (!query) return localSuppliers;
 
-    return suppliers.filter(
+    return localSuppliers.filter(
       (supplier) =>
         supplier.name.toLowerCase().includes(query) ||
         supplier.phone?.toLowerCase().includes(query) ||
         supplier.email?.toLowerCase().includes(query) ||
         supplier.address?.toLowerCase().includes(query),
     );
-  }, [suppliers, search]);
+  }, [localSuppliers, search]);
 
   const totalPages = Math.max(
     1,
@@ -92,75 +102,115 @@ export function SuppliersContent({
   }
 
   async function handleDeleteSupplier(id: string, name: string) {
-    setDeletingId(id);
     setFeedback(null);
-    const result = await offlineFetch({
-      url: "/api/merchant/suppliers",
-      method: "DELETE",
-      body: { id },
-      entity: "supplier",
-      merchantId,
-    });
+    startDeleteTransition(async () => {
+      try {
+        const res = await fetch("/api/merchant/suppliers", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
 
-    if (!result.ok) {
-      setFeedback({
-        type: "error",
-        text: result.error || i.suppliers.failedToDelete,
-      });
-    } else {
-      setSelectedIds((prev) => prev.filter((item) => item !== id));
-      setFeedback({
-        type: "success",
-        text: i.common.deleted.replace("{name}", name),
-      });
-      router.refresh();
-    }
-    setDeletingId(null);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setFeedback({
+            type: "error",
+            text: err.error || i.suppliers.failedToDelete,
+          });
+        } else {
+          setLocalSuppliers((prev) =>
+            prev.filter((supplier) => supplier.id !== id),
+          );
+          setSelectedIds((prev) => prev.filter((item) => item !== id));
+          setFeedback({
+            type: "success",
+            text: i.common.deleted.replace("{name}", name),
+          });
+        }
+      } catch {
+        setFeedback({ type: "error", text: i.suppliers.failedToDelete });
+      }
+    });
   }
 
   async function handleBulkDelete() {
     if (selectedIds.length === 0) return;
 
-    setBulkDeleting(true);
     setFeedback(null);
-    const failures: string[] = [];
+    startBulkDeleteTransition(async () => {
+      const failures: string[] = [];
 
-    for (const id of selectedIds) {
-      const result = await offlineFetch({
-        url: "/api/merchant/suppliers",
-        method: "DELETE",
-        body: { id },
-        entity: "supplier",
-        merchantId,
-      });
+      for (const id of selectedIds) {
+        try {
+          const res = await fetch("/api/merchant/suppliers", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          });
 
-      if (!result.ok) failures.push(result.error || i.common.deleteFailed);
-    }
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            failures.push(err.error || i.common.deleteFailed);
+          }
+        } catch {
+          failures.push(i.common.deleteFailed);
+        }
+      }
 
-    if (failures.length > 0) {
-      setFeedback({ type: "error", text: failures[0] });
-    } else {
-      setFeedback({
-        type: "success",
-        text: i.common.deletedCount.replace(
-          "{count}",
-          String(selectedIds.length),
-        ),
-      });
-      setSelectedIds([]);
-      router.refresh();
-    }
-
-    setBulkDeleting(false);
+      if (failures.length > 0) {
+        setFeedback({ type: "error", text: failures[0] });
+      } else {
+        setFeedback({
+          type: "success",
+          text: i.common.deletedCount.replace(
+            "{count}",
+            String(selectedIds.length),
+          ),
+        });
+        setLocalSuppliers((prev) =>
+          prev.filter((supplier) => !selectedIds.includes(supplier.id)),
+        );
+        setSelectedIds([]);
+      }
+    });
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={i.suppliers.title}
-        subtitle={`${formatNumber(suppliers.length, numberFormat)} ${i.suppliers.suppliers}`}
+        subtitle={`${formatNumber(localSuppliers.length, numberFormat)} ${i.suppliers.suppliers}`}
       >
-        <SupplierActions merchantId={merchantId} language={language} />
+        <SupplierActions
+          merchantId={merchantId}
+          language={language}
+          onSaved={(savedSupplier) => {
+            setLocalSuppliers((prev) => {
+              const next = prev.some(
+                (supplier) => supplier.id === savedSupplier.id,
+              )
+                ? prev.map((supplier) =>
+                    supplier.id === savedSupplier.id
+                      ? {
+                          ...supplier,
+                          ...savedSupplier,
+                          notes: savedSupplier.notes ?? null,
+                        }
+                      : supplier,
+                  )
+                : [
+                    {
+                      ...savedSupplier,
+                      notes: savedSupplier.notes ?? null,
+                      _orderCount: 0,
+                    },
+                    ...prev,
+                  ];
+
+              return [...next].sort((a, b) => a.name.localeCompare(b.name));
+            });
+          }}
+        />
       </PageHeader>
 
       <div className="w-full md:max-w-sm">
@@ -174,7 +224,7 @@ export function SuppliersContent({
             setPage(1);
           }}
           resultCount={filteredSuppliers.length}
-          totalCount={suppliers.length}
+          totalCount={localSuppliers.length}
           numberFormat={numberFormat}
           language={language}
         />
@@ -231,7 +281,7 @@ export function SuppliersContent({
                   colSpan={8}
                   className="px-5 py-12 text-center text-slate-400"
                 >
-                  {suppliers.length === 0
+                  {localSuppliers.length === 0
                     ? i.suppliers.noSuppliersYet
                     : i.suppliers.noSuppliersMatch}
                 </td>
@@ -334,7 +384,7 @@ export function SuppliersContent({
         selectedCount={selectedIds.length}
         onDelete={() => setConfirmBulkDelete(true)}
         onCancel={() => setSelectedIds([])}
-        deleting={bulkDeleting}
+        deleting={isBulkDeleting}
         numberFormat={numberFormat}
         language={language}
       />
@@ -346,6 +396,21 @@ export function SuppliersContent({
           supplier={editSupplier}
           externalOpen
           onExternalClose={() => setEditSupplier(null)}
+          onSaved={(savedSupplier) => {
+            setLocalSuppliers((prev) =>
+              prev
+                .map((supplier) =>
+                  supplier.id === savedSupplier.id
+                    ? {
+                        ...supplier,
+                        ...savedSupplier,
+                        notes: savedSupplier.notes ?? null,
+                      }
+                    : supplier,
+                )
+                .sort((a, b) => a.name.localeCompare(b.name)),
+            );
+          }}
           onDelete={() => {
             const { id, name } = editSupplier;
             setEditSupplier(null);
@@ -369,7 +434,7 @@ export function SuppliersContent({
           confirmDelete?.name ?? "",
         )}
         confirmLabel={i.common.delete}
-        loading={Boolean(deletingId)}
+        loading={isDeleting}
       />
 
       <ConfirmModal

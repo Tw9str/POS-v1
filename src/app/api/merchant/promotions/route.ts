@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { getMerchantFromSession } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
+import { apiError } from "@/lib/apiError";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -50,11 +52,7 @@ export async function GET() {
 
     return NextResponse.json(promotions);
   } catch (err) {
-    console.error("GET /api/merchant/promotions error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "GET /api/merchant/promotions");
   }
 }
 
@@ -113,13 +111,10 @@ export async function POST(req: Request) {
       },
     });
 
+    revalidatePath("/dashboard/promos");
     return NextResponse.json(promo, { status: 201 });
   } catch (err) {
-    console.error("POST /api/merchant/promotions error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/promotions");
   }
 }
 
@@ -156,6 +151,7 @@ export async function PUT(req: Request) {
         where: { id: toggle.data.id },
         data: { isActive: toggle.data.isActive },
       });
+      revalidatePath("/dashboard/promos");
       return NextResponse.json(updated);
     }
 
@@ -220,13 +216,10 @@ export async function PUT(req: Request) {
       },
     });
 
+    revalidatePath("/dashboard/promos");
     return NextResponse.json(updated);
   } catch (err) {
-    console.error("PUT /api/merchant/promotions error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "PUT /api/merchant/promotions");
   }
 }
 
@@ -264,12 +257,9 @@ export async function DELETE(req: Request) {
       where: { id: parsed.data.id },
     });
 
+    revalidatePath("/dashboard/promos");
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DELETE /api/merchant/promotions error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "DELETE /api/merchant/promotions");
   }
 }

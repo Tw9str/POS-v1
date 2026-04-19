@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { setMerchantSession } from "@/lib/merchantAuth";
 import { getMerchantFromSession } from "@/lib/merchant";
+import { hashPin } from "@/lib/pinHash";
+import { apiError } from "@/lib/apiError";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -43,6 +45,7 @@ export async function POST(req: Request) {
     }
 
     const { ownerName, ownerPin, ...merchantData } = parsed.data;
+    const hashedPin = await hashPin(ownerPin);
 
     // Use a transaction to update merchant + create owner staff atomically
     const updated = await prisma.$transaction(async (tx) => {
@@ -69,7 +72,7 @@ export async function POST(req: Request) {
         // Update existing owner
         await tx.staff.update({
           where: { id: existingOwner.id },
-          data: { name: ownerName, pin: ownerPin },
+          data: { name: ownerName, pin: hashedPin },
         });
       } else {
         // Create new owner staff
@@ -77,7 +80,7 @@ export async function POST(req: Request) {
           data: {
             merchantId: merchant.id,
             name: ownerName,
-            pin: ownerPin,
+            pin: hashedPin,
             role: "OWNER",
           },
         });
@@ -104,22 +107,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("POST /api/merchant/onboarding error:", err);
-
-    // Handle unique constraint violation (duplicate PIN for merchant)
-    if (
-      err instanceof Error &&
-      err.message.includes("Unique constraint failed")
-    ) {
-      return NextResponse.json(
-        { error: "This PIN is already in use by another staff member." },
-        { status: 409 },
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/onboarding");
   }
 }

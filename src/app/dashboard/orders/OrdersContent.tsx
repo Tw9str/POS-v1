@@ -1,22 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useLocalOrders } from "@/hooks/useLocalData";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { PageHeader } from "@/components/layout/PageHeader";
-import type { LocalOrder } from "@/lib/offlineDb";
-import { offlineFetch } from "@/lib/offline-fetch";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { IconCamera, IconPrinter } from "@/components/Icons";
 import { QRCodeDisplay } from "@/components/QrCode";
 import { SearchInput } from "@/components/ui/SearchInput";
-import { db } from "@/lib/offlineDb";
 import {
   SortableTh,
   useSortToggle,
@@ -33,24 +28,49 @@ import { t, translatePaymentMethod, type Locale } from "@/lib/i18n";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
+export interface OrderData {
+  id: string;
+  orderNumber: string;
+  customerId: string | null;
+  customerName: string | null;
+  staffId: string | null;
+  staffName: string | null;
+  paymentMethod: string;
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  paidAmount: number;
+  creditAmount: number;
+  changeAmount: number;
+  paymentStatus: string;
+  status: string;
+  notes: string | null;
+  createdAt: number;
+  items: {
+    productId: string;
+    name: string;
+    sku: string | null;
+    price: number;
+    costPrice: number | null;
+    quantity: number;
+    discount: number;
+  }[];
+}
+
 const statusVariant = (status: string) => {
   switch (status) {
     case "COMPLETED":
-    case "SYNCED":
       return "success" as const;
     case "REFUNDED":
     case "PARTIALLY_REFUNDED":
     case "VOIDED":
-    case "SYNC FAILED":
       return "danger" as const;
     default:
       return "warning" as const;
   }
 };
 
-const displayStatus = (order: { status?: string; syncStatus: string }) => {
-  if (order.syncStatus === "pending") return "PENDING SYNC";
-  if (order.syncStatus === "failed") return "SYNC FAILED";
+const displayStatus = (order: { status?: string }) => {
   return order.status ?? "COMPLETED";
 };
 
@@ -95,6 +115,7 @@ export function OrdersContent({
   numberFormat = "western",
   dateFormat = "long",
   language = "en",
+  orders,
 }: {
   merchantId: string;
   merchantName: string;
@@ -105,11 +126,15 @@ export function OrdersContent({
   numberFormat?: NumberFormat;
   dateFormat?: DateFormat;
   language?: string;
+  orders: OrderData[];
 }) {
-  const router = useRouter();
   const i = t(language as Locale);
-  const orders = useLocalOrders(merchantId, 200);
+  const [localOrders, setLocalOrders] = useState(orders);
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    setLocalOrders(orders);
+  }, [orders]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
@@ -120,13 +145,13 @@ export function OrdersContent({
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDirection>(null);
   const toggleSort = useSortToggle();
-  const [selectedOrder, setSelectedOrder] = useState<LocalOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
   const [processingAction, setProcessingAction] = useState<
     "REFUND" | "VOID" | "PARTIAL_REFUND" | null
   >(null);
   const [actionReason, setActionReason] = useState("");
   const [partialRefundAmount, setPartialRefundAmount] = useState("");
-  const [collectLoading, setCollectLoading] = useState(false);
+  const [isCollecting, startCollectTransition] = useTransition();
   const [collectOrderAmount, setCollectOrderAmount] = useState("");
   const [collectModalOpen, setCollectModalOpen] = useState(false);
   const [collectMethod, setCollectMethod] = useState<
@@ -147,7 +172,7 @@ export function OrdersContent({
 
   // Build dynamic payment method options from actual order data
   const paymentMethodOptions = useMemo(() => {
-    const methods = new Set(orders.map((o) => o.paymentMethod));
+    const methods = new Set(localOrders.map((o) => o.paymentMethod));
     const opts: { value: string; label: string }[] = [
       { value: "all", label: i.orders.allMethods },
     ];
@@ -158,7 +183,7 @@ export function OrdersContent({
       });
     }
     return opts;
-  }, [orders, language, i.orders.allMethods]);
+  }, [localOrders, language, i.orders.allMethods]);
 
   function translateOrderStatus(status: string): string {
     switch (status) {
@@ -170,10 +195,6 @@ export function OrdersContent({
         return i.orders.statusPartiallyRefunded;
       case "VOIDED":
         return i.orders.statusVoided;
-      case "PENDING SYNC":
-        return i.orders.statusPendingSync;
-      case "SYNC FAILED":
-        return i.orders.statusSyncFailed;
       default:
         return status;
     }
@@ -182,7 +203,7 @@ export function OrdersContent({
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    const result = orders.filter((order) => {
+    const result = localOrders.filter((order) => {
       const status = displayStatus(order);
       const matchesSearch =
         !query ||
@@ -198,8 +219,6 @@ export function OrdersContent({
 
       const matchesStatus =
         statusFilter === "all" ||
-        (statusFilter === "pending_sync" && order.syncStatus === "pending") ||
-        (statusFilter === "sync_failed" && order.syncStatus === "failed") ||
         (statusFilter === "completed" && status === "COMPLETED") ||
         (statusFilter === "refunded" && status === "REFUNDED") ||
         (statusFilter === "partial" && status === "PARTIALLY_REFUNDED") ||
@@ -249,7 +268,7 @@ export function OrdersContent({
       return sortDir === "desc" ? -cmp : cmp;
     });
   }, [
-    orders,
+    localOrders,
     search,
     statusFilter,
     paymentFilter,
@@ -302,63 +321,73 @@ export function OrdersContent({
     setProcessingAction(action);
     setFeedback(null);
 
-    const result = await offlineFetch({
-      url: "/api/merchant/orders",
-      method: "PUT",
-      body: {
-        id: selectedOrder.localId,
-        action,
-        amount,
-        reason: actionReason || null,
-      },
-      entity: "order",
-      merchantId,
-    });
+    try {
+      const res = await fetch("/api/merchant/orders", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedOrder.id,
+          action,
+          amount,
+          reason: actionReason || null,
+        }),
+      });
 
-    if (!result.ok) {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setFeedback({
+          type: "error",
+          text:
+            err.error || i.orders.failedToProcess.replace("{action}", label),
+        });
+      } else {
+        const nextStatus =
+          action === "REFUND"
+            ? "REFUNDED"
+            : action === "PARTIAL_REFUND"
+              ? "PARTIALLY_REFUNDED"
+              : "VOIDED";
+        const nextNotes = [
+          selectedOrder.notes,
+          actionReason || null,
+          action === "PARTIAL_REFUND" && amount
+            ? i.orders.partialRefundNote.replace("{amount}", String(amount))
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" • ");
+
+        setSelectedOrder((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: nextStatus,
+                notes: nextNotes,
+              }
+            : prev,
+        );
+        setLocalOrders((prev) =>
+          prev.map((order) =>
+            order.id === selectedOrder.id
+              ? { ...order, status: nextStatus, notes: nextNotes }
+              : order,
+          ),
+        );
+        setFeedback({
+          type: "success",
+          text:
+            action === "PARTIAL_REFUND"
+              ? i.orders.partialRefundSuccess
+              : i.orders.actionSuccess.replace("{action}", label),
+        });
+        setActionReason("");
+        setPartialRefundAmount("");
+      }
+    } catch {
       setFeedback({
         type: "error",
-        text:
-          result.error || i.orders.failedToProcess.replace("{action}", label),
+        text: i.orders.failedToProcess.replace("{action}", label),
       });
-    } else {
-      const nextStatus =
-        action === "REFUND"
-          ? "REFUNDED"
-          : action === "PARTIAL_REFUND"
-            ? "PARTIALLY_REFUNDED"
-            : "VOIDED";
-      setSelectedOrder((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: nextStatus,
-              notes: [
-                prev.notes,
-                actionReason || null,
-                action === "PARTIAL_REFUND" && amount
-                  ? i.orders.partialRefundNote.replace(
-                      "{amount}",
-                      String(amount),
-                    )
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" • "),
-            }
-          : prev,
-      );
-      setFeedback({
-        type: "success",
-        text: result.offline
-          ? i.orders.offlineSuccess.replace("{action}", label)
-          : action === "PARTIAL_REFUND"
-            ? i.orders.partialRefundSuccess
-            : i.orders.actionSuccess.replace("{action}", label),
-      });
-      setActionReason("");
-      setPartialRefundAmount("");
-      router.refresh();
     }
 
     setProcessingAction(null);
@@ -385,79 +414,81 @@ export function OrdersContent({
       setCollectFeedback({ type: "error", text: i.orders.amountExceedsCredit });
       return;
     }
-    setCollectLoading(true);
     setCollectFeedback(null);
-    try {
-      const actualAmount = Math.min(amount, selectedOrder.creditAmount);
+    startCollectTransition(async () => {
+      try {
+        const actualAmount = Math.min(amount, selectedOrder.creditAmount);
 
-      // Call server API directly
-      const res = await fetch("/api/merchant/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: selectedOrder.customerId,
-          orderId: selectedOrder.localId,
-          amount: actualAmount,
-          method: collectMethod,
-          note: collectNote.trim() || null,
-        }),
-      });
+        // Call server API directly
+        const res = await fetch("/api/merchant/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerId: selectedOrder.customerId,
+            orderId: selectedOrder.id,
+            amount: actualAmount,
+            method: collectMethod,
+            note: collectNote.trim() || null,
+          }),
+        });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setCollectFeedback({
+            type: "error",
+            text: err.error || i.customers.failedToCollect,
+          });
+          return;
+        }
+
+        const newCredit = selectedOrder.creditAmount - actualAmount;
+        const newPaymentStatus = newCredit <= 0 ? "settled" : "partial_credit";
+
+        // Close modal and reset states
+        setCollectModalOpen(false);
+        setCollectOrderAmount("");
+        setCollectNote("");
+        setCollectMethod("CASH");
+        setCollectFeedback(null);
+        setFeedback({
+          type: "success",
+          text: i.customers.paymentCollected,
+        });
+        // Update selected order to reflect new state
+        setSelectedOrder((prev) =>
+          prev
+            ? {
+                ...prev,
+                creditAmount: Math.max(0, newCredit),
+                paymentStatus: newPaymentStatus,
+              }
+            : prev,
+        );
+        setLocalOrders((prev) =>
+          prev.map((order) =>
+            order.id === selectedOrder.id
+              ? {
+                  ...order,
+                  creditAmount: Math.max(0, newCredit),
+                  paymentStatus: newPaymentStatus,
+                }
+              : order,
+          ),
+        );
+      } catch {
         setCollectFeedback({
           type: "error",
-          text: err.error || i.customers.failedToCollect,
-        });
-        return;
-      }
-
-      // Update local IndexedDB to reflect server changes (keeps useLiveQuery in sync)
-      const newCredit = selectedOrder.creditAmount - actualAmount;
-      const newPaymentStatus = newCredit <= 0 ? "settled" : "partial_credit";
-      await db.orders.update(selectedOrder.localId, {
-        creditAmount: Math.max(0, newCredit),
-        paymentStatus: newPaymentStatus,
-      });
-      const customer = await db.customers.get(selectedOrder.customerId);
-      if (customer) {
-        await db.customers.update(selectedOrder.customerId, {
-          balance: Math.max(0, customer.balance - actualAmount),
+          text: i.customers.failedToCollect,
         });
       }
-
-      // Close modal and reset states
-      setCollectModalOpen(false);
-      setCollectOrderAmount("");
-      setCollectNote("");
-      setCollectMethod("CASH");
-      setCollectFeedback(null);
-      setFeedback({
-        type: "success",
-        text: i.customers.paymentCollected,
-      });
-      // Update selected order to reflect new state
-      setSelectedOrder((prev) =>
-        prev
-          ? {
-              ...prev,
-              creditAmount: Math.max(0, newCredit),
-              paymentStatus: newPaymentStatus,
-            }
-          : prev,
-      );
-    } catch {
-      setCollectFeedback({ type: "error", text: i.customers.failedToCollect });
-    } finally {
-      setCollectLoading(false);
-    }
+    });
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={i.orders.title}
-        subtitle={`${formatNumber(orders.length, numberFormat)} ${i.orders.orders}`}
+        subtitle={`${formatNumber(localOrders.length, numberFormat)} ${i.orders.orders}`}
       />
 
       <div className="grid gap-3 xl:grid-cols-6">
@@ -471,7 +502,7 @@ export function OrdersContent({
             setPage(1);
           }}
           resultCount={filteredOrders.length}
-          totalCount={orders.length}
+          totalCount={localOrders.length}
           numberFormat={numberFormat}
           onScan={() => setScannerOpen(true)}
           language={language}
@@ -487,8 +518,6 @@ export function OrdersContent({
           options={[
             { value: "all", label: i.orders.allStatuses },
             { value: "completed", label: i.orders.completed },
-            { value: "pending_sync", label: i.orders.pendingSync },
-            { value: "sync_failed", label: i.orders.syncFailed },
             { value: "refunded", label: i.orders.refunded },
             { value: "partial", label: i.orders.partiallyRefunded },
             { value: "voided", label: i.orders.voided },
@@ -650,7 +679,7 @@ export function OrdersContent({
                   colSpan={10}
                   className="px-5 py-12 text-center text-slate-400"
                 >
-                  {orders.length === 0
+                  {localOrders.length === 0
                     ? i.orders.noOrdersYet
                     : i.orders.noOrdersMatch}
                 </td>
@@ -660,7 +689,7 @@ export function OrdersContent({
                 const status = displayStatus(o);
                 return (
                   <tr
-                    key={o.localId}
+                    key={o.id}
                     className="hover:bg-slate-50/50 transition-colors"
                   >
                     <td className="px-5 py-4">
@@ -913,7 +942,7 @@ export function OrdersContent({
               <div className="divide-y divide-slate-100">
                 {selectedOrder.items.map((item, index) => (
                   <div
-                    key={`${selectedOrder.localId}-${item.productId}-${index}`}
+                    key={`${selectedOrder.id}-${item.productId}-${index}`}
                     className="flex items-center justify-between gap-3 px-4 py-3"
                   >
                     <div>
@@ -1046,11 +1075,6 @@ export function OrdersContent({
                     {selectedOrder.notes || i.orders.noNotes}
                   </p>
                 </div>
-                {selectedOrder.syncError && (
-                  <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {selectedOrder.syncError}
-                  </p>
-                )}
               </div>
             </div>
 
@@ -1434,7 +1458,7 @@ export function OrdersContent({
               </Button>
               <Button
                 className="flex-1"
-                loading={collectLoading}
+                loading={isCollecting}
                 onClick={handleCollectFullPayment}
                 disabled={
                   !collectOrderAmount ||

@@ -17,10 +17,17 @@ export function MerchantActions({
   async function toggleStatus() {
     setLoading(true);
     try {
-      await fetch(`/api/admin/merchants/${merchantId}/toggle`, {
+      const res = await fetch(`/api/admin/merchants/${merchantId}/toggle`, {
         method: "POST",
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        alert(data?.error || "Failed to update status.");
+        return;
+      }
       window.location.reload();
+    } catch {
+      alert("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -32,12 +39,19 @@ export function MerchantActions({
       const res = await fetch(`/api/admin/merchants/${merchantId}/license`, {
         method: "POST",
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        alert(data?.error || "Failed to generate license.");
+        return;
+      }
       const data = await res.json();
       if (data.activationCode) {
         alert(
           `Activation Code: ${data.activationCode}\n\nSend this to the merchant via SMS or WhatsApp.`,
         );
       }
+    } catch {
+      alert("Network error. Please try again.");
     } finally {
       setLoading(false);
     }

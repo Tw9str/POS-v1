@@ -1,12 +1,18 @@
 import { prisma } from "@/lib/db";
-import { getMerchantFromSession } from "@/lib/merchant";
+import { getMerchantFromSession, requireActiveMerchant } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
+import { hashPin, verifyPin } from "@/lib/pinHash";
+import { apiError } from "@/lib/apiError";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const staffSchema = z.object({
   name: z.string().min(1).max(100),
-  pin: z.string().min(4).max(6).regex(/^\d+$/, "PIN must be digits only"),
+  pin: z
+    .string()
+    .length(4)
+    .regex(/^\d{4}$/, "PIN must be exactly 4 digits"),
   role: z.enum(["CASHIER", "MANAGER", "STOCK_CLERK", "OWNER"]),
 });
 
@@ -34,7 +40,6 @@ export async function GET() {
         id: true,
         name: true,
         role: true,
-        pin: true,
         isActive: true,
         maxDiscountPercent: true,
       },
@@ -42,22 +47,36 @@ export async function GET() {
 
     return NextResponse.json(staffList);
   } catch (err) {
-    console.error("GET /api/merchant/staff error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "GET /api/merchant/staff");
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const merchant = await getMerchantFromSession();
-    if (!merchant)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const {
+      error: authError,
+      merchant,
+      license,
+    } = await requireActiveMerchant();
+    if (authError || !merchant) return authError!;
 
     const { error } = await requireStaffForApi("/api/merchant/staff");
     if (error) return error;
+
+    // Plan limit: max staff
+    if (license?.maxStaff) {
+      const activeCount = await prisma.staff.count({
+        where: { merchantId: merchant.id, isActive: true },
+      });
+      if (activeCount >= license.maxStaff) {
+        return NextResponse.json(
+          {
+            error: `Staff limit reached (${license.maxStaff}). Upgrade your plan to add more staff.`,
+          },
+          { status: 403 },
+        );
+      }
+    }
 
     const body = await req.json();
     const parsed = staffSchema.safeParse(body);
@@ -69,25 +88,26 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check unique PIN per merchant (plain text)
-    const pinExists = await prisma.staff.findUnique({
-      where: {
-        merchantId_pin: { merchantId: merchant.id, pin: parsed.data.pin },
-      },
+    // Check unique PIN per merchant (compare against hashed PINs)
+    const existingStaff = await prisma.staff.findMany({
+      where: { merchantId: merchant.id, isActive: true },
+      select: { pin: true },
     });
-
-    if (pinExists) {
-      return NextResponse.json(
-        { error: "This PIN is already in use" },
-        { status: 400 },
-      );
+    for (const s of existingStaff) {
+      if (await verifyPin(parsed.data.pin, s.pin)) {
+        return NextResponse.json(
+          { error: "This PIN is already in use" },
+          { status: 400 },
+        );
+      }
     }
 
+    const hashedPin = await hashPin(parsed.data.pin);
     const staff = await prisma.staff.create({
       data: {
         merchantId: merchant.id,
         name: parsed.data.name,
-        pin: parsed.data.pin,
+        pin: hashedPin,
         role: parsed.data.role,
       },
     });
@@ -103,13 +123,11 @@ export async function POST(req: Request) {
       })
       .catch(() => {});
 
+    revalidatePath("/dashboard/staff");
+    revalidatePath("/dashboard/pos");
     return NextResponse.json(staff, { status: 201 });
   } catch (err) {
-    console.error("POST /api/merchant/staff error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/staff");
   }
 }
 
@@ -138,26 +156,34 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Staff not found" }, { status: 404 });
     }
 
-    if (parsed.data.pin && parsed.data.pin !== existing.pin) {
-      const pinExists = await prisma.staff.findUnique({
+    if (parsed.data.pin) {
+      // Check if the new PIN conflicts with another staff member
+      const otherStaff = await prisma.staff.findMany({
         where: {
-          merchantId_pin: { merchantId: merchant.id, pin: parsed.data.pin },
+          merchantId: merchant.id,
+          isActive: true,
+          id: { not: parsed.data.id },
         },
+        select: { pin: true },
       });
-
-      if (pinExists) {
-        return NextResponse.json(
-          { error: "This PIN is already in use" },
-          { status: 400 },
-        );
+      for (const s of otherStaff) {
+        if (await verifyPin(parsed.data.pin, s.pin)) {
+          return NextResponse.json(
+            { error: "This PIN is already in use" },
+            { status: 400 },
+          );
+        }
       }
     }
 
+    const hashedPin = parsed.data.pin
+      ? await hashPin(parsed.data.pin)
+      : undefined;
     const staff = await prisma.staff.update({
       where: { id: parsed.data.id },
       data: {
         ...(parsed.data.name !== undefined && { name: parsed.data.name }),
-        ...(parsed.data.pin !== undefined && { pin: parsed.data.pin }),
+        ...(hashedPin !== undefined && { pin: hashedPin }),
         ...(parsed.data.role !== undefined && { role: parsed.data.role }),
         ...(parsed.data.isActive !== undefined && {
           isActive: parsed.data.isActive,
@@ -165,13 +191,11 @@ export async function PUT(req: Request) {
       },
     });
 
+    revalidatePath("/dashboard/staff");
+    revalidatePath("/dashboard/pos");
     return NextResponse.json(staff);
   } catch (err) {
-    console.error("PUT /api/merchant/staff error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "PUT /api/merchant/staff");
   }
 }
 
@@ -205,12 +229,10 @@ export async function DELETE(req: Request) {
       data: { isActive: false },
     });
 
+    revalidatePath("/dashboard/staff");
+    revalidatePath("/dashboard/pos");
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DELETE /api/merchant/staff error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "DELETE /api/merchant/staff");
   }
 }

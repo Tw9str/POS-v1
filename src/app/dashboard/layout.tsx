@@ -4,9 +4,22 @@ import { MerchantSidebar } from "@/components/layout/MerchantSidebar";
 import { getStaffSession } from "@/lib/staffAuth";
 import { getAllowedPages, type StaffRole } from "@/lib/staff";
 import { DashboardGate } from "@/components/layout/DashboardGate";
-import { DashboardHydrator } from "@/components/DashboardHydrator";
+import { LicenseGate } from "@/components/layout/LicenseGate";
 import { prisma } from "@/lib/db";
-import { getDirection, type Locale } from "@/lib/i18n";
+import { getDirection, t, type Locale } from "@/lib/i18n";
+import { getMerchantSession } from "@/lib/merchantAuth";
+
+export async function generateMetadata() {
+  const session = await getMerchantSession();
+  const locale = (session?.language ?? "en") as Locale;
+  const dashboard = t(locale).nav.dashboard;
+  return {
+    title: {
+      template: `%s | ${dashboard}`,
+      default: dashboard,
+    },
+  };
+}
 
 export default async function DashboardLayout({
   children,
@@ -66,19 +79,20 @@ export default async function DashboardLayout({
       dir={dir}
       lang={language}
     >
-      <MerchantSidebar
-        merchantName={merchant.name}
-        staffName={staffName}
-        staffRole={role}
-        allowedPages={allowedPages}
-        language={language}
-      />
-      <main className="h-full overflow-y-auto">
-        <div className="max-w-400 mx-auto p-4 pb-[calc(var(--bottom-nav)+1rem)] lg:p-6">
-          <DashboardHydrator merchantId={merchant.id} />
-          {children}
-        </div>
-      </main>
+      <LicenseGate merchantId={merchant.id}>
+        <MerchantSidebar
+          merchantName={merchant.name}
+          staffName={staffName}
+          staffRole={role}
+          allowedPages={allowedPages}
+          language={language}
+        />
+        <main className="h-full overflow-y-auto">
+          <div className="max-w-400 mx-auto p-4 pb-[calc(var(--bottom-nav)+1rem)] lg:p-6">
+            {children}
+          </div>
+        </main>
+      </LicenseGate>
     </div>
   );
 }

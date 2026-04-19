@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
-import { getMerchantFromSession } from "@/lib/merchant";
+import { getMerchantFromSession, requireActiveMerchant } from "@/lib/merchant";
 import { requireStaffForApi } from "@/lib/staff";
+import { apiError } from "@/lib/apiError";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -32,6 +34,11 @@ export async function GET() {
     if (!merchant)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const { error: staffError } = await requireStaffForApi(
+      "/api/merchant/products",
+    );
+    if (staffError) return staffError;
+
     const products = await prisma.product.findMany({
       where: { merchantId: merchant.id, isActive: true },
       orderBy: { createdAt: "desc" },
@@ -40,22 +47,36 @@ export async function GET() {
 
     return NextResponse.json(products);
   } catch (err) {
-    console.error("GET /api/merchant/products error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "GET /api/merchant/products");
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const merchant = await getMerchantFromSession();
-    if (!merchant)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const {
+      error: authError,
+      merchant,
+      license,
+    } = await requireActiveMerchant();
+    if (authError || !merchant) return authError!;
 
     const { error } = await requireStaffForApi("/api/merchant/products");
     if (error) return error;
+
+    // Plan limit: max products
+    if (license?.maxProducts) {
+      const activeCount = await prisma.product.count({
+        where: { merchantId: merchant.id, isActive: true },
+      });
+      if (activeCount >= license.maxProducts) {
+        return NextResponse.json(
+          {
+            error: `Product limit reached (${license.maxProducts}). Upgrade your plan to add more products.`,
+          },
+          { status: 403 },
+        );
+      }
+    }
 
     const body = await req.json();
     const parsed = productSchema.safeParse(body);
@@ -165,13 +186,12 @@ export async function POST(req: Request) {
       })
       .catch(() => {});
 
+    revalidatePath("/dashboard/products");
+    revalidatePath("/dashboard/pos");
+    revalidatePath("/dashboard/inventory");
     return NextResponse.json(product, { status: 201 });
   } catch (err) {
-    console.error("POST /api/merchant/products error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/merchant/products");
   }
 }
 
@@ -278,13 +298,12 @@ export async function PUT(req: Request) {
       include: { category: { select: { id: true, name: true, color: true } } },
     });
 
+    revalidatePath("/dashboard/products");
+    revalidatePath("/dashboard/pos");
+    revalidatePath("/dashboard/inventory");
     return NextResponse.json(updated);
   } catch (err) {
-    console.error("PUT /api/merchant/products error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "PUT /api/merchant/products");
   }
 }
 
@@ -319,12 +338,11 @@ export async function DELETE(req: Request) {
       data: { isActive: false },
     });
 
+    revalidatePath("/dashboard/products");
+    revalidatePath("/dashboard/pos");
+    revalidatePath("/dashboard/inventory");
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DELETE /api/merchant/products error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "DELETE /api/merchant/products");
   }
 }

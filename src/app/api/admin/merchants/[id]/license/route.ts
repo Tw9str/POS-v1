@@ -1,11 +1,12 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { apiError } from "@/lib/apiError";
 import { NextResponse } from "next/server";
-import { generateLicenseToken, generateActivationCode } from "@/lib/license";
+import { generateLicenseToken, getPlanLimits } from "@/lib/license";
 import { addDays } from "date-fns";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -15,6 +16,9 @@ export async function POST(
     }
 
     const { id } = await params;
+    const body = await req.json().catch(() => ({}));
+    const durationDays = Number(body.durationDays) || 30;
+    const requestedPlan = body.plan as string | undefined;
 
     const merchant = await prisma.merchant.findUnique({
       where: { id },
@@ -25,19 +29,19 @@ export async function POST(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const expiresAt = addDays(new Date(), 30);
-    const plan = merchant.subscription?.plan || "STANDARD";
+    const expiresAt = addDays(new Date(), durationDays);
+    const plan = requestedPlan || merchant.subscription?.plan || "STANDARD";
+    const limits = getPlanLimits(plan);
 
-    // Generate JWT license token
-    const token = generateLicenseToken({
+    // Generate Ed25519-signed JWT license token
+    const token = await generateLicenseToken({
       merchantId: id,
       plan,
       expiresAt: expiresAt.toISOString(),
       issuedAt: new Date().toISOString(),
+      maxStaff: limits.maxStaff,
+      maxProducts: limits.maxProducts,
     });
-
-    // Generate offline activation code
-    const activationCode = generateActivationCode(id, expiresAt);
 
     // Save license key
     await prisma.licenseKey.create({
@@ -52,6 +56,7 @@ export async function POST(
     await prisma.subscription.upsert({
       where: { merchantId: id },
       update: {
+        plan: plan as "BASIC" | "STANDARD" | "PREMIUM" | "FREE_TRIAL",
         status: "ACTIVE",
         expiresAt,
         graceEndsAt: addDays(expiresAt, 7),
@@ -59,7 +64,7 @@ export async function POST(
       },
       create: {
         merchantId: id,
-        plan: "STANDARD",
+        plan: plan as "BASIC" | "STANDARD" | "PREMIUM" | "FREE_TRIAL",
         status: "ACTIVE",
         expiresAt,
         graceEndsAt: addDays(expiresAt, 7),
@@ -75,21 +80,19 @@ export async function POST(
           action: "LICENSE_GENERATED",
           entity: "license",
           entityId: id,
-          details: `Activation code: ${activationCode}`,
+          details: `Plan: ${plan}, Duration: ${durationDays}d`,
         },
       })
       .catch(() => {});
 
     return NextResponse.json({
       success: true,
-      activationCode,
+      licenseToken: token,
+      plan,
+      durationDays,
       expiresAt: expiresAt.toISOString(),
     });
   } catch (err) {
-    console.error("POST /api/admin/merchants/[id]/license error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return apiError(err, "POST /api/admin/merchants/[id]/license");
   }
 }
