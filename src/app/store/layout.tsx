@@ -13,18 +13,18 @@ export default async function StoreLayout({
   const session = await getMerchantSession();
   if (session) {
     // Verify the merchant still exists in DB before redirecting
-    let merchantExists = false;
+    let merchantActive = false;
     try {
       const merchant = await prisma.merchant.findUnique({
         where: { id: session.id },
-        select: { id: true },
+        select: { id: true, isActive: true },
       });
-      merchantExists = !!merchant;
+      merchantActive = !!merchant?.isActive;
     } catch {
       // DB unreachable — trust the cookie
-      merchantExists = true;
+      merchantActive = true;
     }
-    if (merchantExists) {
+    if (merchantActive) {
       redirect("/dashboard");
     }
     // Merchant was deleted (DB reset) — clear stale cookie via route handler

@@ -18,5 +18,24 @@ export async function POST(req: NextRequest) {
       },
     );
   }
+
+  // Block magic link emails to anyone other than the admin
+  const adminEmail = process.env.INITIAL_ADMIN_EMAIL?.toLowerCase();
+  if (adminEmail) {
+    try {
+      const cloned = req.clone();
+      const body = await cloned.formData();
+      const email = body.get("email");
+      if (typeof email === "string" && email.toLowerCase() !== adminEmail) {
+        return NextResponse.json(
+          { error: "Unauthorized email address" },
+          { status: 403 },
+        );
+      }
+    } catch {
+      // If body parsing fails, let NextAuth handle it
+    }
+  }
+
   return handlers.POST(req);
 }

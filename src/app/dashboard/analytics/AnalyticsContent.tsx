@@ -20,6 +20,7 @@ import {
   buildInventoryInsights,
   buildProductPerformance,
   getRefundAmount,
+  getOrderCost,
 } from "@/lib/productPerformance";
 import {
   formatCurrency,
@@ -76,13 +77,6 @@ const RANGE_META: Record<
   custom: { labelKey: "customRange", days: null, trendDays: 10 },
   all: { labelKey: "allTime", days: null, trendDays: 12 },
 };
-
-function getOrderCost(order: Pick<Order, "items">): number {
-  return order.items.reduce(
-    (sum, item) => sum + item.costPrice * item.quantity,
-    0,
-  );
-}
 
 function buildSnapshot(list: Order[]): MetricSnapshot {
   const grossSales = list.reduce((sum, order) => sum + order.total, 0);

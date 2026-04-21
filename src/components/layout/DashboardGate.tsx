@@ -5,16 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
 interface DashboardGateProps {
-  merchantId: string;
   merchantName: string;
   language?: string;
 }
 
-export function DashboardGate({
-  merchantId,
-  merchantName,
-  language,
-}: DashboardGateProps) {
+export function DashboardGate({ merchantName, language }: DashboardGateProps) {
   const router = useRouter();
 
   const handleSuccess = useCallback(() => {
@@ -24,7 +19,6 @@ export function DashboardGate({
 
   return (
     <PinPad
-      merchantId={merchantId}
       merchantName={merchantName}
       language={language}
       onSuccess={handleSuccess}

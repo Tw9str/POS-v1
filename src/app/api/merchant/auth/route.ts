@@ -4,6 +4,7 @@ import { hashAccessCode } from "@/lib/accessCode";
 import { rateLimit, getClientIp } from "@/lib/rateLimit";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { t, type Locale } from "@/lib/i18n";
 
 const authSchema = z.object({
   accessCode: z.string().min(1, "Access code is required"),
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     const rl = loginLimiter.check(ip);
     if (!rl.success) {
       return NextResponse.json(
-        { error: "Too many login attempts. Please try again later." },
+        { error: t("en").storeLogin.tooManyAttempts },
         {
           status: 429,
           headers: { "Retry-After": String(rl.retryAfterSeconds) },
@@ -60,15 +61,16 @@ export async function POST(req: Request) {
 
     if (!merchant) {
       return NextResponse.json(
-        { error: "Invalid access code. Please check with your administrator." },
+        { error: t("en").storeLogin.invalidCode },
         { status: 401 },
       );
     }
 
     if (!merchant.isActive) {
+      const lang = (merchant.language ?? "en") as Locale;
       return NextResponse.json(
         {
-          error: "This store has been deactivated. Contact your administrator.",
+          error: t(lang).storeLogin.deactivated,
         },
         { status: 403 },
       );
@@ -105,7 +107,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error: isConnectionError
-          ? "Unable to connect. Please check your internet connection and try again."
+          ? t("en").storeLogin.connectionError
           : "Internal server error",
       },
       { status: isConnectionError ? 503 : 500 },

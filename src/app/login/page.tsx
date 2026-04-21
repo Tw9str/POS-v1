@@ -1,7 +1,7 @@
 "use client";
 import type React from "react";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/Button";
@@ -46,19 +46,15 @@ function LoginContent() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
-  useEffect(() => {
-    const urlError = searchParams.get("error");
-    if (urlError) {
-      setError(getErrorMessage(urlError));
-    }
-  }, [searchParams]);
+  const urlError = searchParams.get("error");
+  const error = submitError || getErrorMessage(urlError);
 
-  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError("");
+    setSubmitError("");
 
     try {
       const res = await signIn("nodemailer", {
@@ -68,12 +64,14 @@ function LoginContent() {
       });
 
       if (res?.error) {
-        setError(getErrorMessage(res.error));
+        setSubmitError(getErrorMessage(res.error));
       } else {
         setSent(true);
       }
     } catch {
-      setError("Unable to connect. Please check your internet and try again.");
+      setSubmitError(
+        "Unable to connect. Please check your internet and try again.",
+      );
     } finally {
       setLoading(false);
     }

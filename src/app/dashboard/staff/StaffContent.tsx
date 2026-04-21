@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { startTransition, useMemo, useOptimistic, useState } from "react";
 import { StaffActions } from "./StaffActions";
 import { Button } from "@/components/ui/Button";
 import { RowActions } from "@/components/ui/RowActions";
-import { FloatingActionBar } from "@/components/ui/FloatingActionBar";
 import { StatusToggle } from "@/components/ui/StatusToggle";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
 import { t, type Locale } from "@/lib/i18n";
-import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { toggleStaffActive } from "@/app/actions/merchant";
 
 const PAGE_SIZE = 10;
 
@@ -29,13 +28,8 @@ function formatStaffRoleLabel(role: string, i: ReturnType<typeof t>) {
   );
 }
 
-export function StaffContent({
-  merchantId,
-  numberFormat = "western",
-  language = "en",
-  staff,
-}: {
-  merchantId: string;
+export function StaffContent(props: {
+  currentStaffId: string | null;
   numberFormat?: NumberFormat;
   language?: string;
   staff: {
@@ -44,29 +38,31 @@ export function StaffContent({
     pin: string;
     role: string;
     isActive: boolean;
+    isOwner: boolean;
+    allowedPages: string[];
     maxDiscountPercent: number;
   }[];
 }) {
+  const { currentStaffId, numberFormat = "western", language = "en" } = props;
   const i = t(language as Locale);
-  const [localStaff, setLocalStaff] = useState(staff);
-  const [isDeleting, startDeleteTransition] = useTransition();
+  type StaffRow = (typeof props.staff)[number];
+  const [staff, setStaff] = useOptimistic(
+    props.staff,
+    (
+      current: StaffRow[],
+      updater: StaffRow[] | ((prev: StaffRow[]) => StaffRow[]),
+    ) =>
+      typeof updater === "function"
+        ? (updater as (prev: StaffRow[]) => StaffRow[])(current)
+        : updater,
+  );
 
-  useEffect(() => {
-    setLocalStaff(staff);
-  }, [staff]);
-  const [isBulkDeleting, startBulkDeleteTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [editStaff, setEditStaff] = useState<{
     id: string;
     name: string;
@@ -77,15 +73,15 @@ export function StaffContent({
 
   const filteredStaff = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return localStaff;
+    if (!query) return staff;
 
-    return localStaff.filter(
+    return staff.filter(
       (member) =>
         member.name.toLowerCase().includes(query) ||
         member.role.toLowerCase().includes(query) ||
         formatStaffRoleLabel(member.role, i).toLowerCase().includes(query),
     );
-  }, [localStaff, search]);
+  }, [staff, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredStaff.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -93,53 +89,6 @@ export function StaffContent({
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
   );
-  const pageIds = pagedStaff.map((member) => member.id);
-  const allPageSelected =
-    pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
-
-  function toggleSelected(id: string) {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    );
-  }
-
-  function toggleSelectPage() {
-    setSelectedIds((prev) =>
-      allPageSelected
-        ? prev.filter((id) => !pageIds.includes(id))
-        : Array.from(new Set([...prev, ...pageIds])),
-    );
-  }
-
-  async function handleDeleteStaff(id: string, name: string) {
-    setFeedback(null);
-    startDeleteTransition(async () => {
-      try {
-        const res = await fetch("/api/merchant/staff", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id }),
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          setFeedback({
-            type: "error",
-            text: err.error || i.staff.failedToDelete,
-          });
-        } else {
-          setLocalStaff((prev) => prev.filter((member) => member.id !== id));
-          setSelectedIds((prev) => prev.filter((item) => item !== id));
-          setFeedback({
-            type: "success",
-            text: i.common.deleted.replace("{name}", name),
-          });
-        }
-      } catch {
-        setFeedback({ type: "error", text: i.staff.failedToDelete });
-      }
-    });
-  }
 
   async function handleToggleActive(
     id: string,
@@ -148,28 +97,23 @@ export function StaffContent({
   ) {
     setFeedback(null);
     try {
-      const res = await fetch("/api/merchant/staff", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, isActive: !currentActive }),
-      });
+      const result = await toggleStaffActive(id, !currentActive);
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+      if (result.error) {
         setFeedback({
           type: "error",
-          text: err.error || i.staff.failedToUpdate,
+          text: result.error || i.staff.failedToUpdate,
         });
       } else {
-        setLocalStaff((prev) =>
-          currentActive
-            ? prev.filter((member) => member.id !== id)
-            : prev.map((member) =>
-                member.id === id
-                  ? { ...member, isActive: !currentActive }
-                  : member,
-              ),
-        );
+        startTransition(() => {
+          setStaff((prev) =>
+            prev.map((member) =>
+              member.id === id
+                ? { ...member, isActive: !currentActive }
+                : member,
+            ),
+          );
+        });
         setFeedback({
           type: "success",
           text: `${name} ${currentActive ? i.staff.deactivated : i.staff.activated}.`,
@@ -180,63 +124,22 @@ export function StaffContent({
     }
   }
 
-  async function handleBulkDelete() {
-    if (selectedIds.length === 0) return;
-
-    setFeedback(null);
-    startBulkDeleteTransition(async () => {
-      const failures: string[] = [];
-
-      for (const id of selectedIds) {
-        try {
-          const res = await fetch("/api/merchant/staff", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id }),
-          });
-
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            failures.push(err.error || i.common.deleteFailed);
-          }
-        } catch {
-          failures.push(i.common.deleteFailed);
-        }
-      }
-
-      if (failures.length > 0) {
-        setFeedback({ type: "error", text: failures[0] });
-      } else {
-        setFeedback({
-          type: "success",
-          text: i.common.deletedCount.replace(
-            "{count}",
-            String(selectedIds.length),
-          ),
-        });
-        setLocalStaff((prev) =>
-          prev.filter((member) => !selectedIds.includes(member.id)),
-        );
-        setSelectedIds([]);
-      }
-    });
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
         title={i.staff.title}
-        subtitle={`${formatNumber(localStaff.length, numberFormat)} ${i.staff.teamMembers}`}
+        subtitle={`${formatNumber(staff.length, numberFormat)} ${i.staff.teamMembers}`}
       >
         <StaffActions
-          merchantId={merchantId}
           language={language}
           onSaved={(savedStaff) => {
             const normalized = {
               ...savedStaff,
               isActive: savedStaff.isActive ?? true,
+              isOwner: savedStaff.isOwner ?? false,
+              allowedPages: savedStaff.allowedPages ?? [],
             };
-            setLocalStaff((prev) => {
+            setStaff((prev) => {
               const next = prev.some((member) => member.id === normalized.id)
                 ? prev.map((member) =>
                     member.id === normalized.id ? normalized : member,
@@ -260,7 +163,7 @@ export function StaffContent({
             setPage(1);
           }}
           resultCount={filteredStaff.length}
-          totalCount={localStaff.length}
+          totalCount={staff.length}
           numberFormat={numberFormat}
           language={language}
         />
@@ -282,14 +185,6 @@ export function StaffContent({
         <table className="w-full text-sm">
           <thead className="bg-slate-50/80 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-4 py-3.5 text-start w-10">
-                <input
-                  type="checkbox"
-                  checked={allPageSelected}
-                  onChange={toggleSelectPage}
-                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-              </th>
               <th className="px-5 py-3.5 text-start font-semibold">
                 {i.common.name}
               </th>
@@ -314,7 +209,7 @@ export function StaffContent({
                   colSpan={6}
                   className="px-5 py-12 text-center text-slate-400"
                 >
-                  {localStaff.length === 0
+                  {staff.length === 0
                     ? i.staff.noStaffYet
                     : i.staff.noStaffMatch}
                 </td>
@@ -323,16 +218,14 @@ export function StaffContent({
               pagedStaff.map((s) => (
                 <tr
                   key={s.id}
-                  className="hover:bg-slate-50/50 transition-colors"
+                  className={`transition-colors ${
+                    !s.isActive
+                      ? "opacity-50"
+                      : s.id === currentStaffId
+                        ? "bg-indigo-50/60 hover:bg-indigo-50"
+                        : "hover:bg-slate-50/50"
+                  }`}
                 >
-                  <td className="px-4 py-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(s.id)}
-                      onChange={() => toggleSelected(s.id)}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                  </td>
                   <td className="px-5 py-4">
                     <button
                       type="button"
@@ -341,6 +234,11 @@ export function StaffContent({
                     >
                       <span className="font-semibold capitalize text-indigo-600 underline decoration-indigo-300/0 hover:decoration-indigo-300 transition-all">
                         {s.name}
+                        {s.id === currentStaffId && (
+                          <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-indigo-400 no-underline">
+                            ({i.common.you})
+                          </span>
+                        )}
                       </span>
                     </button>
                   </td>
@@ -358,29 +256,29 @@ export function StaffContent({
                       onToggle={() =>
                         handleToggleActive(s.id, s.name, s.isActive)
                       }
+                      disabled={s.isOwner}
                       title={
-                        s.isActive
-                          ? i.staff.clickToDeactivate
-                          : i.staff.clickToActivate
+                        s.isOwner
+                          ? ""
+                          : s.isActive
+                            ? i.staff.clickToDeactivate
+                            : i.staff.clickToActivate
                       }
                     />
                   </td>
                   <td className="px-4 py-4">
                     <RowActions
-                      actions={[
-                        {
-                          icon: "edit",
-                          label: i.common.edit,
-                          onClick: () => setEditStaff(s),
-                        },
-                        {
-                          icon: "delete",
-                          label: i.common.delete,
-                          variant: "danger",
-                          onClick: () =>
-                            setConfirmDelete({ id: s.id, name: s.name }),
-                        },
-                      ]}
+                      actions={
+                        s.isOwner
+                          ? []
+                          : [
+                              {
+                                icon: "edit",
+                                label: i.common.edit,
+                                onClick: () => setEditStaff(s),
+                              },
+                            ]
+                      }
                     />
                   </td>
                 </tr>
@@ -426,18 +324,8 @@ export function StaffContent({
         </div>
       )}
 
-      <FloatingActionBar
-        selectedCount={selectedIds.length}
-        onDelete={() => setConfirmBulkDelete(true)}
-        onCancel={() => setSelectedIds([])}
-        deleting={isBulkDeleting}
-        numberFormat={numberFormat}
-        language={language}
-      />
-
       {editStaff && (
         <StaffActions
-          merchantId={merchantId}
           language={language}
           staff={editStaff}
           externalOpen
@@ -446,8 +334,10 @@ export function StaffContent({
             const normalized = {
               ...savedStaff,
               isActive: savedStaff.isActive ?? true,
+              isOwner: savedStaff.isOwner ?? false,
+              allowedPages: savedStaff.allowedPages ?? [],
             };
-            setLocalStaff((prev) =>
+            setStaff((prev) =>
               prev
                 .map((member) =>
                   member.id === normalized.id ? normalized : member,
@@ -455,46 +345,8 @@ export function StaffContent({
                 .sort((a, b) => a.name.localeCompare(b.name)),
             );
           }}
-          onDelete={() => {
-            const { id, name } = editStaff;
-            setEditStaff(null);
-            setConfirmDelete({ id, name });
-          }}
         />
       )}
-
-      <ConfirmModal
-        open={Boolean(confirmDelete)}
-        onClose={() => setConfirmDelete(null)}
-        onConfirm={() => {
-          if (confirmDelete) {
-            handleDeleteStaff(confirmDelete.id, confirmDelete.name);
-            setConfirmDelete(null);
-          }
-        }}
-        title={i.staff.deleteStaff}
-        message={i.staff.deleteStaffConfirm.replace(
-          "{name}",
-          confirmDelete?.name ?? "",
-        )}
-        confirmLabel={i.common.delete}
-        loading={isDeleting}
-      />
-
-      <ConfirmModal
-        open={confirmBulkDelete}
-        onClose={() => setConfirmBulkDelete(false)}
-        onConfirm={() => {
-          setConfirmBulkDelete(false);
-          handleBulkDelete();
-        }}
-        title={i.staff.deleteSelectedStaff}
-        message={i.staff.deleteSelectedConfirm.replace(
-          "{count}",
-          formatNumber(selectedIds.length, numberFormat),
-        )}
-        confirmLabel={i.common.delete}
-      />
     </div>
   );
 }

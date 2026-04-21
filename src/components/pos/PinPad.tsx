@@ -4,11 +4,12 @@ import { useState, useCallback, useEffect } from "react";
 import { t, type Locale } from "@/lib/i18n";
 
 interface PinPadProps {
-  merchantId?: string;
   onSuccess: (staff: { id: string; name: string; role: string }) => void;
   merchantName?: string;
   language?: string;
 }
+
+const MAX_LENGTH = 4;
 
 export function PinPad({
   onSuccess,
@@ -19,16 +20,53 @@ export function PinPad({
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const maxLength = 4;
+
+  const submitPin = useCallback(
+    async (value: string) => {
+      if (value.length !== MAX_LENGTH) {
+        setError(i.pin.pinMinDigits);
+        return;
+      }
+      setLoading(true);
+      setError("");
+      try {
+        const res = await fetch("/api/staff/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: value }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          onSuccess(data.staff);
+          return;
+        }
+        setError(data.error || i.pin.invalidPin);
+        setPin("");
+      } catch {
+        setError(i.pin.connectionError);
+        setPin("");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [onSuccess, i.pin.pinMinDigits, i.pin.invalidPin, i.pin.connectionError],
+  );
 
   const handleDigit = useCallback(
     (digit: string) => {
-      if (pin.length < maxLength) {
-        setPin((prev) => prev + digit);
-        setError("");
-      }
+      if (loading) return;
+      setPin((prev) => {
+        if (prev.length >= MAX_LENGTH) return prev;
+        const next = prev + digit;
+        if (next.length === MAX_LENGTH) {
+          // Auto-submit when complete. Scheduled as microtask to allow state to commit.
+          queueMicrotask(() => submitPin(next));
+        }
+        return next;
+      });
+      setError("");
     },
-    [pin.length],
+    [loading, submitPin],
   );
 
   const handleBackspace = useCallback(() => {
@@ -41,46 +79,6 @@ export function PinPad({
     setError("");
   }, []);
 
-  const handleSubmit = useCallback(async () => {
-    if (pin.length !== maxLength) {
-      setError(i.pin.pinMinDigits);
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/staff/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        onSuccess(data.staff);
-        return;
-      }
-
-      setError(data.error || i.pin.invalidPin);
-      setPin("");
-    } catch {
-      setError(i.pin.connectionError);
-      setPin("");
-    } finally {
-      setLoading(false);
-    }
-  }, [pin, onSuccess]);
-
-  // Auto-submit when PIN reaches max length
-  useEffect(() => {
-    if (pin.length === maxLength) {
-      handleSubmit();
-    }
-  }, [pin.length, handleSubmit]);
-
   // Keyboard support
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -88,15 +86,13 @@ export function PinPad({
         handleDigit(e.key);
       } else if (e.key === "Backspace") {
         handleBackspace();
-      } else if (e.key === "Enter" && pin.length === maxLength) {
-        handleSubmit();
       } else if (e.key === "Escape") {
         handleClear();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleDigit, handleBackspace, handleSubmit, handleClear, pin.length]);
+  }, [handleDigit, handleBackspace, handleClear]);
 
   const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
@@ -116,7 +112,7 @@ export function PinPad({
 
         {/* PIN dots */}
         <div className="flex justify-center gap-3 mb-6">
-          {Array.from({ length: maxLength }).map((_, idx) => (
+          {Array.from({ length: MAX_LENGTH }).map((_, idx) => (
             <div
               key={idx}
               className={`w-4 h-4 rounded-full transition-all duration-150 ${
@@ -143,7 +139,7 @@ export function PinPad({
             <button
               key={digit}
               onClick={() => handleDigit(digit)}
-              disabled={loading || pin.length >= maxLength}
+              disabled={loading || pin.length >= MAX_LENGTH}
               className="h-16 rounded-xl bg-white/5 border border-white/10 text-white text-2xl font-semibold hover:bg-white/10 active:bg-white/15 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {digit}
@@ -159,7 +155,7 @@ export function PinPad({
           </button>
           <button
             onClick={() => handleDigit("0")}
-            disabled={loading || pin.length >= maxLength}
+            disabled={loading || pin.length >= MAX_LENGTH}
             className="h-16 rounded-xl bg-white/5 border border-white/10 text-white text-2xl font-semibold hover:bg-white/10 active:bg-white/15 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             0
@@ -188,8 +184,8 @@ export function PinPad({
 
         {/* Submit button */}
         <button
-          onClick={handleSubmit}
-          disabled={loading || pin.length !== maxLength}
+          onClick={() => submitPin(pin)}
+          disabled={loading || pin.length !== MAX_LENGTH}
           className="w-full h-14 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-lg transition-all cursor-pointer active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/30"
         >
           {loading ? (

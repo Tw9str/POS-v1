@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { IconPlus } from "@/components/Icons";
+import { useOutsideClick } from "@/hooks/useOutsideClick";
 
 interface CreatableSelectProps {
   label?: string;
@@ -27,19 +28,14 @@ export function CreatableSelect({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setCreating(false);
-      }
-    }
-    if (open) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
-
-  useEffect(() => {
     if (creating && inputRef.current) inputRef.current.focus();
   }, [creating]);
+
+  const handleOutside = useCallback(() => {
+    setOpen(false);
+    setCreating(false);
+  }, []);
+  useOutsideClick(ref, handleOutside, open);
 
   function handleCreate() {
     const trimmed = newValue.trim();

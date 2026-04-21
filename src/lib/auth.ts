@@ -3,11 +3,29 @@ import Email from "next-auth/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db";
 
+const adminEmail = process.env.INITIAL_ADMIN_EMAIL?.toLowerCase();
+
 const baseAdapter = PrismaAdapter(prisma);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: {
     ...baseAdapter,
+    // Only allow creating the single admin user, and only once
+    createUser: async (data) => {
+      if (!adminEmail || data.email?.toLowerCase() !== adminEmail) {
+        throw new Error("User creation is disabled");
+      }
+      const existing = await prisma.user.findFirst();
+      if (existing) {
+        throw new Error("User already exists");
+      }
+      const user = await baseAdapter.createUser!(data);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { systemRole: "SUPER_ADMIN" },
+      });
+      return { ...user, systemRole: "SUPER_ADMIN" };
+    },
     deleteSession: async (sessionToken: string) => {
       await prisma.session.deleteMany({ where: { sessionToken } });
     },
@@ -31,6 +49,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: "/login",
   },
   callbacks: {
+    async signIn({ user }) {
+      // Only allow the single admin email
+      if (!adminEmail) return false;
+      return user.email?.toLowerCase() === adminEmail;
+    },
     async session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
@@ -44,28 +67,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
       return session;
-    },
-  },
-  events: {
-    async createUser({ user }) {
-      // Promote to SUPER_ADMIN if email matches the env var, or if first user
-      const adminEmail = process.env.INITIAL_ADMIN_EMAIL;
-      let shouldPromote = false;
-
-      if (adminEmail) {
-        shouldPromote = user.email === adminEmail;
-      } else {
-        // Fallback: first user becomes admin (use transaction to prevent races)
-        const userCount = await prisma.user.count();
-        shouldPromote = userCount === 1;
-      }
-
-      if (shouldPromote) {
-        await prisma.user.update({
-          where: { id: user.id! },
-          data: { systemRole: "SUPER_ADMIN" },
-        });
-      }
     },
   },
 });

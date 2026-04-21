@@ -2,8 +2,8 @@
 
 import {
   useCallback,
-  useEffect,
   useMemo,
+  useOptimistic,
   useState,
   useTransition,
 } from "react";
@@ -29,6 +29,12 @@ import {
   useSortToggle,
   type SortDirection,
 } from "@/components/ui/SortableTh";
+import {
+  deleteCustomer,
+  collectPayment,
+  getCustomerPayments,
+  getCustomerCreditOrders,
+} from "@/app/actions/merchant";
 
 export interface CustomerData {
   id: string;
@@ -45,15 +51,7 @@ export interface CustomerData {
 
 const PAGE_SIZE = 10;
 
-export function CustomersContent({
-  merchantId,
-  currency,
-  currencyFormat = "symbol",
-  numberFormat = "western",
-  dateFormat = "long",
-  language = "en",
-  customers,
-}: {
+export function CustomersContent(props: {
   merchantId: string;
   currency: string;
   currencyFormat: "symbol" | "code" | "none";
@@ -62,8 +60,25 @@ export function CustomersContent({
   language?: string;
   customers: CustomerData[];
 }) {
+  const {
+    merchantId,
+    currency,
+    currencyFormat = "symbol",
+    numberFormat = "western",
+    dateFormat = "long",
+    language = "en",
+  } = props;
   const i = t(language as Locale);
-  const [localCustomers, setLocalCustomers] = useState(customers);
+  const [customers, setCustomers] = useOptimistic(
+    props.customers,
+    (
+      current: CustomerData[],
+      updater: CustomerData[] | ((prev: CustomerData[]) => CustomerData[]),
+    ) =>
+      typeof updater === "function"
+        ? (updater as (prev: CustomerData[]) => CustomerData[])(current)
+        : updater,
+  );
   const fc = (v: number) =>
     formatCurrency(v, currency, numberFormat, currencyFormat, language);
   const [isDeleting, startDeleteTransition] = useTransition();
@@ -120,7 +135,7 @@ export function CustomersContent({
     total: number;
     paidAmount: number;
     paymentStatus: string;
-    createdAt: string;
+    createdAt: string | Date;
     staff?: { name: string } | null;
     items: Array<{
       name: string;
@@ -143,21 +158,17 @@ export function CustomersContent({
     notes?: string | null;
   } | null>(null);
 
-  useEffect(() => {
-    setLocalCustomers(customers);
-  }, [customers]);
-
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase();
     let result = query
-      ? localCustomers.filter(
+      ? customers.filter(
           (c) =>
             c.name.toLowerCase().includes(query) ||
             c.phone?.toLowerCase().includes(query) ||
             c.email?.toLowerCase().includes(query) ||
             c.address?.toLowerCase().includes(query),
         )
-      : [...localCustomers];
+      : [...customers];
 
     return result.sort((a, b) => {
       if (!sortKey || !sortDir) return a.name.localeCompare(b.name);
@@ -183,7 +194,7 @@ export function CustomersContent({
 
       return sortDir === "desc" ? -cmp : cmp;
     });
-  }, [localCustomers, search, sortKey, sortDir]);
+  }, [customers, search, sortKey, sortDir]);
 
   const totalPages = Math.max(
     1,
@@ -216,24 +227,11 @@ export function CustomersContent({
     setFeedback(null);
     startDeleteTransition(async () => {
       try {
-        const res = await fetch("/api/merchant/customers", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id }),
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          setFeedback({
-            type: "error",
-            text:
-              (err as Record<string, string>).error ||
-              i.customers.failedToDelete,
-          });
+        const result = await deleteCustomer(id);
+        if (result.error) {
+          setFeedback({ type: "error", text: result.error });
         } else {
-          setLocalCustomers((prev) =>
-            prev.filter((customer) => customer.id !== id),
-          );
+          setCustomers((prev) => prev.filter((customer) => customer.id !== id));
           setSelectedIds((prev) => prev.filter((item) => item !== id));
           setFeedback({
             type: "success",
@@ -255,16 +253,9 @@ export function CustomersContent({
 
       for (const id of selectedIds) {
         try {
-          const res = await fetch("/api/merchant/customers", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id }),
-          });
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            failures.push(
-              (err as Record<string, string>).error || i.common.deleteFailed,
-            );
+          const result = await deleteCustomer(id);
+          if (result.error) {
+            failures.push(result.error);
           }
         } catch {
           failures.push(i.common.deleteFailed);
@@ -281,7 +272,7 @@ export function CustomersContent({
             formatNumber(selectedIds.length, numberFormat),
           ),
         });
-        setLocalCustomers((prev) =>
+        setCustomers((prev) =>
           prev.filter((customer) => !selectedIds.includes(customer.id)),
         );
         setSelectedIds([]);
@@ -299,19 +290,15 @@ export function CustomersContent({
       const note = collectNote.trim() || null;
 
       try {
-        const res = await fetch("/api/merchant/payments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            customerId: collectCustomer.id,
-            orderId: collectCustomer.orderId || null,
-            amount,
-            method,
-            note,
-          }),
+        const result = await collectPayment({
+          customerId: collectCustomer.id,
+          orderId: collectCustomer.orderId || null,
+          amount,
+          method,
+          note,
         });
 
-        if (res.ok) {
+        if (result.success) {
           setFeedback({ type: "success", text: i.customers.paymentCollected });
           const returnTo = statementReturnTo;
           setCollectCustomer(null);
@@ -320,7 +307,7 @@ export function CustomersContent({
           const appliedAmount = Math.min(amount, collectCustomer.balance);
           setCollectMethod("CASH");
           setStatementReturnTo(null);
-          setLocalCustomers((prev) =>
+          setCustomers((prev) =>
             prev.map((customer) =>
               customer.id === collectCustomer.id
                 ? {
@@ -336,12 +323,9 @@ export function CustomersContent({
           return;
         }
 
-        const err = await res.json().catch(() => ({}));
         setFeedback({
           type: "error",
-          text:
-            (err as Record<string, string>).error ||
-            i.customers.failedToCollect,
+          text: result.error || i.customers.failedToCollect,
         });
       } catch {
         setFeedback({ type: "error", text: i.customers.failedToCollect });
@@ -355,35 +339,32 @@ export function CustomersContent({
       setPaymentsLoading(true);
       try {
         // Fetch credit orders and payments from server
-        const [ordersRes, paymentsRes] = await Promise.all([
-          fetch(
-            `/api/merchant/orders?customerId=${encodeURIComponent(customerId)}&credit=true`,
-          ),
-          fetch(
-            `/api/merchant/payments?customerId=${encodeURIComponent(customerId)}`,
-          ),
+        const [creditOrders, apiPayments] = await Promise.all([
+          getCustomerCreditOrders(customerId),
+          getCustomerPayments(customerId),
         ]);
 
         let paymentEntries: LedgerEntry[] = [];
-        if (paymentsRes.ok) {
-          const apiPayments: Array<{
-            id: string;
-            amount: number;
-            method: string;
-            note: string | null;
-            createdAt: string;
-            order?: { orderNumber: string } | null;
-          }> = await paymentsRes.json();
-          paymentEntries = apiPayments.map((p) => ({
-            id: `payment-${p.id}`,
-            date: new Date(p.createdAt),
-            type: "payment" as const,
-            ref: p.order?.orderNumber ?? "",
-            debit: 0,
-            credit: p.amount,
-            method: p.method,
-            note: p.note,
-          }));
+        if (apiPayments.length > 0) {
+          paymentEntries = apiPayments.map(
+            (p: {
+              id: string;
+              amount: number;
+              method: string;
+              note: string | null;
+              createdAt: Date;
+              order?: { orderNumber: string } | null;
+            }) => ({
+              id: `payment-${p.id}`,
+              date: new Date(p.createdAt),
+              type: "payment" as const,
+              ref: p.order?.orderNumber ?? "",
+              debit: 0,
+              credit: p.amount,
+              method: p.method,
+              note: p.note,
+            }),
+          );
         }
 
         // Parse credit orders
@@ -394,7 +375,7 @@ export function CustomersContent({
           total: number;
           paidAmount: number;
           paymentStatus: string;
-          createdAt: string;
+          createdAt: string | Date;
           staff?: { name: string } | null;
           items: Array<{
             name: string;
@@ -403,10 +384,7 @@ export function CustomersContent({
             discount: number;
           }>;
         };
-        let creditOrders: ApiOrder[] = [];
-        if (ordersRes.ok) {
-          creditOrders = await ordersRes.json();
-        }
+        let creditOrdersList = creditOrders;
 
         // Build order entries — debit shows what was originally owed on credit
         // original credit = total - what was paid at POS initially
@@ -419,55 +397,63 @@ export function CustomersContent({
         // After payments: creditAmount decreases, paidAmount increases, total stays.
         // So creditAmount + paidAmount = total always. Original credit = total - (paidAmount at creation).
         // We can't know paidAmount at creation. But we know: current paidAmount - payments from Payment table = original paidAmount at POS.
-        const orderEntries: LedgerEntry[] = creditOrders.map((o) => {
-          // Sum of payments from Payment table linked to this order
-          const laterPayments = paymentEntries
-            .filter((pe) => pe.ref === o.orderNumber)
-            .reduce((s, pe) => s + pe.credit, 0);
-          // Original POS paid = current paidAmount - later payments applied to this order
-          const originalPaidAtPOS = Math.max(0, o.paidAmount - laterPayments);
-          // Original credit amount = total - what was paid at POS
-          const originalCredit = o.total - originalPaidAtPOS;
-          return {
-            id: `order-${o.id}`,
-            date: new Date(o.createdAt),
-            type: "order" as const,
-            ref: o.orderNumber,
-            debit: originalCredit,
-            credit: 0,
-            note: null,
-          };
-        });
+        const orderEntries: LedgerEntry[] = creditOrdersList.map(
+          (o: ApiOrder) => {
+            // Sum of payments from Payment table linked to this order
+            const laterPayments = paymentEntries
+              .filter((pe) => pe.ref === o.orderNumber)
+              .reduce((s, pe) => s + pe.credit, 0);
+            // Original POS paid = current paidAmount - later payments applied to this order
+            const originalPaidAtPOS = Math.max(0, o.paidAmount - laterPayments);
+            // Original credit amount = total - what was paid at POS
+            const originalCredit = o.total - originalPaidAtPOS;
+            return {
+              id: `order-${o.id}`,
+              date: new Date(o.createdAt),
+              type: "order" as const,
+              ref: o.orderNumber,
+              debit: originalCredit,
+              credit: 0,
+              note: null,
+            };
+          },
+        );
 
         const combined = [...orderEntries, ...paymentEntries].sort(
           (a, b) => a.date.getTime() - b.date.getTime(),
         );
 
         setLedgerEntries(combined);
-        setStatementOrders(creditOrders);
+        setStatementOrders(creditOrdersList);
       } catch {
         setLedgerEntries([]);
+        setStatementOrders([]);
+        setFeedback({
+          type: "error",
+          text: i.common.somethingWentWrong,
+        });
       } finally {
         setPaymentsLoading(false);
       }
     },
-    [],
+    [i.common.somethingWentWrong],
   );
 
   const customerStats = useMemo(() => {
-    const totalOutstanding = customers.reduce((s, c) => s + c.balance, 0);
+    const totalOutstanding = props.customers.reduce((s, c) => s + c.balance, 0);
     const avgSpend =
-      customers.length > 0
-        ? customers.reduce((s, c) => s + c.totalSpent, 0) / customers.length
+      props.customers.length > 0
+        ? props.customers.reduce((s, c) => s + c.totalSpent, 0) /
+          props.customers.length
         : 0;
     return { totalOutstanding, avgSpend };
-  }, [customers]);
+  }, [props.customers]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={i.customers.title}
-        subtitle={`${formatNumber(localCustomers.length, numberFormat)} ${i.customers.customers}`}
+        subtitle={`${formatNumber(customers.length, numberFormat)} ${i.customers.customers}`}
       >
         <CustomerActions
           merchantId={merchantId}
@@ -477,7 +463,7 @@ export function CustomersContent({
               ...savedCustomer,
               notes: savedCustomer.notes ?? null,
             };
-            setLocalCustomers((prev) => {
+            setCustomers((prev) => {
               const next = prev.some(
                 (customer) => customer.id === normalized.id,
               )
@@ -496,7 +482,7 @@ export function CustomersContent({
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <StatCard
           title={i.customers.title}
-          value={formatNumber(customers.length, numberFormat)}
+          value={formatNumber(props.customers.length, numberFormat)}
           subtitle={`${formatNumber(filteredCustomers.filter((c) => c.balance > 0).length, numberFormat)} ${i.customers.owes}`}
         />
         <StatCard
@@ -520,7 +506,7 @@ export function CustomersContent({
             setPage(1);
           }}
           resultCount={filteredCustomers.length}
-          totalCount={localCustomers.length}
+          totalCount={customers.length}
           numberFormat={numberFormat}
           language={language}
         />
@@ -625,7 +611,7 @@ export function CustomersContent({
                   colSpan={8}
                   className="px-5 py-12 text-center text-slate-400"
                 >
-                  {localCustomers.length === 0
+                  {customers.length === 0
                     ? i.customers.noCustomersYet
                     : i.customers.noCustomersMatch}
                 </td>
@@ -808,7 +794,7 @@ export function CustomersContent({
               ...savedCustomer,
               notes: savedCustomer.notes ?? null,
             };
-            setLocalCustomers((prev) =>
+            setCustomers((prev) =>
               prev
                 .map((customer) =>
                   customer.id === normalized.id ? normalized : customer,

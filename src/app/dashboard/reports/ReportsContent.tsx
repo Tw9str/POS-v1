@@ -3,6 +3,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { Order, Product, Customer } from "@/types/pos";
+import { getRefundAmount, getOrderCost } from "@/lib/productPerformance";
 import { StatCard } from "@/components/ui/Card";
 import {
   IconMoney,
@@ -30,25 +31,6 @@ type MetricSnapshot = {
   orderCount: number;
   avgOrder: number;
 };
-
-function getRefundAmount(
-  order: Pick<Order, "status" | "total" | "notes">,
-): number {
-  if (order.status !== "REFUNDED" && order.status !== "PARTIALLY_REFUNDED") {
-    return 0;
-  }
-
-  const match = (order.notes || "").match(/Partial refund amount:\s*([\d.]+)/i);
-  const amount = match ? Number(match[1]) : order.total;
-  return Number.isFinite(amount) ? Math.min(amount, order.total) : order.total;
-}
-
-function getOrderCost(order: Pick<Order, "items">): number {
-  return order.items.reduce(
-    (sum, item) => sum + item.costPrice * item.quantity,
-    0,
-  );
-}
 
 function getBaseProductName(name: string): string {
   return name.split(" · ")[0]?.trim() || name;

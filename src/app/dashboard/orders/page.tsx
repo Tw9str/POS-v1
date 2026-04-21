@@ -41,7 +41,6 @@ export default async function OrdersPage() {
 
   return (
     <OrdersContent
-      merchantId={merchant.id}
       merchantName={merchant.name}
       merchantAddress={merchant.address}
       merchantPhone={merchant.phone}

@@ -1,14 +1,17 @@
 "use client";
-import type React from "react";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { normalizeDateFormat } from "@/lib/utils";
+import { normalizeDateFormat, type DateFormat } from "@/lib/utils";
 import { t, type Locale } from "@/lib/i18n";
-import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { BarcodeScanner } from "@/components/features/BarcodeScanner";
 import { IconCamera } from "@/components/Icons";
+import { CURRENCY_CODES, formatPlan } from "@/lib/constants";
+import { formatDate } from "@/lib/utils";
+import type { NumberFormat } from "@/lib/utils";
+import { updateSettings, type ActionResult } from "@/app/actions/merchant";
 
 interface SettingsFormProps {
   merchant: {
@@ -24,17 +27,18 @@ interface SettingsFormProps {
     taxRate: number;
     shamcashId: string;
   };
+  subscription: {
+    plan: string;
+    status: string;
+    expiresAt: string;
+  } | null;
 }
 
-const DEFAULT_CURRENCIES = ["USD", "EUR", "SAR", "SYP", "TRY", "AED"] as const;
-type DefaultCurrency = (typeof DEFAULT_CURRENCIES)[number];
+type DefaultCurrency = (typeof CURRENCY_CODES)[number];
 
-export function SettingsForm({ merchant }: SettingsFormProps) {
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
+export function SettingsForm({ merchant, subscription }: SettingsFormProps) {
   const [shamcashScannerOpen, setShamcashScannerOpen] = useState(false);
-  const isCustomCurrency = !DEFAULT_CURRENCIES.includes(
+  const isCustomCurrency = !CURRENCY_CODES.includes(
     merchant.currency as DefaultCurrency,
   );
   const [showCustomCurrency, setShowCustomCurrency] =
@@ -54,47 +58,42 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
 
   const i = t(form.language as Locale);
 
-  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      const res = await fetch("/api/merchant/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          currency: form.currency.toUpperCase(),
-          taxRate: parseFloat(form.taxRate) || 0,
-          shamcashId: form.shamcashId,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setError(err.error || i.settings.failedToUpdate);
-        return;
-      }
-
-      // Sync dir/lang on the layout wrapper for instant RTL/LTR switch
-      const wrapper = document.querySelector("[dir]");
-      if (wrapper) {
-        const dir = form.language === "ar" ? "rtl" : "ltr";
-        wrapper.setAttribute("dir", dir);
-        wrapper.setAttribute("lang", form.language);
-      }
-      setSuccess(i.settings.settingsSaved);
-    } catch {
-      setError(i.common.somethingWentWrong);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [state, formAction, isPending] = useActionState<ActionResult, FormData>(
+    updateSettings,
+    {},
+  );
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-6">
+    <form action={formAction} className="max-w-4xl mx-auto space-y-6">
+      <input type="hidden" name="name" value={form.name} />
+      <input
+        type="hidden"
+        name="currency"
+        value={form.currency.toUpperCase()}
+      />
+      <input type="hidden" name="currencyFormat" value={form.currencyFormat} />
+      <input
+        type="hidden"
+        name="taxRate"
+        value={String(parseFloat(form.taxRate) || 0)}
+      />
+      <input type="hidden" name="language" value={form.language} />
+      <input type="hidden" name="shamcashId" value={form.shamcashId} />
+      {/* ── Subscription Info ── */}
+      {subscription && (
+        <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-5">
+            {i.settings.subscriptionInfo}
+          </h2>
+          <SubscriptionDetails
+            subscription={subscription}
+            dateFormat={form.dateFormat}
+            numberFormat={form.numberFormat as NumberFormat}
+            i={i}
+          />
+        </section>
+      )}
+
       {/* ── Store Information ── */}
       <section className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
         <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-5">
@@ -283,19 +282,19 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
       </section>
 
       {/* ── Feedback & Submit ── */}
-      {error && (
+      {state.error && (
         <p className="text-sm text-red-600 bg-red-50 px-4 py-3 rounded-xl border border-red-100">
-          {error}
+          {state.error}
         </p>
       )}
-      {success && (
+      {state.success && (
         <p className="text-sm text-green-600 bg-green-50 px-4 py-3 rounded-xl border border-green-100">
-          {success}
+          {i.settings.settingsSaved}
         </p>
       )}
 
       <div className="flex justify-end">
-        <Button type="submit" loading={loading}>
+        <Button type="submit" loading={isPending}>
           {i.common.save}
         </Button>
       </div>
@@ -311,5 +310,56 @@ export function SettingsForm({ merchant }: SettingsFormProps) {
         />
       )}
     </form>
+  );
+}
+
+function SubscriptionDetails({
+  subscription,
+  dateFormat,
+  numberFormat,
+  i,
+}: {
+  subscription: { plan: string; status: string; expiresAt: string };
+  dateFormat: string;
+  numberFormat: NumberFormat;
+  i: ReturnType<typeof t>;
+}) {
+  const expiresAt = new Date(subscription.expiresAt);
+  const now = new Date();
+  const msLeft = expiresAt.getTime() - now.getTime();
+  const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="bg-slate-50 rounded-xl p-4">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+          {i.settings.currentPlan}
+        </p>
+        <p className="mt-1 text-lg font-bold text-slate-900">
+          {formatPlan(subscription.plan)}
+        </p>
+      </div>
+      <div className="bg-slate-50 rounded-xl p-4">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+          {i.settings.expiresOn}
+        </p>
+        <p className="mt-1 text-lg font-bold text-slate-900">
+          {formatDate(expiresAt, dateFormat as DateFormat, numberFormat)}
+        </p>
+      </div>
+      <div className="bg-slate-50 rounded-xl p-4">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+          {i.settings.daysRemaining}
+        </p>
+        <p
+          className={`mt-1 text-lg font-bold ${daysLeft <= 7 ? "text-amber-600" : "text-slate-900"}`}
+        >
+          {daysLeft}{" "}
+          <span className="text-sm font-medium text-slate-400">
+            {daysLeft !== 1 ? i.license.days : i.license.day}
+          </span>
+        </p>
+      </div>
+    </div>
   );
 }

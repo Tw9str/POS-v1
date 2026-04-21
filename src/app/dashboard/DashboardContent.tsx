@@ -2,214 +2,123 @@
 
 import type { Order, Product, Customer } from "@/types/pos";
 import {
-  IconPOS,
-  IconProducts,
-  IconOrders,
-  IconCustomers,
-  IconInventory,
-  IconSuppliers,
-  IconStaff,
-  IconReports,
-  IconActivity,
   IconSettings,
   IconMoney,
   IconKey,
   IconLogout,
-  IconPromo,
+  IconOrders,
+  IconCustomers,
 } from "@/components/Icons";
 import { formatCurrency, formatNumber, type NumberFormat } from "@/lib/utils";
-import { getDirection, t, type Locale } from "@/lib/i18n";
-import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import { getRefundAmount, getOrderCost } from "@/lib/productPerformance";
+import { t, type Locale } from "@/lib/i18n";
+import {
+  useMemo,
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useOptimistic,
+  useTransition,
+} from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-
-const NAV_CARDS = [
-  {
-    href: "/dashboard/pos",
-    labelKey: "pos" as const,
-    icon: IconPOS,
-    color: "bg-indigo-500",
-    descKey: "processSales" as const,
-  },
-  {
-    href: "/dashboard/products",
-    labelKey: "products" as const,
-    icon: IconProducts,
-    color: "bg-blue-500",
-    descKey: "manageCatalog" as const,
-  },
-  {
-    href: "/dashboard/orders",
-    labelKey: "orders" as const,
-    icon: IconOrders,
-    color: "bg-emerald-500",
-    descKey: "viewTransactions" as const,
-  },
-  {
-    href: "/dashboard/inventory",
-    labelKey: "inventory" as const,
-    icon: IconInventory,
-    color: "bg-amber-500",
-    descKey: "stockLevels" as const,
-  },
-  {
-    href: "/dashboard/promos",
-    labelKey: "promos" as const,
-    icon: IconPromo,
-    color: "bg-rose-500",
-    descKey: "discountCodes" as const,
-  },
-  {
-    href: "/dashboard/customers",
-    labelKey: "customers" as const,
-    icon: IconCustomers,
-    color: "bg-purple-500",
-    descKey: "customerData" as const,
-  },
-  {
-    href: "/dashboard/suppliers",
-    labelKey: "suppliers" as const,
-    icon: IconSuppliers,
-    color: "bg-orange-500",
-    descKey: "manageSuppliers" as const,
-  },
-  {
-    href: "/dashboard/staff",
-    labelKey: "staff" as const,
-    icon: IconStaff,
-    color: "bg-pink-500",
-    descKey: "teamMembers" as const,
-  },
-  {
-    href: "/dashboard/reports",
-    labelKey: "reports" as const,
-    icon: IconReports,
-    color: "bg-cyan-500",
-    descKey: "salesAnalytics" as const,
-  },
-  {
-    href: "/dashboard/analytics",
-    labelKey: "analytics" as const,
-    icon: IconActivity,
-    color: "bg-violet-500",
-    descKey: "demandInsights" as const,
-  },
-];
-
-function getRefundAmount(
-  order: Pick<Order, "status" | "total" | "notes">,
-): number {
-  if (order.status !== "REFUNDED" && order.status !== "PARTIALLY_REFUNDED") {
-    return 0;
-  }
-
-  const match = (order.notes || "").match(/Partial refund amount:\s*([\d.]+)/i);
-  const amount = match ? Number(match[1]) : order.total;
-  return Number.isFinite(amount) ? Math.min(amount, order.total) : order.total;
-}
-
-function getOrderCost(order: Pick<Order, "items">): number {
-  return order.items.reduce(
-    (sum, item) => sum + item.costPrice * item.quantity,
-    0,
-  );
-}
+import { verifyCachedLicense } from "@/lib/clientLicense";
+import { updateQuickSettings } from "@/app/actions/merchant";
+import { switchUser, signOutMerchant } from "@/lib/staffActions";
+import { NAV_CARDS } from "@/lib/nav";
+import { useOutsideClick } from "@/hooks/useOutsideClick";
 
 export function DashboardContent({
-  merchantId,
   merchantName,
   currency,
-  currencyFormat = "symbol",
-  numberFormat = "western",
-  dateFormat = "long",
-  language = "en",
+  currencyFormat: initialCurrencyFormat = "symbol",
+  numberFormat: initialNumberFormat = "western",
+  dateFormat: initialDateFormat = "long",
+  language: initialLanguage = "en",
+  staffName,
   staffRole,
   allowedPages,
   products,
   customers,
   orders,
 }: {
-  merchantId: string;
   merchantName: string;
   currency: string;
   currencyFormat: "symbol" | "code" | "none";
   numberFormat?: NumberFormat;
   dateFormat?: string;
   language?: string;
+  staffName: string;
   staffRole: string;
   allowedPages: string[];
   products: Product[];
   customers: Customer[];
   orders: Order[];
 }) {
-  const router = useRouter();
-  const [uiLanguage, setUiLanguage] = useState(language);
-  const [uiCurrencyFormat, setUiCurrencyFormat] =
-    useState<typeof currencyFormat>(currencyFormat);
-  const [uiNumberFormat, setUiNumberFormat] =
-    useState<NumberFormat>(numberFormat);
-  const [uiDateFormat, setUiDateFormat] = useState(dateFormat);
-  const i = t(uiLanguage as Locale);
+  type QuickSettings = {
+    language: string;
+    currencyFormat: "symbol" | "code" | "none";
+    numberFormat: NumberFormat;
+    dateFormat: string;
+  };
+  const [optimisticSettings, setOptimisticSettings] =
+    useOptimistic<QuickSettings>({
+      language: initialLanguage,
+      currencyFormat: initialCurrencyFormat,
+      numberFormat: initialNumberFormat,
+      dateFormat: initialDateFormat,
+    });
+  const [, startTransition] = useTransition();
+  const { language, currencyFormat, numberFormat, dateFormat } =
+    optimisticSettings;
 
-  // Sync dir/lang on the layout wrapper when language changes client-side
+  const [licenseDaysLeft, setLicenseDaysLeft] = useState<number | null>(null);
+  const i = t(language as Locale);
+
   useEffect(() => {
-    const dir = getDirection(uiLanguage as Locale);
-    const wrapper = document.querySelector("[dir]");
-    if (wrapper) {
-      wrapper.setAttribute("dir", dir);
-      wrapper.setAttribute("lang", uiLanguage);
-    }
-  }, [uiLanguage]);
+    verifyCachedLicense().then((s) => {
+      if (s.valid && s.daysLeft > 0 && s.daysLeft <= 7) {
+        setLicenseDaysLeft(s.daysLeft);
+      }
+    });
+  }, []);
 
   // Quick settings
   const [quickSettingsOpen, setQuickSettingsOpen] = useState(false);
+  const [quickSettingsError, setQuickSettingsError] = useState<string | null>(
+    null,
+  );
   const [quickSettingsLoading, setQuickSettingsLoading] = useState(false);
   const quickSettingsRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        quickSettingsRef.current &&
-        !quickSettingsRef.current.contains(e.target as Node)
-      ) {
-        setQuickSettingsOpen(false);
-      }
-    }
-    if (quickSettingsOpen)
-      document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [quickSettingsOpen]);
-
-  useEffect(() => {
-    setUiLanguage(language);
-    setUiCurrencyFormat(currencyFormat);
-    setUiNumberFormat(numberFormat);
-    setUiDateFormat(dateFormat);
-  }, [language, currencyFormat, numberFormat, dateFormat]);
+  useOutsideClick(
+    quickSettingsRef,
+    useCallback(() => setQuickSettingsOpen(false), []),
+    quickSettingsOpen,
+  );
 
   const handleQuickSetting = useCallback(
-    async (field: string, value: string) => {
+    (field: keyof QuickSettings, value: string) => {
+      setQuickSettingsError(null);
       setQuickSettingsLoading(true);
-      try {
-        await fetch("/api/merchant/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ [field]: value }),
+      startTransition(async () => {
+        setOptimisticSettings({
+          ...optimisticSettings,
+          [field]: value,
         });
-
-        if (field === "language") setUiLanguage(value);
-        if (field === "currencyFormat") {
-          setUiCurrencyFormat(value as "symbol" | "code" | "none");
+        try {
+          const result = await updateQuickSettings({ [field]: value });
+          if (result.error) {
+            setQuickSettingsError(result.error);
+          }
+        } catch {
+          setQuickSettingsError(i.common.somethingWentWrong);
+        } finally {
+          setQuickSettingsLoading(false);
         }
-        if (field === "numberFormat") {
-          setUiNumberFormat(value as NumberFormat);
-        }
-        if (field === "dateFormat") setUiDateFormat(value);
-      } finally {
-        setQuickSettingsLoading(false);
-      }
+      });
     },
-    [],
+    [optimisticSettings, setOptimisticSettings, i.common.somethingWentWrong],
   );
 
   const todayStart = useMemo(() => {
@@ -289,24 +198,8 @@ export function DashboardContent({
     ),
   );
 
-  const handleLock = async () => {
-    try {
-      await fetch("/api/staff/auth", { method: "DELETE" });
-    } catch {
-      // Best-effort — navigate regardless
-    }
-    router.push("/dashboard");
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await fetch("/api/staff/auth", { method: "DELETE" });
-      await fetch("/api/merchant/logout", { method: "POST" });
-    } catch {
-      // Best-effort — navigate regardless
-    }
-    router.push("/store");
-  };
+  const handleLock = () => switchUser();
+  const handleSignOut = () => signOutMerchant();
 
   return (
     <div className="space-y-8">
@@ -336,6 +229,10 @@ export function DashboardContent({
               · <bdi>{formatNumber(stats.todayOrderCount, numberFormat)}</bdi>{" "}
               {i.dashboard.orders}
             </p>
+            <p className="text-xs text-slate-400 mt-0.5 capitalize">
+              {staffName} ·{" "}
+              {i.roles[staffRole as keyof typeof i.roles] || staffRole}
+            </p>
           </div>
         </div>
         <div className="hidden lg:flex items-center gap-2">
@@ -347,6 +244,12 @@ export function DashboardContent({
               >
                 <IconSettings size={18} />
                 {i.nav.settings}
+                {licenseDaysLeft !== null && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                    {licenseDaysLeft}{" "}
+                    {licenseDaysLeft !== 1 ? i.license.days : i.license.day}
+                  </span>
+                )}
               </button>
 
               {quickSettingsOpen && (
@@ -355,6 +258,14 @@ export function DashboardContent({
                     <div className="absolute inset-0 bg-white/70 rounded-2xl flex items-center justify-center z-10">
                       <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                     </div>
+                  )}
+                  {quickSettingsError && (
+                    <p
+                      role="alert"
+                      className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700"
+                    >
+                      {quickSettingsError}
+                    </p>
                   )}
                   {/* Language */}
                   <div>
@@ -371,7 +282,7 @@ export function DashboardContent({
                         <button
                           key={val}
                           onClick={() => handleQuickSetting("language", val)}
-                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${uiLanguage === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${language === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
                         >
                           {label}
                         </button>
@@ -397,7 +308,7 @@ export function DashboardContent({
                           onClick={() =>
                             handleQuickSetting("currencyFormat", val)
                           }
-                          className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${uiCurrencyFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
+                          className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${currencyFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
                         >
                           {label}
                         </button>
@@ -422,7 +333,7 @@ export function DashboardContent({
                           onClick={() =>
                             handleQuickSetting("numberFormat", val)
                           }
-                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${uiNumberFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${numberFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
                         >
                           {label}
                         </button>
@@ -446,7 +357,7 @@ export function DashboardContent({
                         <button
                           key={val}
                           onClick={() => handleQuickSetting("dateFormat", val)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-start cursor-pointer ${uiDateFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors text-start cursor-pointer ${dateFormat === val ? "bg-indigo-100 text-indigo-700 border border-indigo-200" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"}`}
                         >
                           {label}
                         </button>

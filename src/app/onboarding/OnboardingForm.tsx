@@ -7,22 +7,16 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useRouter } from "next/navigation";
 import { t, getDirection, type Locale } from "@/lib/i18n";
-import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { BarcodeScanner } from "@/components/features/BarcodeScanner";
 import { IconCamera } from "@/components/Icons";
+import { CURRENCIES } from "@/lib/constants";
+import { completeOnboarding } from "@/app/actions/merchant";
+import type { ActionResult } from "@/app/actions/merchant";
 
 interface OnboardingFormProps {
   merchantName: string;
   language: string;
 }
-
-const CURRENCIES = [
-  { value: "USD", key: "currencyUSD" },
-  { value: "EUR", key: "currencyEUR" },
-  { value: "SAR", key: "currencySAR" },
-  { value: "SYP", key: "currencySYP" },
-  { value: "TRY", key: "currencyTRY" },
-  { value: "AED", key: "currencyAED" },
-] as const;
 
 export function OnboardingForm({
   merchantName,
@@ -76,25 +70,28 @@ export function OnboardingForm({
     setLoading(true);
 
     try {
-      const res = await fetch("/api/merchant/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name,
-          phone: form.phone,
-          address: form.address,
-          currency: form.currency.toUpperCase(),
-          language,
-          taxRate: parseFloat(form.taxRate) || 0,
-          shamcashId: form.shamcashId,
-          ownerName: form.ownerName,
-          ownerPin: form.ownerPin,
-        }),
-      });
+      const fd = new FormData();
+      fd.set("name", form.name);
+      fd.set("phone", form.phone);
+      fd.set("address", form.address);
+      fd.set("currency", form.currency.toUpperCase());
+      fd.set("language", language);
+      fd.set("taxRate", String(parseFloat(form.taxRate) || 0));
+      fd.set("shamcashId", form.shamcashId);
+      fd.set("ownerName", form.ownerName);
+      fd.set("ownerPin", form.ownerPin);
 
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || i.onboarding.failedToSave);
+      const result = await completeOnboarding(
+        {
+          error: undefined,
+          success: undefined,
+          data: undefined,
+        } as ActionResult,
+        fd,
+      );
+
+      if (result.error) {
+        setError(result.error);
         return;
       }
 
@@ -112,22 +109,25 @@ export function OnboardingForm({
     setError("");
 
     try {
-      const res = await fetch("/api/merchant/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name || merchantName,
-          currency: form.currency || "USD",
-          language,
-          taxRate: 0,
-          ownerName: form.ownerName,
-          ownerPin: form.ownerPin,
-        }),
-      });
+      const fd = new FormData();
+      fd.set("name", form.name || merchantName);
+      fd.set("currency", form.currency || "USD");
+      fd.set("language", language);
+      fd.set("taxRate", "0");
+      fd.set("ownerName", form.ownerName);
+      fd.set("ownerPin", form.ownerPin);
 
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || i.onboarding.failedToSave);
+      const result = await completeOnboarding(
+        {
+          error: undefined,
+          success: undefined,
+          data: undefined,
+        } as ActionResult,
+        fd,
+      );
+
+      if (result.error) {
+        setError(result.error);
         return;
       }
 
@@ -309,9 +309,11 @@ export function OnboardingForm({
                   onChange={(e) =>
                     setForm({ ...form, currency: e.target.value })
                   }
-                  options={CURRENCIES.map(({ value, key }) => ({
+                  options={CURRENCIES.map(({ value, labelKey }) => ({
                     value,
-                    label: i.settings[key as keyof typeof i.settings] as string,
+                    label: i.settings[
+                      labelKey as keyof typeof i.settings
+                    ] as string,
                   }))}
                 />
                 <Input

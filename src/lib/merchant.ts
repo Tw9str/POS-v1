@@ -1,6 +1,7 @@
-import { prisma } from "@/lib/db";
+import { prisma, getGracePeriodDays } from "@/lib/db";
 import { getMerchantSession, setMerchantSession } from "@/lib/merchantAuth";
 import { checkMerchantLicense } from "@/lib/licenseCheck";
+import { getEffectiveStatus } from "@/lib/constants";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 
@@ -82,7 +83,8 @@ export async function requireMerchant() {
 }
 
 /**
- * For write APIs: requires both a valid merchant session AND an active license.
+ * For write APIs: requires a valid merchant session, active license,
+ * and a non-suspended/non-expired subscription.
  * Returns {error, merchant, license} – if error is set, return it immediately.
  */
 export async function requireActiveMerchant() {
@@ -95,10 +97,75 @@ export async function requireActiveMerchant() {
     };
   }
 
+  // Check subscription status
+  const sub = merchant.subscription;
+  const gracePeriodDays = await getGracePeriodDays();
+  const effectiveStatus = getEffectiveStatus(
+    sub?.status,
+    sub?.expiresAt,
+    gracePeriodDays,
+  );
+  if (effectiveStatus === "SUSPENDED") {
+    return {
+      error: NextResponse.json({ error: "Account suspended" }, { status: 403 }),
+      merchant: null,
+      license: null,
+    };
+  }
+  if (effectiveStatus === "EXPIRED") {
+    return {
+      error: NextResponse.json(
+        { error: "Subscription expired" },
+        { status: 403 },
+      ),
+      merchant: null,
+      license: null,
+    };
+  }
+
   const { error, license } = await checkMerchantLicense(merchant.id);
   if (error) {
     return { error, merchant: null, license: null };
   }
 
   return { error: null, merchant, license };
+}
+
+/**
+ * For all merchant API routes: requires a valid session and
+ * non-suspended/non-expired subscription (no license check).
+ */
+export async function requireMerchantForApi() {
+  const merchant = await getMerchantFromSession();
+  if (!merchant) {
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      merchant: null as never,
+    };
+  }
+
+  const sub = merchant.subscription;
+  const graceDays = await getGracePeriodDays();
+  const effectiveStatus = getEffectiveStatus(
+    sub?.status,
+    sub?.expiresAt,
+    graceDays,
+  );
+  if (effectiveStatus === "SUSPENDED") {
+    return {
+      error: NextResponse.json({ error: "Account suspended" }, { status: 403 }),
+      merchant: null as never,
+    };
+  }
+  if (effectiveStatus === "EXPIRED") {
+    return {
+      error: NextResponse.json(
+        { error: "Subscription expired" },
+        { status: 403 },
+      ),
+      merchant: null as never,
+    };
+  }
+
+  return { error: null, merchant };
 }

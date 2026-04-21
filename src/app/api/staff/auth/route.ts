@@ -5,6 +5,7 @@ import { setStaffSession, clearStaffSession } from "@/lib/staffAuth";
 import { getMerchantSession } from "@/lib/merchantAuth";
 import { verifyPin } from "@/lib/pinHash";
 import { rateLimit, getClientIp } from "@/lib/rateLimit";
+import { t, type Locale } from "@/lib/i18n";
 
 const pinSchema = z.object({
   pin: z
@@ -50,6 +51,8 @@ export async function POST(req: Request) {
       );
     }
 
+    const i = t((merchantSession.language ?? "en") as Locale);
+
     // Verify merchant exists and is active
     let merchant: {
       id: string;
@@ -72,14 +75,14 @@ export async function POST(req: Request) {
     } catch {
       // DB unreachable — fail closed; cannot verify merchant status
       return NextResponse.json(
-        { error: "Unable to verify store status. Please try again later." },
+        { error: i.storeLogin.unableToVerify },
         { status: 503 },
       );
     }
 
     if (!merchant || !merchant.isActive) {
       return NextResponse.json(
-        { error: "Store not found or inactive" },
+        { error: i.storeLogin.storeInactive },
         { status: 404 },
       );
     }
@@ -89,6 +92,8 @@ export async function POST(req: Request) {
       id: string;
       name: string;
       role: string;
+      allowedPages: string[];
+      isOwner: boolean;
       isActive: boolean;
     } | null = null;
     try {
@@ -98,6 +103,8 @@ export async function POST(req: Request) {
           id: true,
           name: true,
           role: true,
+          allowedPages: true,
+          isOwner: true,
           pin: true,
           isActive: true,
         },
@@ -108,6 +115,8 @@ export async function POST(req: Request) {
             id: s.id,
             name: s.name,
             role: s.role,
+            allowedPages: s.allowedPages,
+            isOwner: s.isOwner,
             isActive: s.isActive,
           };
           break;
@@ -117,22 +126,19 @@ export async function POST(req: Request) {
       // DB unreachable · cannot verify PIN
       return NextResponse.json(
         {
-          error: "Cannot verify PIN right now. Please try again later.",
+          error: i.storeLogin.cannotVerify,
         },
         { status: 503 },
       );
     }
 
     if (!staff) {
-      return NextResponse.json(
-        { error: "Invalid PIN. Please try again." },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: i.pin.invalidPin }, { status: 401 });
     }
 
     if (!staff.isActive) {
       return NextResponse.json(
-        { error: "Your account has been deactivated. Contact your manager." },
+        { error: i.storeLogin.staffDeactivated },
         { status: 403 },
       );
     }
@@ -142,6 +148,8 @@ export async function POST(req: Request) {
       staffId: staff.id,
       merchantId: merchant.id,
       role: staff.role,
+      allowedPages: staff.allowedPages,
+      isOwner: staff.isOwner,
     });
 
     return NextResponse.json({

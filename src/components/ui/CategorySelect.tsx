@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { IconPlus } from "@/components/Icons";
+import { useOutsideClick } from "@/hooks/useOutsideClick";
 
 interface Category {
   id: string;
@@ -37,17 +38,12 @@ export function CategorySelect({
 
   const selected = categories.find((c) => c.id === value);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setCreating(false);
-        setError("");
-      }
-    }
-    if (open) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  const handleOutside = useCallback(() => {
+    setOpen(false);
+    setCreating(false);
+    setError("");
+  }, []);
+  useOutsideClick(ref, handleOutside, open);
 
   useEffect(() => {
     if (creating && nameInputRef.current) {

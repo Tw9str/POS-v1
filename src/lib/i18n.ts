@@ -69,6 +69,7 @@ const en = {
     deleted: 'Deleted "{name}".',
     deletedCount: "Deleted {count} items.",
     noNotes: "No notes",
+    you: "You",
   },
 
   // ─── Roles ───
@@ -77,6 +78,7 @@ const en = {
     MANAGER: "Manager",
     CASHIER: "Cashier",
     STOCK_CLERK: "Stock Clerk",
+    CUSTOM: "Custom",
   },
 
   // ─── Navigation ───
@@ -130,6 +132,56 @@ const en = {
     verifying: "Verifying…",
     helpText: "Use your assigned PIN to access the terminal",
     clear: "Clear",
+  },
+
+  // ─── License Gate ───
+  license: {
+    verifying: "Verifying license…",
+    licenseRequired: "License Required",
+    activationRequired: "Activation Required",
+    licenseExpired: "License Expired",
+    activationMessage:
+      "This store needs to be activated. Please connect to the internet and contact your administrator for a license.",
+    expiredMessage:
+      "Your subscription has expired. Please connect to the internet and contact your administrator to renew.",
+    expiredOn: "Expired on:",
+    retry: "Retry",
+    signOut: "Sign Out",
+    gracePrefix: "Grace period:",
+    graceMessage:
+      "Your license has expired. You have {days} to renew before access is blocked. Contact your administrator.",
+    expiringMessage:
+      "Your subscription expires in {days} — contact your administrator to renew.",
+    day: "day",
+    days: "days",
+    subscriptionExpires: "Subscription expires in {days}",
+    subscriptionExpiresOn: "Expires: {date}",
+  },
+
+  // ─── Store Login ───
+  storeLogin: {
+    title: "Store Access",
+    subtitle: "Enter the access code provided by your administrator",
+    loginFailed: "Login failed",
+    networkError: "Network error. Please try again.",
+    invalidCode: "Invalid access code. Please check with your administrator.",
+    deactivated: "This store has been deactivated. Contact your administrator.",
+    tooManyAttempts: "Too many login attempts. Please try again later.",
+    connectionError:
+      "Unable to connect. Please check your internet connection and try again.",
+    storeInactive: "Store not found or inactive",
+    staffDeactivated:
+      "Your account has been deactivated. Contact your manager.",
+    cannotVerify: "Cannot verify PIN right now. Please try again later.",
+    unableToVerify: "Unable to verify store status. Please try again later.",
+  },
+
+  // ─── Store Suspended ───
+  storeSuspended: {
+    title: "Store Suspended",
+    message:
+      "Your store has been suspended by the administrator. If you believe this is an error, please contact support.",
+    signOut: "Sign Out",
   },
 
   // ─── POS Terminal ───
@@ -628,6 +680,7 @@ const en = {
     addStaffMember: "Add Staff Member",
     fullName: "Full name",
     pinCode: "PIN code (4 digits)",
+    newPinOptional: "New PIN (leave blank to keep current)",
     roleLabel: "Role",
     maxDiscountLabel: "Max discount (%)",
     failedToAdd: "Failed to add staff",
@@ -645,6 +698,11 @@ const en = {
     roleCashier: "Cashier",
     clickToDeactivate: "Click to deactivate",
     clickToActivate: "Click to activate",
+    roleTemplate: "Role template",
+    roleName: "Role name",
+    custom: "Custom",
+    pageAccess: "Page access",
+    roleStockClerk: "Stock Clerk",
   },
 
   // ─── Reports ───
@@ -826,6 +884,10 @@ const en = {
     shamcashId: "ShamCash Wallet ID",
     shamcashIdPlaceholder: "e.g. d9971bb50b8d...",
     shamcashIdHint: "Your ShamCash wallet address. Customers scan this to pay.",
+    subscriptionInfo: "Subscription",
+    currentPlan: "Plan",
+    expiresOn: "Expires",
+    daysRemaining: "Days Remaining",
     language: "Language",
     english: "English",
     arabic: "العربية",
@@ -985,6 +1047,7 @@ const ar: DeepStringify<typeof en> = {
     deleted: 'تم حذف "{name}".',
     deletedCount: "تم حذف {count} عناصر.",
     noNotes: "لا توجد ملاحظات",
+    you: "أنت",
   },
 
   // ─── Roles ───
@@ -993,6 +1056,7 @@ const ar: DeepStringify<typeof en> = {
     MANAGER: "مدير",
     CASHIER: "كاشير",
     STOCK_CLERK: "أمين مخزن",
+    CUSTOM: "مخصص",
   },
 
   // ─── Navigation ───
@@ -1046,6 +1110,53 @@ const ar: DeepStringify<typeof en> = {
     verifying: "جاري التحقق…",
     helpText: "استخدم رمز PIN المخصص لك للوصول إلى النظام",
     clear: "مسح",
+  },
+
+  // ─── License Gate ───
+  license: {
+    verifying: "جاري التحقق من الترخيص…",
+    licenseRequired: "الترخيص مطلوب",
+    activationRequired: "التفعيل مطلوب",
+    licenseExpired: "انتهى الترخيص",
+    activationMessage:
+      "يجب تفعيل هذا المتجر. يرجى الاتصال بالإنترنت والتواصل مع المسؤول للحصول على ترخيص.",
+    expiredMessage:
+      "انتهى اشتراكك. يرجى الاتصال بالإنترنت والتواصل مع المسؤول للتجديد.",
+    expiredOn: "انتهى في:",
+    retry: "إعادة المحاولة",
+    signOut: "تسجيل الخروج",
+    gracePrefix: "فترة سماح:",
+    graceMessage:
+      "انتهى ترخيصك. لديك {days} للتجديد قبل حظر الوصول. تواصل مع المسؤول.",
+    expiringMessage: "اشتراكك ينتهي خلال {days} — تواصل مع المسؤول للتجديد.",
+    day: "يوم",
+    days: "أيام",
+    subscriptionExpires: "ينتهي الاشتراك خلال {days}",
+    subscriptionExpiresOn: "ينتهي: {date}",
+  },
+
+  // ─── Store Login ───
+  storeLogin: {
+    title: "دخول المتجر",
+    subtitle: "أدخل رمز الوصول المقدم من المسؤول",
+    loginFailed: "فشل تسجيل الدخول",
+    networkError: "خطأ في الشبكة. حاول مرة أخرى.",
+    invalidCode: "رمز الوصول غير صحيح. تحقق من المسؤول.",
+    deactivated: "تم تعطيل هذا المتجر. تواصل مع المسؤول.",
+    tooManyAttempts: "محاولات كثيرة جداً. حاول مرة أخرى لاحقاً.",
+    connectionError: "تعذر الاتصال. تحقق من اتصالك بالإنترنت وحاول مرة أخرى.",
+    storeInactive: "المتجر غير موجود أو غير نشط",
+    staffDeactivated: "تم تعطيل حسابك. تواصل مع المدير.",
+    cannotVerify: "لا يمكن التحقق من الرمز الآن. حاول مرة أخرى لاحقاً.",
+    unableToVerify: "تعذر التحقق من حالة المتجر. حاول مرة أخرى لاحقاً.",
+  },
+
+  // ─── Store Suspended ───
+  storeSuspended: {
+    title: "المتجر معلّق",
+    message:
+      "تم تعليق متجرك من قبل المسؤول. إذا كنت تعتقد أن هذا خطأ، يرجى التواصل مع الدعم.",
+    signOut: "تسجيل الخروج",
   },
 
   // ─── POS Terminal ───
@@ -1537,6 +1648,7 @@ const ar: DeepStringify<typeof en> = {
     addStaffMember: "إضافة موظف جديد",
     fullName: "الاسم الكامل",
     pinCode: "رمز PIN (4 أرقام)",
+    newPinOptional: "رمز PIN جديد (اتركه فارغًا للإبقاء على الحالي)",
     roleLabel: "الدور",
     maxDiscountLabel: "أقصى خصم (%)",
     failedToAdd: "فشل في إضافة الموظف",
@@ -1553,6 +1665,11 @@ const ar: DeepStringify<typeof en> = {
     roleCashier: "كاشير",
     clickToDeactivate: "اضغط للتعطيل",
     clickToActivate: "اضغط للتفعيل",
+    roleTemplate: "قالب الدور",
+    roleName: "اسم الدور",
+    custom: "مخصص",
+    pageAccess: "صلاحيات الصفحات",
+    roleStockClerk: "أمين مخزن",
   },
   reports: {
     title: "التقارير",
@@ -1732,6 +1849,10 @@ const ar: DeepStringify<typeof en> = {
     shamcashId: "معرّف محفظة شام كاش",
     shamcashIdPlaceholder: "مثال: d9971bb50b8d...",
     shamcashIdHint: "عنوان محفظتك في شام كاش. يمسحه العميل للدفع.",
+    subscriptionInfo: "الاشتراك",
+    currentPlan: "الباقة",
+    expiresOn: "ينتهي في",
+    daysRemaining: "الأيام المتبقية",
     language: "اللغة",
     english: "English",
     arabic: "العربية",

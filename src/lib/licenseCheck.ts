@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma, getGracePeriodDays } from "@/lib/db";
 import { verifyLicenseToken, isLicenseValid } from "@/lib/license";
 import { NextResponse } from "next/server";
 
@@ -8,10 +8,13 @@ import { NextResponse } from "next/server";
  */
 export async function checkMerchantLicense(merchantId: string) {
   try {
-    const licenseKey = await prisma.licenseKey.findFirst({
-      where: { merchantId, isRevoked: false },
-      orderBy: { createdAt: "desc" },
-    });
+    const [licenseKey, gracePeriodDays] = await Promise.all([
+      prisma.licenseKey.findFirst({
+        where: { merchantId, isRevoked: false },
+        orderBy: { createdAt: "desc" },
+      }),
+      getGracePeriodDays(),
+    ]);
 
     if (!licenseKey) {
       return {
@@ -34,7 +37,7 @@ export async function checkMerchantLicense(merchantId: string) {
       };
     }
 
-    const validation = isLicenseValid(payload);
+    const validation = isLicenseValid(payload, gracePeriodDays);
     if (!validation.valid) {
       return {
         error: NextResponse.json(

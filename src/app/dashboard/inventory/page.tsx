@@ -5,6 +5,7 @@ import { dbQuery } from "@/lib/apiError";
 import { InventoryContent } from "./InventoryContent";
 import { getMerchantSession } from "@/lib/merchantAuth";
 import { t, type Locale } from "@/lib/i18n";
+import { getInventoryAdjustments } from "@/app/actions/merchant";
 
 export async function generateMetadata() {
   const session = await getMerchantSession();
@@ -91,9 +92,10 @@ export default async function InventoryPage() {
     })),
   }));
 
+  const adjustments = await getInventoryAdjustments();
+
   return (
     <InventoryContent
-      merchantId={merchant.id}
       currency={merchant.currency}
       currencyFormat={
         (merchant.currencyFormat ?? "symbol") as "symbol" | "code" | "none"
@@ -104,6 +106,7 @@ export default async function InventoryPage() {
       language={merchant.language ?? "en"}
       products={products}
       orders={orders}
+      initialAdjustments={adjustments}
     />
   );
 }

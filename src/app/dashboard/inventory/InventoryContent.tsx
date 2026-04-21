@@ -1,15 +1,14 @@
 "use client";
-import type React from "react";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useActionState, useMemo, useOptimistic, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { ProductInsightModal } from "@/components/ProductInsightModal";
-import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { ProductInsightModal } from "@/components/features/ProductInsightModal";
+import { BarcodeScanner } from "@/components/features/BarcodeScanner";
 import { IconCamera } from "@/components/Icons";
 import { RowActions } from "@/components/ui/RowActions";
 import { SearchInput } from "@/components/ui/SearchInput";
@@ -37,6 +36,10 @@ import {
   translateUnit,
   type Locale,
 } from "@/lib/i18n";
+import {
+  getInventoryAdjustments,
+  adjustInventoryFormAction,
+} from "@/app/actions/merchant";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -45,7 +48,7 @@ type InventoryAdjustmentEntry = {
   type: string;
   quantity: number;
   reason: string | null;
-  createdAt: string;
+  createdAt: string | Date;
   product: {
     id: string;
     name: string;
@@ -55,30 +58,29 @@ type InventoryAdjustmentEntry = {
   };
 };
 
-export function InventoryContent({
-  merchantId,
-  currency,
-  currencyFormat = "symbol",
-  numberFormat = "western",
-  language = "en",
-  products,
-  orders,
-}: {
-  merchantId: string;
+export function InventoryContent(props: {
   currency: string;
   currencyFormat: "symbol" | "code" | "none";
   numberFormat?: NumberFormat;
   language?: string;
   products: Product[];
   orders: Order[];
+  initialAdjustments?: InventoryAdjustmentEntry[];
 }) {
+  const {
+    currency,
+    currencyFormat = "symbol",
+    numberFormat = "western",
+    language = "en",
+    orders,
+    initialAdjustments = [],
+  } = props;
   const i = t(language as Locale);
-  const [localProducts, setLocalProducts] = useState(products);
+  const [products, setProducts] = useOptimistic(
+    props.products,
+    (_current: Product[], next: Product[]) => next,
+  );
   const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    setLocalProducts(products);
-  }, [products]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [movementFilter, setMovementFilter] = useState("all");
@@ -90,8 +92,36 @@ export function InventoryContent({
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedInsightProduct, setSelectedInsightProduct] =
     useState<Product | null>(null);
-  const [isAdjusting, startAdjustTransition] = useTransition();
-  const [history, setHistory] = useState<InventoryAdjustmentEntry[]>([]);
+  const [adjustState, adjustFormAction, isAdjusting] = useActionState(
+    async (
+      prev: { error?: string; success?: boolean; data?: unknown },
+      fd: FormData,
+    ) => {
+      const result = await adjustInventoryFormAction(prev, fd);
+      if (result.success) {
+        const data = result.data as { productId: string; stock: number };
+        setFeedback({
+          type: "success",
+          text: `${i.inventory.stockUpdated} "${selectedProduct ? getProductDisplayName(selectedProduct.name, selectedProduct.variantName) : ""}".`,
+        });
+        setProducts(
+          products.map((product) =>
+            product.id === data.productId
+              ? { ...product, stock: data.stock }
+              : product,
+          ),
+        );
+        setSelectedProduct(null);
+        void loadHistory();
+      } else if (result.error) {
+        setFeedback({ type: "error", text: result.error });
+      }
+      return result;
+    },
+    {},
+  );
+  const [history, setHistory] =
+    useState<InventoryAdjustmentEntry[]>(initialAdjustments);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
@@ -109,15 +139,13 @@ export function InventoryContent({
 
   const tracked = useMemo(
     () =>
-      localProducts
-        .filter((p) => p.trackStock)
-        .sort((a, b) => a.stock - b.stock),
-    [localProducts],
+      products.filter((p) => p.trackStock).sort((a, b) => a.stock - b.stock),
+    [products],
   );
 
   const performance = useMemo(
-    () => buildProductPerformance(orders, localProducts),
-    [orders, localProducts],
+    () => buildProductPerformance(orders, products),
+    [orders, products],
   );
   const inventoryInsights = useMemo(
     () => buildInventoryInsights(tracked, performance),
@@ -247,19 +275,16 @@ export function InventoryContent({
   async function loadHistory() {
     setHistoryLoading(true);
     try {
-      const res = await fetch("/api/merchant/inventory/adjustments");
-      if (res.ok) {
-        const data = (await res.json()) as InventoryAdjustmentEntry[];
-        setHistory(data);
-      }
+      const data = await getInventoryAdjustments();
+      setHistory(data as InventoryAdjustmentEntry[]);
+    } catch {
+      setFeedback(
+        (prev) => prev ?? { type: "error", text: i.common.somethingWentWrong },
+      );
     } finally {
       setHistoryLoading(false);
     }
   }
-
-  useEffect(() => {
-    void loadHistory();
-  }, [merchantId]);
 
   function openAdjustModal(product: Product) {
     setSelectedProduct(product);
@@ -267,69 +292,6 @@ export function InventoryContent({
       type: product.stock <= 0 ? "PURCHASE" : "CORRECTION",
       quantity: product.stock <= 0 ? "1" : "0",
       reason: "",
-    });
-  }
-
-  async function handleAdjustStock(e: React.SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!selectedProduct) return;
-
-    const quantity = Number(adjustmentForm.quantity);
-    if (
-      !Number.isFinite(quantity) ||
-      !Number.isInteger(quantity) ||
-      quantity === 0
-    ) {
-      setFeedback({
-        type: "error",
-        text: i.inventory.enterWholeNumber,
-      });
-      return;
-    }
-
-    setFeedback(null);
-
-    startAdjustTransition(async () => {
-      try {
-        const res = await fetch("/api/merchant/inventory/adjustments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            productId: selectedProduct.id,
-            type: adjustmentForm.type,
-            quantity,
-            reason: adjustmentForm.reason || null,
-          }),
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          setFeedback({
-            type: "error",
-            text: err.error || i.inventory.failedToAdjust,
-          });
-        } else {
-          const data = (await res.json()) as {
-            productId: string;
-            stock: number;
-          };
-          setFeedback({
-            type: "success",
-            text: `${i.inventory.stockUpdated} "${getProductDisplayName(selectedProduct.name, selectedProduct.variantName)}".`,
-          });
-          setLocalProducts((prev) =>
-            prev.map((product) =>
-              product.id === data.productId
-                ? { ...product, stock: data.stock }
-                : product,
-            ),
-          );
-          setSelectedProduct(null);
-          await loadHistory();
-        }
-      } catch {
-        setFeedback({ type: "error", text: i.inventory.failedToAdjust });
-      }
     });
   }
 
@@ -907,7 +869,8 @@ export function InventoryContent({
         }
       >
         {selectedProduct && (
-          <form onSubmit={handleAdjustStock} className="space-y-4">
+          <form action={adjustFormAction} className="space-y-4">
+            <input type="hidden" name="productId" value={selectedProduct.id} />
             <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
               {i.inventory.currentStock}{" "}
               <span className="font-semibold text-slate-900">
@@ -918,6 +881,7 @@ export function InventoryContent({
 
             <Select
               id="adjustment-type"
+              name="type"
               label={i.inventory.adjustmentType}
               value={adjustmentForm.type}
               onChange={(e) =>
@@ -933,6 +897,7 @@ export function InventoryContent({
 
             <Input
               id="adjustment-quantity"
+              name="quantity"
               label={i.inventory.quantity}
               type="number"
               placeholder={i.inventory.adjustQuantityPlaceholder}
@@ -948,6 +913,7 @@ export function InventoryContent({
 
             <Input
               id="adjustment-reason"
+              name="reason"
               label={i.inventory.reasonOptional}
               placeholder={i.inventory.adjustReasonPlaceholder}
               value={adjustmentForm.reason}

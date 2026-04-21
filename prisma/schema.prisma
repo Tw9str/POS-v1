@@ -15,15 +15,7 @@ enum SystemRole {
   SUPER_ADMIN
 }
 
-enum StaffRole {
-  OWNER
-  MANAGER
-  CASHIER
-  STOCK_CLERK
-}
-
 enum SubscriptionStatus {
-  TRIAL
   ACTIVE
   PAST_DUE
   EXPIRED
@@ -94,7 +86,7 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  @@map("app_users")
+  @@map("users")
 }
 
 model Account {
@@ -181,6 +173,18 @@ model Merchant {
 }
 
 // ─────────────────────────────────────────────
+// SYSTEM SETTINGS (singleton)
+// ─────────────────────────────────────────────
+
+model SystemSettings {
+  id              String @id @default("default")
+  gracePeriodDays Int    @default(7)
+  updatedAt       DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// ─────────────────────────────────────────────
 // SUBSCRIPTION & LICENSE
 // ─────────────────────────────────────────────
 
@@ -188,10 +192,9 @@ model Subscription {
   id         String             @id @default(cuid())
   merchantId String             @unique
   plan       SubscriptionPlan   @default(FREE_TRIAL)
-  status     SubscriptionStatus @default(TRIAL)
+  status     SubscriptionStatus @default(ACTIVE)
   startsAt   DateTime           @default(now())
   expiresAt  DateTime
-  graceEndsAt DateTime?
   paidAmount Float?
   paidAt     DateTime?
   paymentRef String?
@@ -228,7 +231,9 @@ model Staff {
   merchantId String
   name       String
   pin        String
-  role       StaffRole @default(CASHIER)
+  role       String    @default("CASHIER")
+  allowedPages String[] @default([]) @map("allowed_pages")
+  isOwner    Boolean   @default(false) @map("is_owner")
   maxDiscountPercent Int @default(0)
   isActive   Boolean   @default(true)
   createdAt  DateTime  @default(now())

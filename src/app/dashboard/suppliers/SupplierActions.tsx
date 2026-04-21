@@ -1,12 +1,13 @@
 "use client";
-import type React from "react";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { IconPlus } from "@/components/Icons";
 import { t, type Locale } from "@/lib/i18n";
+import { createSupplier, updateSupplier } from "@/app/actions/merchant";
+import type { ActionResult } from "@/app/actions/merchant";
 
 interface EditableSupplier {
   id: string;
@@ -44,8 +45,23 @@ export function SupplierActions({
     setOpen(false);
     onExternalClose?.();
   };
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+
+  const action = isEdit ? updateSupplier : createSupplier;
+  const [state, formAction, isPending] = useActionState<ActionResult, FormData>(
+    async (prev, fd) => {
+      const result = await action(prev, fd);
+      if (result.success) {
+        const saved = (result.data ?? {}) as EditableSupplier & {
+          _orderCount?: number;
+        };
+        closeModal();
+        onSaved?.(saved);
+      }
+      return result;
+    },
+    {},
+  );
+
   const [form, setForm] = useState({
     name: supplier?.name ?? "",
     phone: supplier?.phone ?? "",
@@ -55,7 +71,6 @@ export function SupplierActions({
   });
 
   function openModal() {
-    setError("");
     setForm({
       name: supplier?.name ?? "",
       phone: supplier?.phone ?? "",
@@ -64,41 +79,6 @@ export function SupplierActions({
       notes: supplier?.notes ?? "",
     });
     setOpen(true);
-  }
-
-  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/merchant/suppliers", {
-        method: isEdit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isEdit ? { id: supplier?.id, ...form } : form),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setError(
-          err.error ||
-            (isEdit ? i.suppliers.failedToUpdate : i.suppliers.failedToAdd),
-        );
-        return;
-      }
-
-      const savedSupplier = (await res.json()) as EditableSupplier & {
-        _orderCount?: number;
-      };
-
-      closeModal();
-      setForm({ name: "", phone: "", email: "", address: "", notes: "" });
-      onSaved?.(savedSupplier);
-    } catch {
-      setError(i.common.somethingWentWrong);
-    } finally {
-      setLoading(false);
-    }
   }
 
   return (
@@ -119,9 +99,13 @@ export function SupplierActions({
         onClose={closeModal}
         title={isEdit ? i.suppliers.editSupplier : i.suppliers.addSupplier}
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form action={formAction} className="space-y-4">
+          {isEdit && supplier?.id && (
+            <input type="hidden" name="id" value={supplier.id} />
+          )}
           <Input
             id="name"
+            name="name"
             label={i.common.name}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -129,12 +113,14 @@ export function SupplierActions({
           />
           <Input
             id="phone"
+            name="phone"
             label={i.common.phone}
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
           <Input
             id="email"
+            name="email"
             label={i.common.email}
             type="email"
             value={form.email}
@@ -142,20 +128,22 @@ export function SupplierActions({
           />
           <Input
             id="address"
+            name="address"
             label={i.common.address}
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
           />
           <Input
             id="notes"
+            name="notes"
             label={i.common.notes}
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
           />
 
-          {error && (
+          {state.error && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-              {error}
+              {state.error}
             </p>
           )}
 
@@ -176,7 +164,7 @@ export function SupplierActions({
               <Button variant="secondary" type="button" onClick={closeModal}>
                 {i.common.cancel}
               </Button>
-              <Button type="submit" loading={loading}>
+              <Button type="submit" loading={isPending}>
                 {isEdit ? i.common.save : i.suppliers.addSupplier}
               </Button>
             </div>

@@ -1,7 +1,6 @@
 "use client";
-import type React from "react";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -14,10 +13,18 @@ import {
   IconBarcode,
   IconSettings,
 } from "@/components/Icons";
-import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { BarcodeScanner } from "@/components/features/BarcodeScanner";
 
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { t, type Locale } from "@/lib/i18n";
+import {
+  createProduct,
+  updateProduct,
+  saveCategoryAction,
+  deleteCategory as deleteCategoryAction,
+  generateSku as generateSkuAction,
+} from "@/app/actions/merchant";
+import type { ActionResult } from "@/app/actions/merchant";
 
 interface Category {
   id: string;
@@ -44,7 +51,6 @@ interface EditableProduct {
 interface ProductActionsProps {
   categories: Category[];
   currency: string;
-  merchantId: string;
   product?: EditableProduct;
   prefillProduct?: Partial<EditableProduct>;
   initialBarcode?: string;
@@ -59,7 +65,6 @@ interface ProductActionsProps {
 export function ProductActions({
   categories,
   currency,
-  merchantId,
   product,
   prefillProduct,
   initialBarcode,
@@ -81,14 +86,25 @@ export function ProductActions({
     onExternalClose?.();
   };
   const [categoriesOpen, setCategoriesOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [categoryLoading, setCategoryLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [categoryError, setCategoryError] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [skuLoading, setSkuLoading] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
     null,
+  );
+
+  const productAction = isEdit ? updateProduct : createProduct;
+  const [state, formAction, isPending] = useActionState<ActionResult, FormData>(
+    async (prev, fd) => {
+      const result = await productAction(prev, fd);
+      if (result.success) {
+        const saved = (result.data ?? {}) as EditableProduct &
+          Record<string, unknown>;
+        closeModal();
+        onProductSaved?.(saved);
+      }
+      return result;
+    },
+    {},
   );
   const [confirmCategoryDelete, setConfirmCategoryDelete] = useState<{
     id: string;
@@ -148,18 +164,17 @@ export function ProductActions({
 
   function resetCategoryForm() {
     setEditingCategoryId(null);
-    setCategoryError("");
     setCategoryForm({ name: "", color: "#4f46e5" });
   }
 
   async function generateSku(categoryId?: string) {
     setSkuLoading(true);
     try {
-      const params = categoryId ? `?categoryId=${categoryId}` : "";
-      const res = await fetch(`/api/merchant/products/generate-sku${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setForm((prev) => ({ ...prev, sku: data.sku }));
+      const result = await generateSkuAction(
+        categoryId || form.categoryId || "",
+      );
+      if (result.sku) {
+        setForm((prev) => ({ ...prev, sku: result.sku! }));
       }
     } catch {
       // silently fail · user can type SKU manually
@@ -175,107 +190,24 @@ export function ProductActions({
   }
 
   function openProductModal() {
-    setError("");
     resetProductForm();
     setOpen(true);
   }
 
-  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/merchant/products", {
-        method: isEdit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(isEdit ? { id: product?.id } : {}),
-          ...form,
-          variantName: form.variantName || null,
-          price: parseFloat(form.price || "0"),
-          costPrice: parseFloat(form.costPrice || "0"),
-          stock: parseInt(form.stock || "0"),
-          lowStockAt: parseInt(form.lowStockAt || "5"),
-          categoryId:
-            form.categoryId ||
-            categories.find((c) => c.name === "Other")?.id ||
-            categories[0]?.id,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setError(err.error || i.products.somethingWentWrong);
-        return;
-      }
-
-      const savedProduct = (await res.json()) as EditableProduct &
-        Record<string, unknown>;
-
-      closeModal();
-      if (!isEdit) {
-        setForm({
-          name: "",
-          variantName: "",
-          sku: "",
-          barcode: "",
-          categoryId: defaultCategoryId,
-          price: "",
-          costPrice: "",
-          stock: "",
-          lowStockAt: "5",
-          unit: "piece",
-          trackStock: true,
-        });
-      }
-      onProductSaved?.(savedProduct);
-    } catch {
-      setError(i.products.somethingWentWrong);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleCategorySubmit(e: React.SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setCategoryLoading(true);
-    setCategoryError("");
-
-    try {
-      const res = await fetch("/api/merchant/categories", {
-        method: editingCategoryId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(editingCategoryId ? { id: editingCategoryId } : {}),
-          name: categoryForm.name,
-          color: categoryForm.color,
-          sortOrder:
-            editingCategoryId &&
-            categories.some((c) => c.id === editingCategoryId)
-              ? (categories.find((c) => c.id === editingCategoryId)
-                  ?.sortOrder ?? 0)
-              : categories.length,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setCategoryError(err.error || i.products.failedToSaveCategory);
-        return;
-      }
-
-      const savedCategory = (await res.json()) as Category & {
+  const [catState, catFormAction, isCatPending] = useActionState<
+    ActionResult,
+    FormData
+  >(async (prev, fd) => {
+    const result = await saveCategoryAction(prev, fd);
+    if (result.success) {
+      const savedCategory = (result.data ?? {}) as Category & {
         merchantId?: string;
       };
       resetCategoryForm();
       onCategorySaved?.(savedCategory);
-    } catch {
-      setCategoryError(i.products.somethingWentWrong);
-    } finally {
-      setCategoryLoading(false);
     }
-  }
+    return result;
+  }, {});
 
   function startEditCategory(category: Category) {
     setEditingCategoryId(category.id);
@@ -286,21 +218,13 @@ export function ProductActions({
     setCategoriesOpen(true);
   }
 
-  async function handleDeleteCategory(id: string, name: string) {
+  async function handleDeleteCategory(id: string) {
     try {
-      const res = await fetch("/api/merchant/categories", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setCategoryError(err.error || i.products.failedToDeleteCategory);
+      const result = await deleteCategoryAction(id);
+      if (result.error) {
         return;
       }
     } catch {
-      setCategoryError(i.products.failedToDeleteCategory);
       return;
     }
 
@@ -350,11 +274,58 @@ export function ProductActions({
         }
         size="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form action={formAction} className="space-y-4">
+          {isEdit && product?.id && (
+            <input type="hidden" name="id" value={product.id} />
+          )}
+          <input
+            type="hidden"
+            name="variantName"
+            value={form.variantName || ""}
+          />
+          <input type="hidden" name="sku" value={form.sku || ""} />
+          <input type="hidden" name="barcode" value={form.barcode || ""} />
+          <input
+            type="hidden"
+            name="categoryId"
+            value={
+              form.categoryId ||
+              categories.find((c) => c.name === "Other")?.id ||
+              categories[0]?.id ||
+              ""
+            }
+          />
+          <input
+            type="hidden"
+            name="price"
+            value={String(parseFloat(form.price || "0"))}
+          />
+          <input
+            type="hidden"
+            name="costPrice"
+            value={String(parseFloat(form.costPrice || "0"))}
+          />
+          <input
+            type="hidden"
+            name="stock"
+            value={String(parseInt(form.stock || "0"))}
+          />
+          <input
+            type="hidden"
+            name="lowStockAt"
+            value={String(parseInt(form.lowStockAt || "5"))}
+          />
+          <input type="hidden" name="unit" value={form.unit} />
+          <input
+            type="hidden"
+            name="trackStock"
+            value={String(form.trackStock)}
+          />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <Input
                 id="name"
+                name="name"
                 label={i.products.productName}
                 placeholder={i.products.productNamePlaceholder}
                 value={form.name}
@@ -390,17 +361,13 @@ export function ProductActions({
               }}
               onCreateCategory={async (name, color) => {
                 try {
-                  const res = await fetch("/api/merchant/categories", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      name,
-                      color,
-                      sortOrder: categories.length,
-                    }),
-                  });
-                  if (res.ok) {
-                    const data = (await res.json()) as Category & {
+                  const fd = new FormData();
+                  fd.set("name", name);
+                  fd.set("color", color || "#4f46e5");
+                  fd.set("sortOrder", String(categories.length));
+                  const result = await saveCategoryAction({}, fd);
+                  if (result.success && result.data) {
+                    const data = result.data as Category & {
                       merchantId?: string;
                     };
                     onCategorySaved?.(data);
@@ -561,9 +528,9 @@ export function ProductActions({
             </div>
           </div>
 
-          {error && (
+          {state.error && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-              {error}
+              {state.error}
             </p>
           )}
 
@@ -571,7 +538,7 @@ export function ProductActions({
             <Button variant="secondary" type="button" onClick={closeModal}>
               {i.products.cancel}
             </Button>
-            <Button type="submit" loading={loading}>
+            <Button type="submit" loading={isPending}>
               {isEdit
                 ? i.products.saveChanges
                 : isVariantPrefill
@@ -590,11 +557,26 @@ export function ProductActions({
       >
         <div className="space-y-4">
           <form
-            onSubmit={handleCategorySubmit}
+            action={catFormAction}
             className="grid grid-cols-1 md:grid-cols-2 gap-4"
           >
+            {editingCategoryId && (
+              <input type="hidden" name="id" value={editingCategoryId} />
+            )}
+            <input
+              type="hidden"
+              name="sortOrder"
+              value={String(
+                editingCategoryId &&
+                  categories.some((c) => c.id === editingCategoryId)
+                  ? (categories.find((c) => c.id === editingCategoryId)
+                      ?.sortOrder ?? 0)
+                  : categories.length,
+              )}
+            />
             <Input
               id="categoryName"
+              name="name"
               label={i.products.categoryName}
               value={categoryForm.name}
               onChange={(e) =>
@@ -608,6 +590,7 @@ export function ProductActions({
               </label>
               <input
                 type="color"
+                name="color"
                 value={categoryForm.color}
                 onChange={(e) =>
                   setCategoryForm({ ...categoryForm, color: e.target.value })
@@ -625,7 +608,7 @@ export function ProductActions({
                   {i.products.cancelEdit}
                 </Button>
               )}
-              <Button type="submit" loading={categoryLoading}>
+              <Button type="submit" loading={isCatPending}>
                 {editingCategoryId
                   ? i.products.saveCategory
                   : i.products.addCategory}
@@ -633,9 +616,9 @@ export function ProductActions({
             </div>
           </form>
 
-          {categoryError && (
+          {catState.error && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-              {categoryError}
+              {catState.error}
             </p>
           )}
 
@@ -707,10 +690,7 @@ export function ProductActions({
         onClose={() => setConfirmCategoryDelete(null)}
         onConfirm={() => {
           if (confirmCategoryDelete) {
-            handleDeleteCategory(
-              confirmCategoryDelete.id,
-              confirmCategoryDelete.name,
-            );
+            handleDeleteCategory(confirmCategoryDelete.id);
             setConfirmCategoryDelete(null);
           }
         }}

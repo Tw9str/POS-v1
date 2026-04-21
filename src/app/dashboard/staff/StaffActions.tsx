@@ -1,38 +1,67 @@
 "use client";
-import type React from "react";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
 import { IconPlus } from "@/components/Icons";
 import { t, type Locale } from "@/lib/i18n";
+import { createStaff, updateStaff } from "@/app/actions/merchant";
+import type { ActionResult } from "@/app/actions/merchant";
+import {
+  ALL_PAGE_KEYS,
+  ROLE_TEMPLATES,
+  type PageKey,
+} from "@/lib/staffConstants";
+
+const PAGE_LABEL_KEYS: Record<PageKey, string> = {
+  pos: "posShort",
+  products: "products",
+  inventory: "inventory",
+  orders: "orders",
+  customers: "customers",
+  suppliers: "suppliers",
+  promos: "promos",
+  reports: "reports",
+  analytics: "analytics",
+  settings: "settings",
+};
 
 interface EditableStaff {
   id: string;
   name: string;
   pin: string;
   role: string;
+  allowedPages?: string[];
+  isOwner?: boolean;
   isActive?: boolean;
 }
 
 interface StaffActionsProps {
-  merchantId: string;
   staff?: EditableStaff;
   externalOpen?: boolean;
   onExternalClose?: () => void;
-  onDelete?: () => void;
   onSaved?: (staff: EditableStaff & { maxDiscountPercent: number }) => void;
   language?: string;
 }
 
+function resolveTemplate(allowedPages: string[]): string {
+  for (const [name, pages] of Object.entries(ROLE_TEMPLATES)) {
+    if (
+      pages.length === allowedPages.length &&
+      pages.every((p) => allowedPages.includes(p))
+    ) {
+      return name;
+    }
+  }
+  return "CUSTOM";
+}
+
 export function StaffActions({
-  merchantId,
   staff,
   externalOpen,
   onExternalClose,
-  onDelete,
   onSaved,
   language = "en",
 }: StaffActionsProps) {
@@ -44,57 +73,76 @@ export function StaffActions({
     setOpen(false);
     onExternalClose?.();
   };
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [form, setForm] = useState({
-    name: staff?.name ?? "",
-    pin: staff?.pin ?? "",
-    role: staff?.role ?? "CASHIER",
-  });
+
+  const serverAction = isEdit ? updateStaff : createStaff;
+  const [state, formAction, isPending] = useActionState<ActionResult, FormData>(
+    async (prev, fd) => {
+      const result = await serverAction(prev, fd);
+      if (result.success) {
+        const saved = (result.data ?? {}) as EditableStaff & {
+          maxDiscountPercent: number;
+        };
+        closeModal();
+        onSaved?.(saved);
+      }
+      return result;
+    },
+    {},
+  );
+
+  const [name, setName] = useState(staff?.name ?? "");
+  const [pin, setPin] = useState("");
+  const [roleName, setRoleName] = useState(staff?.role ?? "Cashier");
+  const [template, setTemplate] = useState(() =>
+    staff?.allowedPages
+      ? resolveTemplate(staff.allowedPages)
+      : (staff?.role ?? "CASHIER"),
+  );
+  const [allowedPages, setAllowedPages] = useState<string[]>(
+    staff?.allowedPages ?? ROLE_TEMPLATES["CASHIER"] ?? [],
+  );
 
   function openModal() {
-    setError("");
-    setForm({
-      name: staff?.name ?? "",
-      pin: staff?.pin ?? "",
-      role: staff?.role ?? "CASHIER",
-    });
+    setName(staff?.name ?? "");
+    setPin("");
+    setRoleName(staff?.role ?? "Cashier");
+    const pages =
+      staff?.allowedPages ?? ROLE_TEMPLATES[staff?.role ?? "CASHIER"] ?? [];
+    setAllowedPages(pages);
+    setTemplate(
+      staff?.allowedPages
+        ? resolveTemplate(staff.allowedPages)
+        : (staff?.role ?? "CASHIER"),
+    );
     setOpen(true);
   }
 
-  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+  const TEMPLATE_NAMES: Record<string, string> = {
+    CASHIER: i.staff.roleCashier,
+    MANAGER: i.staff.roleManager,
+    STOCK_CLERK: i.staff.roleStockClerk,
+  };
 
-    try {
-      const res = await fetch("/api/merchant/staff", {
-        method: isEdit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isEdit ? { id: staff?.id, ...form } : form),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setError(
-          err.error || (isEdit ? i.staff.failedToUpdate : i.staff.failedToAdd),
-        );
-        return;
-      }
-
-      const savedStaff = (await res.json()) as EditableStaff & {
-        maxDiscountPercent: number;
-      };
-
-      closeModal();
-      setForm({ name: "", pin: "", role: "CASHIER" });
-      onSaved?.(savedStaff);
-    } catch {
-      setError(i.common.somethingWentWrong);
-    } finally {
-      setLoading(false);
+  function handleTemplateChange(value: string) {
+    setTemplate(value);
+    if (value !== "CUSTOM" && ROLE_TEMPLATES[value]) {
+      setAllowedPages([...ROLE_TEMPLATES[value]]);
+      setRoleName(TEMPLATE_NAMES[value] ?? value);
     }
   }
+
+  function togglePage(key: string) {
+    setAllowedPages((prev) => {
+      const next = prev.includes(key)
+        ? prev.filter((p) => p !== key)
+        : [...prev, key];
+      const matched = resolveTemplate(next);
+      setTemplate(matched);
+      return next;
+    });
+  }
+
+  const isOwner = staff?.isOwner === true;
 
   return (
     <>
@@ -114,65 +162,120 @@ export function StaffActions({
         onClose={closeModal}
         title={isEdit ? i.staff.editStaff : i.staff.addStaffMember}
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form action={formAction} className="space-y-4">
+          {isEdit && staff?.id && (
+            <input type="hidden" name="id" value={staff.id} />
+          )}
+          <input
+            type="hidden"
+            name="role"
+            value={
+              roleName.trim() || (template === "CUSTOM" ? "Custom" : template)
+            }
+          />
+          {allowedPages.map((p) => (
+            <input key={p} type="hidden" name="allowedPages" value={p} />
+          ))}
           <Input
             id="name"
+            name="name"
             label={i.staff.fullName}
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             required
+            disabled={isOwner}
           />
           <Input
             id="pin"
-            label={i.staff.pinCode}
+            name="pin"
+            label={isEdit ? i.staff.newPinOptional : i.staff.pinCode}
             type="text"
-            pattern="[0-9]{4}"
+            pattern={isEdit ? "[0-9]{4}|" : "[0-9]{4}"}
             maxLength={4}
-            value={form.pin}
-            onChange={(e) =>
-              setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })
-            }
-            required
-          />
-          <Select
-            id="role"
-            label={i.staff.roleLabel}
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value })}
-            options={[
-              { value: "CASHIER", label: i.roles.CASHIER },
-              { value: "MANAGER", label: i.roles.MANAGER },
-              { value: "STOCK_CLERK", label: i.roles.STOCK_CLERK },
-              { value: "OWNER", label: i.roles.OWNER },
-            ]}
+            placeholder={isEdit ? "••••" : ""}
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+            required={!isEdit}
           />
 
-          {error && (
+          {!isOwner && (
+            <>
+              <Select
+                id="template"
+                label={i.staff.roleTemplate}
+                value={template}
+                onChange={(e) => handleTemplateChange(e.target.value)}
+                options={[
+                  { value: "CASHIER", label: i.staff.roleCashier },
+                  { value: "MANAGER", label: i.staff.roleManager },
+                  { value: "STOCK_CLERK", label: i.staff.roleStockClerk },
+                  { value: "CUSTOM", label: i.staff.custom },
+                ]}
+              />
+
+              <Input
+                id="roleName"
+                label={i.staff.roleName}
+                value={roleName}
+                onChange={(e) => {
+                  setRoleName(e.target.value);
+                  setTemplate(resolveTemplate(allowedPages));
+                }}
+                required
+              />
+
+              <fieldset>
+                <legend className="text-sm font-medium text-slate-700 mb-2">
+                  {i.staff.pageAccess}
+                </legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {ALL_PAGE_KEYS.map((key) => (
+                    <label
+                      key={key}
+                      className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors has-checked:border-indigo-300 has-checked:bg-indigo-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={allowedPages.includes(key)}
+                        onChange={() => togglePage(key)}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-slate-700">
+                        {
+                          (i.nav as Record<string, string>)[
+                            PAGE_LABEL_KEYS[key]
+                          ]
+                        }
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </>
+          )}
+
+          {isOwner && (
+            <p className="text-sm text-slate-500 bg-slate-50 px-3 py-2 rounded-lg">
+              {i.staff.roleOwner} — full access
+            </p>
+          )}
+
+          {state.error && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-              {error}
+              {state.error}
             </p>
           )}
 
           <div className="flex items-center gap-3 pt-4">
-            {isEdit && onDelete && (
-              <Button
-                variant="danger"
-                type="button"
-                onClick={() => {
-                  closeModal();
-                  onDelete();
-                }}
-              >
-                {i.common.delete}
-              </Button>
-            )}
             <div className="ml-auto flex gap-3">
               <Button variant="secondary" type="button" onClick={closeModal}>
                 {i.common.cancel}
               </Button>
-              <Button type="submit" loading={loading}>
-                {isEdit ? i.common.save : i.staff.addStaff}
-              </Button>
+              {!isOwner && (
+                <Button type="submit" loading={isPending}>
+                  {isEdit ? i.common.save : i.staff.addStaff}
+                </Button>
+              )}
             </div>
           </div>
         </form>

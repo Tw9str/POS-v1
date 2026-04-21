@@ -18,34 +18,36 @@ export default async function POSPage() {
   await requireStaffForPage("/dashboard/pos");
 
   const staffSession = await getStaffSession();
+  const posOnly =
+    !!staffSession &&
+    !staffSession.isOwner &&
+    staffSession.allowedPages.length === 1 &&
+    staffSession.allowedPages[0] === "pos";
 
-  const [dbProducts, dbCategories, dbCustomers, dbStaff, dbPromotions] =
-    await dbQuery(() =>
-      Promise.all([
-        prisma.product.findMany({
-          where: { merchantId: merchant.id },
-          include: { category: { select: { name: true, color: true } } },
-        }),
-        prisma.category.findMany({
-          where: { merchantId: merchant.id },
-          orderBy: { sortOrder: "asc" },
-        }),
-        prisma.customer.findMany({
-          where: { merchantId: merchant.id },
-        }),
-        prisma.staff.findMany({
-          where: { merchantId: merchant.id, isActive: true },
-        }),
-        prisma.promotion.findMany({
-          where: { merchantId: merchant.id, isActive: true },
-        }),
-      ]),
-    );
+  const [dbProducts, dbCategories, dbCustomers, dbStaff] = await dbQuery(() =>
+    Promise.all([
+      prisma.product.findMany({
+        where: { merchantId: merchant.id },
+        include: { category: { select: { name: true, color: true } } },
+      }),
+      prisma.category.findMany({
+        where: { merchantId: merchant.id },
+        orderBy: { sortOrder: "asc" },
+      }),
+      prisma.customer.findMany({
+        where: { merchantId: merchant.id },
+      }),
+      prisma.staff.findMany({
+        where: { merchantId: merchant.id, isActive: true },
+      }),
+    ]),
+  );
 
   return (
     <POSTerminal
       currentStaffId={staffSession?.staffId || null}
       staffRole={staffSession?.role || "CASHIER"}
+      posOnly={posOnly}
       language={merchant.language ?? "en"}
       merchant={{
         id: merchant.id,
@@ -100,25 +102,6 @@ export default async function POSPage() {
         name: s.name,
         role: s.role,
         maxDiscountPercent: s.maxDiscountPercent,
-      }))}
-      promotions={dbPromotions.map((p) => ({
-        id: p.id,
-        merchantId: p.merchantId,
-        code: p.code,
-        type: p.type as "PERCENT" | "FIXED",
-        value: p.value,
-        scope: p.scope as "ORDER" | "PRODUCT" | "CATEGORY",
-        scopeTargetId: p.scopeTargetId,
-        minSubtotal: p.minSubtotal,
-        maxDiscount: p.maxDiscount,
-        startsAt: p.startsAt?.toISOString() ?? null,
-        endsAt: p.endsAt?.toISOString() ?? null,
-        maxUses: p.maxUses,
-        usedCount: p.usedCount,
-        maxUsesPerCustomer: p.maxUsesPerCustomer,
-        stackable: p.stackable,
-        isActive: p.isActive,
-        createdAt: p.createdAt.toISOString(),
       }))}
     />
   );

@@ -14,6 +14,7 @@ export interface ClientLicenseData {
   merchantId: string;
   plan: string;
   expiresAt: string;
+  gracePeriodDays: number;
   maxStaff: number;
   maxProducts: number;
   fetchedAt: number;
@@ -23,6 +24,7 @@ export interface ClientLicenseStatus {
   valid: boolean;
   daysLeft: number;
   inGrace: boolean;
+  graceDaysLeft: number;
   plan: string;
   expiresAt: string;
   maxStaff: number;
@@ -77,6 +79,7 @@ export async function verifyCachedLicense(): Promise<ClientLicenseStatus> {
       valid: false,
       daysLeft: 0,
       inGrace: false,
+      graceDaysLeft: 0,
       plan: "",
       expiresAt: "",
       maxStaff: 0,
@@ -91,6 +94,7 @@ export async function verifyCachedLicense(): Promise<ClientLicenseStatus> {
       valid: false,
       daysLeft: 0,
       inGrace: false,
+      graceDaysLeft: 0,
       plan: "",
       expiresAt: "",
       maxStaff: 0,
@@ -112,8 +116,9 @@ export async function verifyCachedLicense(): Promise<ClientLicenseStatus> {
 
     const now = new Date();
     const expires = new Date(expiresAt);
-    const graceEnd = new Date(expires);
-    graceEnd.setDate(graceEnd.getDate() + 7);
+    const graceEnd = new Date(
+      expires.getTime() + (stored.gracePeriodDays ?? 7) * 24 * 60 * 60 * 1000,
+    );
 
     const msLeft = expires.getTime() - now.getTime();
     const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
@@ -123,6 +128,7 @@ export async function verifyCachedLicense(): Promise<ClientLicenseStatus> {
         valid: true,
         daysLeft,
         inGrace: false,
+        graceDaysLeft: 0,
         plan,
         expiresAt,
         maxStaff,
@@ -131,10 +137,13 @@ export async function verifyCachedLicense(): Promise<ClientLicenseStatus> {
     }
 
     if (now < graceEnd) {
+      const graceMsLeft = graceEnd.getTime() - now.getTime();
+      const graceDaysLeft = Math.ceil(graceMsLeft / (1000 * 60 * 60 * 24));
       return {
         valid: true,
         daysLeft: 0,
         inGrace: true,
+        graceDaysLeft,
         plan,
         expiresAt,
         maxStaff,
@@ -146,6 +155,7 @@ export async function verifyCachedLicense(): Promise<ClientLicenseStatus> {
       valid: false,
       daysLeft: 0,
       inGrace: false,
+      graceDaysLeft: 0,
       plan,
       expiresAt,
       maxStaff,
@@ -157,6 +167,7 @@ export async function verifyCachedLicense(): Promise<ClientLicenseStatus> {
       valid: false,
       daysLeft: 0,
       inGrace: false,
+      graceDaysLeft: 0,
       plan: "",
       expiresAt: "",
       maxStaff: 0,
@@ -170,7 +181,9 @@ export async function verifyCachedLicense(): Promise<ClientLicenseStatus> {
 
 export async function fetchAndCacheLicense(): Promise<ClientLicenseStatus> {
   try {
-    const res = await fetch("/api/merchant/license");
+    const res = await fetch("/api/merchant/license", {
+      cache: "no-store",
+    });
     if (!res.ok) {
       return verifyCachedLicense();
     }
@@ -187,6 +200,7 @@ export async function fetchAndCacheLicense(): Promise<ClientLicenseStatus> {
         merchantId: data.merchantId ?? "",
         plan: data.plan ?? "",
         expiresAt: data.expiresAt ?? "",
+        gracePeriodDays: data.gracePeriodDays ?? 7,
         maxStaff: data.maxStaff ?? 2,
         maxProducts: data.maxProducts ?? 100,
         fetchedAt: Date.now(),
@@ -198,6 +212,7 @@ export async function fetchAndCacheLicense(): Promise<ClientLicenseStatus> {
         valid: false,
         daysLeft: 0,
         inGrace: false,
+        graceDaysLeft: 0,
         plan: data.plan ?? "",
         expiresAt: data.expiresAt ?? "",
         maxStaff: data.maxStaff ?? 0,
@@ -210,6 +225,7 @@ export async function fetchAndCacheLicense(): Promise<ClientLicenseStatus> {
       valid: true,
       daysLeft: data.daysLeft ?? 0,
       inGrace: data.inGrace ?? false,
+      graceDaysLeft: data.graceDaysLeft ?? 0,
       plan: data.plan ?? "",
       expiresAt: data.expiresAt ?? "",
       maxStaff: data.maxStaff ?? 2,

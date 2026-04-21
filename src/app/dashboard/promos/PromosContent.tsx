@@ -1,7 +1,6 @@
 "use client";
-import type React from "react";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useActionState, useState, useMemo } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -25,6 +24,11 @@ import {
   type NumberFormat,
 } from "@/lib/utils";
 import { t, type Locale } from "@/lib/i18n";
+import {
+  savePromotionAction,
+  togglePromotion,
+  deletePromotion,
+} from "@/app/actions/merchant";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -48,11 +52,11 @@ interface Promotion {
 }
 
 interface PromosContentProps {
-  merchantId: string;
   currency: string;
   currencyFormat: "symbol" | "code" | "none";
   numberFormat?: NumberFormat;
   language?: string;
+  initialPromos: Promotion[];
 }
 
 const emptyForm = {
@@ -72,20 +76,46 @@ const emptyForm = {
 };
 
 export function PromosContent({
-  merchantId,
   currency,
   currencyFormat = "symbol",
   numberFormat = "western",
   language = "en",
+  initialPromos,
 }: PromosContentProps) {
   const i = t(language as Locale);
-  const [promos, setPromos] = useState<Promotion[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [promos, setPromos] = useState<Promotion[]>(initialPromos);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [promoState, promoFormAction, isPending] = useActionState(
+    async (
+      prev: { error?: string; success?: boolean; data?: unknown },
+      fd: FormData,
+    ) => {
+      const result = await savePromotionAction(prev, fd);
+      if (result.success && result.data) {
+        const savedPromotion = normalizePromotion(
+          result.data as Promotion & {
+            createdAt: string | Date;
+            startsAt: string | Date | null;
+            endsAt: string | Date | null;
+          },
+        );
+        setPromos((prev) =>
+          prev.some((promo) => promo.id === savedPromotion.id)
+            ? prev.map((promo) =>
+                promo.id === savedPromotion.id ? savedPromotion : promo,
+              )
+            : [savedPromotion, ...prev],
+        );
+        setForm(emptyForm);
+        setEditingId(null);
+        setModalOpen(false);
+      }
+      return result;
+    },
+    {},
+  );
   const [deleteConfirm, setDeleteConfirm] = useState<{
     id: string;
     code: string;
@@ -105,25 +135,29 @@ export function PromosContent({
   const [sortDir, setSortDir] = useState<SortDirection>(null);
   const toggleSort = useSortToggle();
 
-  const fetchPromos = useCallback(async () => {
-    try {
-      const res = await fetch("/api/merchant/promotions");
-      if (res.ok) setPromos(await res.json());
-    } catch {
-      // silently fail
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  function normalizeDateValue(value: string | Date | null | undefined) {
+    if (!value) return null;
+    return typeof value === "string" ? value : value.toISOString();
+  }
 
-  useEffect(() => {
-    fetchPromos();
-  }, [fetchPromos]);
+  function normalizePromotion(
+    promo: Omit<Promotion, "createdAt" | "startsAt" | "endsAt"> & {
+      createdAt: string | Date;
+      startsAt: string | Date | null;
+      endsAt: string | Date | null;
+    },
+  ): Promotion {
+    return {
+      ...promo,
+      createdAt: normalizeDateValue(promo.createdAt) ?? "",
+      startsAt: normalizeDateValue(promo.startsAt),
+      endsAt: normalizeDateValue(promo.endsAt),
+    };
+  }
 
   function openCreate() {
     setEditingId(null);
     setForm(emptyForm);
-    setError("");
     setModalOpen(true);
   }
 
@@ -146,64 +180,15 @@ export function PromosContent({
       stackable: p.stackable,
       isActive: p.isActive,
     });
-    setError("");
     setModalOpen(true);
-  }
-
-  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
-
-    try {
-      const body = {
-        ...(editingId ? { id: editingId } : {}),
-        code: form.code,
-        type: form.type,
-        value: parseFloat(form.value || "0"),
-        scope: form.scope,
-        scopeTargetId: form.scopeTargetId || null,
-        minSubtotal: parseFloat(form.minSubtotal || "0"),
-        maxDiscount: form.maxDiscount ? parseFloat(form.maxDiscount) : null,
-        startsAt: form.startsAt || null,
-        endsAt: form.endsAt || null,
-        maxUses: form.maxUses ? parseInt(form.maxUses) : null,
-        maxUsesPerCustomer: form.maxUsesPerCustomer
-          ? parseInt(form.maxUsesPerCustomer)
-          : null,
-        stackable: form.stackable,
-        isActive: form.isActive,
-      };
-
-      const res = await fetch("/api/merchant/promotions", {
-        method: editingId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || i.promos.failedToSave);
-        return;
-      }
-
-      setModalOpen(false);
-      fetchPromos();
-    } catch {
-      setError(i.common.somethingWentWrong);
-    } finally {
-      setSaving(false);
-    }
   }
 
   async function handleDelete(id: string) {
     try {
-      await fetch("/api/merchant/promotions", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      fetchPromos();
+      const result = await deletePromotion(id);
+      if (!result.error) {
+        setPromos((prev) => prev.filter((promo) => promo.id !== id));
+      }
     } catch {
       // silently fail
     }
@@ -215,12 +200,8 @@ export function PromosContent({
       prev.map((x) => (x.id === p.id ? { ...x, isActive: !p.isActive } : x)),
     );
     try {
-      const res = await fetch("/api/merchant/promotions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: p.id, isActive: !p.isActive }),
-      });
-      if (!res.ok) {
+      const result = await togglePromotion(p.id, !p.isActive);
+      if (result.error) {
         // Revert on failure
         setPromos((prev) =>
           prev.map((x) => (x.id === p.id ? { ...x, isActive: p.isActive } : x)),
@@ -369,12 +350,8 @@ export function PromosContent({
 
     for (const id of selectedIds) {
       try {
-        const res = await fetch("/api/merchant/promotions", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id }),
-        });
-        if (!res.ok) failures.push(id);
+        const result = await deletePromotion(id);
+        if (result.error) failures.push(id);
       } catch {
         failures.push(id);
       }
@@ -383,6 +360,9 @@ export function PromosContent({
     if (failures.length > 0) {
       setFeedback({ type: "error", text: i.common.somethingWentWrong });
     } else {
+      setPromos((prev) =>
+        prev.filter((promo) => !selectedIds.includes(promo.id)),
+      );
       setFeedback({
         type: "success",
         text: i.common.deletedCount.replace(
@@ -392,7 +372,6 @@ export function PromosContent({
       });
       setSelectedIds([]);
     }
-    fetchPromos();
     setBulkDeleting(false);
   }
 
@@ -494,9 +473,9 @@ export function PromosContent({
         </p>
       )}
 
-      {loading ? (
+      {promos.length === 0 ? (
         <div className="text-center py-12 text-slate-400">
-          {i.common.loading}
+          {i.promos.noPromosYet}
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-x-auto">
@@ -721,10 +700,18 @@ export function PromosContent({
         title={editingId ? i.promos.editPromotion : i.promos.createPromotion}
         size="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form action={promoFormAction} className="space-y-4">
+          {editingId && <input type="hidden" name="id" value={editingId} />}
+          <input
+            type="hidden"
+            name="stackable"
+            value={String(form.stackable)}
+          />
+          <input type="hidden" name="isActive" value={String(form.isActive)} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               id="code"
+              name="code"
               label={i.promos.promoCodeLabel}
               placeholder={i.promos.promoCodePlaceholder}
               value={form.code}
@@ -738,6 +725,7 @@ export function PromosContent({
             />
             <Select
               id="type"
+              name="type"
               label={i.promos.discountType}
               value={form.type}
               onChange={(e) =>
@@ -756,6 +744,7 @@ export function PromosContent({
             />
             <Input
               id="value"
+              name="value"
               label={
                 form.type === "PERCENT"
                   ? `${i.promos.discountLabel} (%)`
@@ -772,6 +761,7 @@ export function PromosContent({
             />
             <Select
               id="scope"
+              name="scope"
               label={i.promos.appliesTo}
               value={form.scope}
               onChange={(e) =>
@@ -789,6 +779,7 @@ export function PromosContent({
             {form.scope !== "ORDER" && (
               <Input
                 id="scopeTargetId"
+                name="scopeTargetId"
                 label={
                   form.scope === "PRODUCT"
                     ? i.promos.productId
@@ -803,6 +794,7 @@ export function PromosContent({
             )}
             <Input
               id="minSubtotal"
+              name="minSubtotal"
               label={`${i.promos.minSubtotal} (${currency})`}
               type="number"
               min="0"
@@ -815,6 +807,7 @@ export function PromosContent({
             />
             <Input
               id="maxDiscount"
+              name="maxDiscount"
               label={`${i.promos.maxDiscountCap} (${currency})`}
               type="number"
               min="0"
@@ -827,6 +820,7 @@ export function PromosContent({
             />
             <Input
               id="maxUses"
+              name="maxUses"
               label={i.promos.totalUsageLimit}
               type="number"
               min="1"
@@ -836,6 +830,7 @@ export function PromosContent({
             />
             <Input
               id="maxUsesPerCustomer"
+              name="maxUsesPerCustomer"
               label={i.promos.perCustomerLimit}
               type="number"
               min="1"
@@ -847,6 +842,7 @@ export function PromosContent({
             />
             <Input
               id="startsAt"
+              name="startsAt"
               label={i.promos.startsAt}
               type="datetime-local"
               value={form.startsAt}
@@ -854,6 +850,7 @@ export function PromosContent({
             />
             <Input
               id="endsAt"
+              name="endsAt"
               label={i.promos.endsAt}
               type="datetime-local"
               value={form.endsAt}
@@ -895,9 +892,9 @@ export function PromosContent({
             </div>
           </div>
 
-          {error && (
+          {promoState.error && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-              {error}
+              {promoState.error}
             </p>
           )}
 
@@ -909,7 +906,7 @@ export function PromosContent({
             >
               {i.common.cancel}
             </Button>
-            <Button type="submit" loading={saving}>
+            <Button type="submit" loading={isPending}>
               {editingId ? i.promos.saveChanges : i.promos.createPromo}
             </Button>
           </div>

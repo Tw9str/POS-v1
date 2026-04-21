@@ -1,10 +1,11 @@
 import { getMerchantFromSession } from "@/lib/merchant";
 import { redirect } from "next/navigation";
-import { MerchantSidebar } from "@/components/layout/MerchantSidebar";
+import { MerchantBottomBar } from "@/components/layout/MerchantBottomBar";
 import { getStaffSession } from "@/lib/staffAuth";
-import { getAllowedPages, type StaffRole } from "@/lib/staff";
+import { getAllowedPaths } from "@/lib/staff";
 import { DashboardGate } from "@/components/layout/DashboardGate";
 import { LicenseGate } from "@/components/layout/LicenseGate";
+import { SuspendedScreen } from "@/components/layout/SuspendedScreen";
 import { prisma } from "@/lib/db";
 import { getDirection, t, type Locale } from "@/lib/i18n";
 import { getMerchantSession } from "@/lib/merchantAuth";
@@ -32,6 +33,17 @@ export default async function DashboardLayout({
     redirect("/store");
   }
 
+  // Suspended merchant → show suspended screen
+  if (!merchant.isActive) {
+    const language = (merchant.language ?? "en") as Locale;
+    const dir = getDirection(language);
+    return (
+      <div dir={dir} lang={language}>
+        <SuspendedScreen language={language} />
+      </div>
+    );
+  }
+
   // Onboarding not done → redirect to onboarding page
   if (!merchant.onboardingDone) {
     redirect("/onboarding");
@@ -46,19 +58,17 @@ export default async function DashboardLayout({
 
     return (
       <div dir={dir} lang={language}>
-        <DashboardGate
-          merchantId={merchant.id}
-          merchantName={merchant.name}
-          language={language}
-        />
+        <DashboardGate merchantName={merchant.name} language={language} />
       </div>
     );
   }
 
-  const role = staffSession.role as StaffRole;
-  const allowedPages = getAllowedPages(role);
+  const allowedPages = getAllowedPaths(
+    staffSession.allowedPages,
+    staffSession.isOwner,
+  );
 
-  // Get staff name for sidebar display
+  // Get staff name for bottom bar display
   let staffName = "Staff";
   try {
     const staff = await prisma.staff.findUnique({
@@ -79,11 +89,11 @@ export default async function DashboardLayout({
       dir={dir}
       lang={language}
     >
-      <LicenseGate merchantId={merchant.id}>
-        <MerchantSidebar
+      <LicenseGate merchantId={merchant.id} language={language}>
+        <MerchantBottomBar
           merchantName={merchant.name}
           staffName={staffName}
-          staffRole={role}
+          staffRole={staffSession.role}
           allowedPages={allowedPages}
           language={language}
         />

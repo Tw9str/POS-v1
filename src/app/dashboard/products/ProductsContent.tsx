@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  startTransition,
+  useMemo,
+  useOptimistic,
+  useState,
+  useTransition,
+} from "react";
 import { ProductActions } from "./ProductActions";
 import { Button } from "@/components/ui/Button";
 import type { Product, Category, Order } from "@/types/pos";
@@ -16,9 +22,9 @@ import {
   buildProductPerformance,
 } from "@/lib/productPerformance";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { ProductInsightModal } from "@/components/ProductInsightModal";
+import { ProductInsightModal } from "@/components/features/ProductInsightModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { BarcodeScanner } from "@/components/features/BarcodeScanner";
 import { IconCamera } from "@/components/Icons";
 import { RowActions } from "@/components/ui/RowActions";
 import { FloatingActionBar } from "@/components/ui/FloatingActionBar";
@@ -30,19 +36,11 @@ import {
   type SortDirection,
 } from "@/components/ui/SortableTh";
 import { t, type Locale } from "@/lib/i18n";
+import { deleteProduct } from "@/app/actions/merchant";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
-export function ProductsContent({
-  merchantId,
-  currency,
-  currencyFormat = "symbol",
-  numberFormat = "western",
-  language = "en",
-  products,
-  categories,
-  orders,
-}: {
+export function ProductsContent(props: {
   merchantId: string;
   currency: string;
   currencyFormat: "symbol" | "code" | "none";
@@ -52,9 +50,35 @@ export function ProductsContent({
   categories: Category[];
   orders: Order[];
 }) {
+  const {
+    merchantId,
+    currency,
+    currencyFormat = "symbol",
+    numberFormat = "western",
+    language = "en",
+    orders,
+  } = props;
   const i = t(language as Locale);
-  const [localProducts, setLocalProducts] = useState(products);
-  const [localCategories, setLocalCategories] = useState(categories);
+  const [products, setProducts] = useOptimistic(
+    props.products,
+    (
+      current: Product[],
+      updater: Product[] | ((prev: Product[]) => Product[]),
+    ) =>
+      typeof updater === "function"
+        ? (updater as (prev: Product[]) => Product[])(current)
+        : updater,
+  );
+  const [categories, setCategories] = useOptimistic(
+    props.categories,
+    (
+      current: Category[],
+      updater: Category[] | ((prev: Category[]) => Category[]),
+    ) =>
+      typeof updater === "function"
+        ? (updater as (prev: Category[]) => Category[])(current)
+        : updater,
+  );
   const [isDeleting, startDeleteTransition] = useTransition();
   const [isBulkDeleting, startBulkDeleteTransition] = useTransition();
   const [search, setSearch] = useState("");
@@ -84,14 +108,6 @@ export function ProductsContent({
   const [sortDir, setSortDir] = useState<SortDirection>(null);
   const toggleSort = useSortToggle();
 
-  useEffect(() => {
-    setLocalProducts(products);
-  }, [products]);
-
-  useEffect(() => {
-    setLocalCategories(categories);
-  }, [categories]);
-
   function normalizeProduct(
     saved: Omit<Partial<Product>, "categoryId"> & {
       categoryId?: string | null;
@@ -104,7 +120,7 @@ export function ProductsContent({
     },
   ): Product {
     const matchedCategory =
-      saved.category ?? localCategories.find((c) => c.id === saved.categoryId);
+      saved.category ?? categories.find((c) => c.id === saved.categoryId);
 
     return {
       id: saved.id || crypto.randomUUID(),
@@ -131,12 +147,12 @@ export function ProductsContent({
   }
 
   const performance = useMemo(
-    () => buildProductPerformance(orders, localProducts),
-    [orders, localProducts],
+    () => buildProductPerformance(orders, products),
+    [orders, products],
   );
   const inventoryInsights = useMemo(
-    () => buildInventoryInsights(localProducts, performance),
-    [localProducts, performance],
+    () => buildInventoryInsights(products, performance),
+    [products, performance],
   );
   const insightMap = useMemo(
     () => new Map(inventoryInsights.map((item) => [item.productId, item])),
@@ -145,15 +161,15 @@ export function ProductsContent({
 
   const productSummary = useMemo(() => {
     const uniqueProducts = new Set(
-      localProducts.map((p) => p.name.trim().toLowerCase()).filter(Boolean),
+      products.map((p) => p.name.trim().toLowerCase()).filter(Boolean),
     );
-    const lowStock = localProducts.filter(
+    const lowStock = products.filter(
       (p) =>
         p.trackStock &&
         p.stock > 0 &&
         p.stock <= Math.max(1, p.lowStockAt || 5),
     ).length;
-    const outOfStock = localProducts.filter(
+    const outOfStock = products.filter(
       (p) => p.trackStock && p.stock <= 0,
     ).length;
     const totalSold7d = Array.from(performance.values()).reduce(
@@ -169,7 +185,7 @@ export function ProductsContent({
     const fastMoving = Array.from(performance.values()).filter(
       (metric) => metric.movement === "fast",
     ).length;
-    const topSeller = [...localProducts]
+    const topSeller = [...products]
       .map((product) => ({ product, metric: performance.get(product.id) }))
       .sort(
         (a, b) =>
@@ -179,7 +195,7 @@ export function ProductsContent({
 
     return {
       productCount: uniqueProducts.size,
-      variantCount: localProducts.length,
+      variantCount: products.length,
       lowStock,
       outOfStock,
       totalSold7d,
@@ -193,12 +209,12 @@ export function ProductsContent({
             )
           : i.products.noSalesYet,
     };
-  }, [localProducts, performance, i.products.noSalesYet]);
+  }, [products, performance, i.products.noSalesYet]);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    const filtered = localProducts.filter((p) => {
+    const filtered = products.filter((p) => {
       const matchesSearch =
         !query ||
         p.name.toLowerCase().includes(query) ||
@@ -260,7 +276,7 @@ export function ProductsContent({
       return sortDir === "desc" ? -cmp : cmp;
     });
   }, [
-    localProducts,
+    products,
     search,
     categoryFilter,
     stockFilter,
@@ -297,22 +313,15 @@ export function ProductsContent({
     setFeedback(null);
     startDeleteTransition(async () => {
       try {
-        const res = await fetch("/api/merchant/products", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id }),
-        });
+        const result = await deleteProduct(id);
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
+        if (result.error) {
           setFeedback({
             type: "error",
-            text: err.error || i.products.failedToDelete,
+            text: result.error || i.products.failedToDelete,
           });
         } else {
-          setLocalProducts((prev) =>
-            prev.filter((product) => product.id !== id),
-          );
+          setProducts((prev) => prev.filter((product) => product.id !== id));
           setSelectedIds((prev) => prev.filter((item) => item !== id));
           setFeedback({
             type: "success",
@@ -334,15 +343,9 @@ export function ProductsContent({
 
       for (const id of selectedIds) {
         try {
-          const res = await fetch("/api/merchant/products", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id }),
-          });
-
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            failures.push(err.error || i.common.deleteFailed);
+          const result = await deleteProduct(id);
+          if (result.error) {
+            failures.push(result.error || i.common.deleteFailed);
           }
         } catch {
           failures.push(i.common.deleteFailed);
@@ -359,7 +362,7 @@ export function ProductsContent({
             formatNumber(selectedIds.length, numberFormat),
           ),
         });
-        setLocalProducts((prev) =>
+        setProducts((prev) =>
           prev.filter((product) => !selectedIds.includes(product.id)),
         );
         setSelectedIds([]);
@@ -369,7 +372,7 @@ export function ProductsContent({
 
   function handleBarcodeScan(barcode: string) {
     setScannerOpen(false);
-    const existing = localProducts.find(
+    const existing = products.find(
       (p) => p.barcode?.toLowerCase() === barcode.toLowerCase(),
     );
     if (existing) {
@@ -387,21 +390,22 @@ export function ProductsContent({
       >
         <div className="flex flex-wrap gap-2">
           <ProductActions
-            categories={localCategories}
+            categories={categories}
             currency={currency}
-            merchantId={merchantId}
             language={language}
             onProductSaved={(savedProduct) => {
               const normalized = normalizeProduct(savedProduct);
-              setLocalProducts((prev) => {
-                const next = prev.some(
-                  (product) => product.id === normalized.id,
-                )
-                  ? prev.map((product) =>
-                      product.id === normalized.id ? normalized : product,
-                    )
-                  : [normalized, ...prev];
-                return next;
+              startTransition(() => {
+                setProducts((prev) => {
+                  const next = prev.some(
+                    (product) => product.id === normalized.id,
+                  )
+                    ? prev.map((product) =>
+                        product.id === normalized.id ? normalized : product,
+                      )
+                    : [normalized, ...prev];
+                  return next;
+                });
               });
             }}
             onCategorySaved={(savedCategory) => {
@@ -412,39 +416,44 @@ export function ProductsContent({
                 color: savedCategory.color ?? null,
                 sortOrder: savedCategory.sortOrder ?? 0,
               };
-              setLocalCategories((prev) => {
-                const next = prev.some(
-                  (category) => category.id === normalized.id,
-                )
-                  ? prev.map((category) =>
-                      category.id === normalized.id ? normalized : category,
-                    )
-                  : [...prev, normalized];
-                return [...next].sort(
-                  (a, b) =>
-                    a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
-                );
+              startTransition(() => {
+                setCategories((prev) => {
+                  const next = prev.some(
+                    (category) => category.id === normalized.id,
+                  )
+                    ? prev.map((category) =>
+                        category.id === normalized.id ? normalized : category,
+                      )
+                    : [...prev, normalized];
+                  return [...next].sort(
+                    (a, b) =>
+                      a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
+                  );
+                });
               });
             }}
             onCategoryDeleted={(deletedId) => {
-              const fallback = localCategories.find(
+              const fallback = categories.find(
                 (category) => category.name === "Other",
               );
-              setLocalCategories((prev) =>
-                prev.filter((category) => category.id !== deletedId),
-              );
-              setLocalProducts((prev) =>
-                prev.map((product) =>
-                  product.categoryId === deletedId
-                    ? {
-                        ...product,
-                        categoryId: fallback?.id || product.categoryId,
-                        categoryName: fallback?.name || product.categoryName,
-                        categoryColor: fallback?.color || product.categoryColor,
-                      }
-                    : product,
-                ),
-              );
+              startTransition(() => {
+                setCategories((prev) =>
+                  prev.filter((category) => category.id !== deletedId),
+                );
+                setProducts((prev) =>
+                  prev.map((product) =>
+                    product.categoryId === deletedId
+                      ? {
+                          ...product,
+                          categoryId: fallback?.id || product.categoryId,
+                          categoryName: fallback?.name || product.categoryName,
+                          categoryColor:
+                            fallback?.color || product.categoryColor,
+                        }
+                      : product,
+                  ),
+                );
+              });
             }}
           />
           <Button variant="secondary" onClick={() => setScannerOpen(true)}>
@@ -521,7 +530,7 @@ export function ProductsContent({
             setPage(1);
           }}
           resultCount={filteredProducts.length}
-          totalCount={localProducts.length}
+          totalCount={products.length}
           numberFormat={numberFormat}
           onScan={() => setScannerOpen(true)}
           language={language}
@@ -537,7 +546,7 @@ export function ProductsContent({
           }}
           options={[
             { value: "all", label: i.products.allCategories },
-            ...localCategories.map((c) => ({ value: c.id, label: c.name })),
+            ...categories.map((c) => ({ value: c.id, label: c.name })),
           ]}
         />
         <Select
@@ -664,7 +673,7 @@ export function ProductsContent({
                   colSpan={7}
                   className="px-5 py-12 text-center text-slate-400"
                 >
-                  {localProducts.length === 0
+                  {products.length === 0
                     ? i.products.noProductsYet
                     : i.products.noProductsMatch}
                 </td>
@@ -841,16 +850,15 @@ export function ProductsContent({
 
       {editProduct && (
         <ProductActions
-          categories={localCategories}
+          categories={categories}
           currency={currency}
-          merchantId={merchantId}
           language={language}
           product={editProduct}
           externalOpen
           onExternalClose={() => setEditProduct(null)}
           onProductSaved={(savedProduct) => {
             const normalized = normalizeProduct(savedProduct);
-            setLocalProducts((prev) =>
+            setProducts((prev) =>
               prev.map((product) =>
                 product.id === normalized.id ? normalized : product,
               ),
@@ -861,13 +869,12 @@ export function ProductsContent({
 
       {addVariantProduct && (
         <ProductActions
-          categories={localCategories}
+          categories={categories}
           currency={currency}
-          merchantId={merchantId}
           language={language}
           onProductSaved={(savedProduct) => {
             const normalized = normalizeProduct(savedProduct);
-            setLocalProducts((prev) => [normalized, ...prev]);
+            setProducts((prev) => [normalized, ...prev]);
           }}
           prefillProduct={{
             name: addVariantProduct.name,
@@ -926,16 +933,15 @@ export function ProductsContent({
 
       {scannedBarcode && (
         <ProductActions
-          categories={localCategories}
+          categories={categories}
           currency={currency}
-          merchantId={merchantId}
           language={language}
           initialBarcode={scannedBarcode}
           externalOpen
           onExternalClose={() => setScannedBarcode(null)}
           onProductSaved={(savedProduct) => {
             const normalized = normalizeProduct(savedProduct);
-            setLocalProducts((prev) => [normalized, ...prev]);
+            setProducts((prev) => [normalized, ...prev]);
           }}
         />
       )}

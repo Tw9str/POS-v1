@@ -24,6 +24,7 @@ export interface LicenseValidation {
   valid: boolean;
   daysLeft: number;
   inGrace: boolean;
+  graceDaysLeft: number;
   payload: LicensePayload | null;
 }
 
@@ -117,24 +118,36 @@ export async function verifyLicenseToken(
 
 // ─── Validate license expiry ────────────────
 
-export function isLicenseValid(payload: LicensePayload): LicenseValidation {
+export function isLicenseValid(
+  payload: LicensePayload,
+  gracePeriodDays: number = 7,
+): LicenseValidation {
   const now = new Date();
   const expires = new Date(payload.expiresAt);
-  const graceEnd = new Date(expires);
-  graceEnd.setDate(graceEnd.getDate() + 7);
+  const graceEnd = new Date(
+    expires.getTime() + gracePeriodDays * 24 * 60 * 60 * 1000,
+  );
 
   const msLeft = expires.getTime() - now.getTime();
   const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
 
   if (now < expires) {
-    return { valid: true, daysLeft, inGrace: false, payload };
+    return { valid: true, daysLeft, inGrace: false, graceDaysLeft: 0, payload };
   }
 
   if (now < graceEnd) {
-    return { valid: true, daysLeft: 0, inGrace: true, payload };
+    const graceMsLeft = graceEnd.getTime() - now.getTime();
+    const graceDaysLeft = Math.ceil(graceMsLeft / (1000 * 60 * 60 * 24));
+    return { valid: true, daysLeft: 0, inGrace: true, graceDaysLeft, payload };
   }
 
-  return { valid: false, daysLeft: 0, inGrace: false, payload };
+  return {
+    valid: false,
+    daysLeft: 0,
+    inGrace: false,
+    graceDaysLeft: 0,
+    payload,
+  };
 }
 
 // ─── Public key JWK for client-side verification ──

@@ -1,12 +1,13 @@
 "use client";
-import type React from "react";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { IconPlus } from "@/components/Icons";
 import { t, type Locale } from "@/lib/i18n";
+import { createCustomer, updateCustomer } from "@/app/actions/merchant";
+import type { ActionResult } from "@/app/actions/merchant";
 
 interface EditableCustomer {
   id: string;
@@ -51,21 +52,30 @@ export function CustomerActions({
     setOpen(false);
     onExternalClose?.();
   };
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const emptyForm = {
+  const action = isEdit ? updateCustomer : createCustomer;
+  const [state, formAction, isPending] = useActionState<ActionResult, FormData>(
+    async (prev, fd) => {
+      const result = await action(prev, fd);
+      if (result.success) {
+        const saved = (result.data ?? {}) as SavedCustomer;
+        closeModal();
+        onSaved?.(saved);
+      }
+      return result;
+    },
+    {},
+  );
+
+  const [form, setForm] = useState({
     name: customer?.name ?? "",
     phone: customer?.phone ?? "",
     email: customer?.email ?? "",
     address: customer?.address ?? "",
     notes: customer?.notes ?? "",
-  };
-
-  const [form, setForm] = useState(emptyForm);
+  });
 
   function openModal() {
-    setError("");
     setForm({
       name: customer?.name ?? "",
       phone: customer?.phone ?? "",
@@ -74,39 +84,6 @@ export function CustomerActions({
       notes: customer?.notes ?? "",
     });
     setOpen(true);
-  }
-
-  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/merchant/customers", {
-        method: isEdit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isEdit ? { id: customer?.id, ...form } : form),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setError(
-          (err as Record<string, string>).error ||
-            (isEdit ? i.customers.failedToUpdate : i.customers.failedToAdd),
-        );
-        return;
-      }
-
-      const savedCustomer = (await res.json()) as SavedCustomer;
-
-      closeModal();
-      setForm({ name: "", phone: "", email: "", address: "", notes: "" });
-      onSaved?.(savedCustomer);
-    } catch {
-      setError(i.common.somethingWentWrong);
-    } finally {
-      setLoading(false);
-    }
   }
 
   return (
@@ -127,9 +104,13 @@ export function CustomerActions({
         onClose={closeModal}
         title={isEdit ? i.customers.editCustomer : i.customers.addCustomer}
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form action={formAction} className="space-y-4">
+          {isEdit && customer?.id && (
+            <input type="hidden" name="id" value={customer.id} />
+          )}
           <Input
             id="name"
+            name="name"
             label={i.common.name}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -137,12 +118,14 @@ export function CustomerActions({
           />
           <Input
             id="phone"
+            name="phone"
             label={i.common.phone}
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
           <Input
             id="email"
+            name="email"
             label={i.common.email}
             type="email"
             value={form.email}
@@ -150,20 +133,22 @@ export function CustomerActions({
           />
           <Input
             id="address"
+            name="address"
             label={i.common.address}
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
           />
           <Input
             id="notes"
+            name="notes"
             label={i.common.notes}
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
           />
 
-          {error && (
+          {state.error && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-              {error}
+              {state.error}
             </p>
           )}
 
@@ -184,7 +169,7 @@ export function CustomerActions({
               <Button variant="secondary" type="button" onClick={closeModal}>
                 {i.common.cancel}
               </Button>
-              <Button type="submit" loading={loading}>
+              <Button type="submit" loading={isPending}>
                 {isEdit ? i.common.save : i.customers.addCustomer}
               </Button>
             </div>

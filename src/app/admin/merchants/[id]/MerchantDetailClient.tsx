@@ -1,6 +1,5 @@
 "use client";
 
-import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -19,6 +18,53 @@ import {
   IconKey,
   IconEdit,
 } from "@/components/Icons";
+import {
+  CURRENCIES,
+  LANGUAGES,
+  PLANS,
+  statusVariant,
+  formatPlan,
+  formatStatus,
+} from "@/lib/constants";
+
+function CopyableCode({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-6 relative">
+      <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">
+        Access Code
+      </p>
+      <div className="flex items-center justify-center gap-3">
+        <p className="text-3xl font-mono font-bold text-indigo-600 tracking-widest">
+          {code}
+        </p>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="p-2 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-gray-400 hover:text-gray-600"
+          title="Copy to clipboard"
+        >
+          {copied ? (
+            <IconCheck size={20} className="text-green-600" />
+          ) : (
+            <IconCopy size={20} />
+          )}
+        </button>
+      </div>
+      {copied && (
+        <p className="text-xs text-green-600 mt-2 text-center">Copied!</p>
+      )}
+    </div>
+  );
+}
 
 interface MerchantDetail {
   id: string;
@@ -40,7 +86,6 @@ interface MerchantDetail {
     status: string;
     startsAt: string;
     expiresAt: string;
-    graceEndsAt: string | null;
     paidAmount: number | null;
     paidAt: string | null;
     paymentRef: string | null;
@@ -92,19 +137,6 @@ interface ActivityItem {
   createdAt: string;
 }
 
-const statusVariant = (s: string | undefined) => {
-  switch (s) {
-    case "ACTIVE":
-      return "success" as const;
-    case "TRIAL":
-      return "info" as const;
-    case "PAST_DUE":
-      return "warning" as const;
-    default:
-      return "danger" as const;
-  }
-};
-
 const fmtDate = (d: string) => new Date(d).toLocaleDateString();
 const fmtDateTime = (d: string) => new Date(d).toLocaleString();
 const fmtCurrency = (n: number, c = "USD") =>
@@ -125,16 +157,13 @@ export default function MerchantDetailClient() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<
     "overview" | "orders" | "staff" | "licenses" | "activity"
   >("overview");
 
   // Modals
   const [editOpen, setEditOpen] = useState(false);
-  const [licenseOpen, setLicenseOpen] = useState(false);
-  const [subOpen, setSubOpen] = useState(false);
-  const [suspendConfirm, setSuspendConfirm] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [regenConfirm, setRegenConfirm] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
   const [newCode, setNewCode] = useState<string | null>(null);
@@ -147,17 +176,16 @@ export default function MerchantDetailClient() {
   const [editTaxRate, setEditTaxRate] = useState("");
   const [editLanguage, setEditLanguage] = useState("");
 
-  // License form
-  const [licDuration, setLicDuration] = useState("30");
-  const [licPlan, setLicPlan] = useState("STANDARD");
-
-  // Subscription form
-  const [subPlan, setSubPlan] = useState("");
-  const [subStatus, setSubStatus] = useState("");
-  const [subExpires, setSubExpires] = useState("");
-  const [subPaidAmount, setSubPaidAmount] = useState("");
-  const [subPaymentRef, setSubPaymentRef] = useState("");
-  const [subNotes, setSubNotes] = useState("");
+  // Manage Plan form
+  const [planPlan, setPlanPlan] = useState("STANDARD");
+  const [planDurationType, setPlanDurationType] = useState<"days" | "date">(
+    "days",
+  );
+  const [planDays, setPlanDays] = useState("30");
+  const [planDate, setPlanDate] = useState("");
+  const [planPaidAmount, setPlanPaidAmount] = useState("");
+  const [planPaymentRef, setPlanPaymentRef] = useState("");
+  const [planNotes, setPlanNotes] = useState("");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -194,16 +222,17 @@ export default function MerchantDetailClient() {
     setEditOpen(true);
   }
 
-  function initSubForm() {
-    if (!merchant?.subscription) return;
+  function initPlanForm() {
+    if (!merchant) return;
     const s = merchant.subscription;
-    setSubPlan(s.plan);
-    setSubStatus(s.status);
-    setSubExpires(s.expiresAt.slice(0, 10));
-    setSubPaidAmount(String(s.paidAmount ?? ""));
-    setSubPaymentRef(s.paymentRef || "");
-    setSubNotes(s.notes || "");
-    setSubOpen(true);
+    setPlanPlan(s?.plan || "STANDARD");
+    setPlanDurationType("days");
+    setPlanDays("30");
+    setPlanDate("");
+    setPlanPaidAmount(String(s?.paidAmount ?? ""));
+    setPlanPaymentRef(s?.paymentRef || "");
+    setPlanNotes(s?.notes || "");
+    setPlanOpen(true);
   }
 
   async function handleEdit(e: React.SubmitEvent<HTMLFormElement>) {
@@ -229,61 +258,29 @@ export default function MerchantDetailClient() {
     }
   }
 
-  async function handleGenerateLicense(e: React.SubmitEvent<HTMLFormElement>) {
+  async function handleApplyPlan(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setActionLoading(true);
     try {
+      const payload: Record<string, unknown> = { plan: planPlan };
+      if (planDurationType === "days") {
+        payload.durationDays = Number(planDays);
+      } else {
+        payload.expiresAt = new Date(planDate).toISOString();
+      }
+      if (planPaidAmount) payload.paidAmount = Number(planPaidAmount);
+      if (planPaymentRef) payload.paymentRef = planPaymentRef;
+      if (planNotes) payload.notes = planNotes;
+
       const res = await fetch(`/api/admin/merchants/${merchantId}/license`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          durationDays: Number(licDuration),
-          plan: licPlan,
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
-        setLicenseOpen(false);
+        setPlanOpen(false);
         fetchData();
       }
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleUpdateSub(e: React.SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setActionLoading(true);
-    try {
-      await fetch("/api/admin/subscriptions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          merchantId,
-          plan: subPlan || undefined,
-          status: subStatus || undefined,
-          expiresAt: subExpires
-            ? new Date(subExpires).toISOString()
-            : undefined,
-          paidAmount: subPaidAmount ? Number(subPaidAmount) : undefined,
-          paymentRef: subPaymentRef || undefined,
-          notes: subNotes || undefined,
-        }),
-      });
-      setSubOpen(false);
-      fetchData();
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleToggle() {
-    setActionLoading(true);
-    try {
-      await fetch(`/api/admin/merchants/${merchantId}/toggle`, {
-        method: "POST",
-      });
-      setSuspendConfirm(false);
-      fetchData();
     } finally {
       setActionLoading(false);
     }
@@ -321,12 +318,6 @@ export default function MerchantDetailClient() {
     }
   }
 
-  function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -358,9 +349,14 @@ export default function MerchantDetailClient() {
             <h1 className="text-2xl font-bold text-gray-900">
               {merchant.name}
             </h1>
-            {!merchant.isActive && <Badge variant="danger">Disabled</Badge>}
-            {sub && (
-              <Badge variant={statusVariant(sub.status)}>{sub.status}</Badge>
+            {!merchant.isActive ? (
+              <Badge variant="danger">Suspended</Badge>
+            ) : (
+              sub && (
+                <Badge variant={statusVariant(sub.status)}>
+                  {formatStatus(sub.status)}
+                </Badge>
+              )
             )}
           </div>
           <p className="text-sm text-gray-500 mt-1">
@@ -372,22 +368,26 @@ export default function MerchantDetailClient() {
           <Button variant="outline" size="sm" onClick={initEditForm}>
             <IconEdit size={14} /> Edit
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setLicenseOpen(true)}
-          >
-            <IconKey size={14} /> License
-          </Button>
-          <Button
-            variant={merchant.isActive ? "danger" : "primary"}
-            size="sm"
-            onClick={() => setSuspendConfirm(true)}
-          >
-            {merchant.isActive ? "Suspend" : "Activate"}
+          <Button variant="outline" size="sm" onClick={initPlanForm}>
+            <IconKey size={14} /> Manage Plan
           </Button>
         </div>
       </div>
+
+      {/* Deactivated Warning Banner */}
+      {!merchant.isActive && (
+        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <IconWarning size={20} className="text-red-500 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">
+              This merchant is suspended
+            </p>
+            <p className="text-xs text-red-600 mt-0.5">
+              Toggle the status from the merchants list to reactivate.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Access Code Bar */}
       <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
@@ -429,21 +429,21 @@ export default function MerchantDetailClient() {
       <Card>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Subscription</h2>
-          {sub && (
-            <Button variant="ghost" size="sm" onClick={initSubForm}>
-              <IconEdit size={14} /> Edit
-            </Button>
-          )}
+          <Button variant="ghost" size="sm" onClick={initPlanForm}>
+            <IconEdit size={14} /> Manage Plan
+          </Button>
         </div>
         {sub ? (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             <div>
               <p className="text-xs text-gray-500">Plan</p>
-              <p className="font-medium">{sub.plan}</p>
+              <p className="font-medium">{formatPlan(sub.plan)}</p>
             </div>
             <div>
               <p className="text-xs text-gray-500">Status</p>
-              <Badge variant={statusVariant(sub.status)}>{sub.status}</Badge>
+              <Badge variant={statusVariant(sub.status)}>
+                {formatStatus(sub.status)}
+              </Badge>
             </div>
             <div>
               <p className="text-xs text-gray-500">Starts</p>
@@ -474,7 +474,7 @@ export default function MerchantDetailClient() {
           </div>
         ) : (
           <p className="text-gray-400">
-            No subscription — generate a license to create one
+            No subscription — use Manage Plan to set one up
           </p>
         )}
       </Card>
@@ -653,7 +653,7 @@ export default function MerchantDetailClient() {
             <p className="text-sm text-gray-500">
               {merchant.licenseKeys.length} license keys
             </p>
-            <Button size="sm" onClick={() => setLicenseOpen(true)}>
+            <Button size="sm" onClick={initPlanForm}>
               + Generate New
             </Button>
           </div>
@@ -799,10 +799,11 @@ export default function MerchantDetailClient() {
                 onChange={(e) => setEditCurrency(e.target.value)}
                 className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm"
               >
-                <option value="SYP">SYP</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="TRY">TRY</option>
+                {CURRENCIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.value}
+                  </option>
+                ))}
               </select>
             </div>
             <Input
@@ -824,9 +825,11 @@ export default function MerchantDetailClient() {
               onChange={(e) => setEditLanguage(e.target.value)}
               className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm"
             >
-              <option value="en">English</option>
-              <option value="ar">Arabic</option>
-              <option value="tr">Turkish</option>
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value}>
+                  {l.label}
+                </option>
+              ))}
             </select>
           </div>
           <div className="flex gap-3 pt-2">
@@ -845,113 +848,91 @@ export default function MerchantDetailClient() {
         </form>
       </Modal>
 
-      {/* Generate License Modal */}
+      {/* Manage Plan Modal */}
       <Modal
-        open={licenseOpen}
-        onClose={() => setLicenseOpen(false)}
-        title="Generate License"
-        size="sm"
+        open={planOpen}
+        onClose={() => setPlanOpen(false)}
+        title="Manage Plan"
+        size="md"
       >
-        <form onSubmit={handleGenerateLicense} className="space-y-4">
+        <form onSubmit={handleApplyPlan} className="space-y-4">
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">
               Plan
             </label>
             <select
-              value={licPlan}
-              onChange={(e) => setLicPlan(e.target.value)}
+              value={planPlan}
+              onChange={(e) => setPlanPlan(e.target.value)}
               className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm"
             >
-              <option value="FREE_TRIAL">Free Trial</option>
-              <option value="BASIC">Basic</option>
-              <option value="STANDARD">Standard</option>
-              <option value="PREMIUM">Premium</option>
+              {PLANS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
             </select>
           </div>
-          <Input
-            label="Duration (days)"
-            type="number"
-            value={licDuration}
-            onChange={(e) => setLicDuration(e.target.value)}
-            min="1"
-            max="365"
-          />
-          <div className="flex gap-3 pt-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setLicenseOpen(false)}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button type="submit" loading={actionLoading} className="flex-1">
-              Generate
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
-      {/* Edit Subscription Modal */}
-      <Modal
-        open={subOpen}
-        onClose={() => setSubOpen(false)}
-        title="Edit Subscription"
-        size="md"
-      >
-        <form onSubmit={handleUpdateSub} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Plan
+          {/* Duration type toggle */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              Duration
+            </label>
+            <div className="flex gap-4 mb-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="durationType"
+                  checked={planDurationType === "days"}
+                  onChange={() => setPlanDurationType("days")}
+                  className="accent-indigo-600"
+                />
+                Days from now
               </label>
-              <select
-                value={subPlan}
-                onChange={(e) => setSubPlan(e.target.value)}
-                className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm"
-              >
-                <option value="FREE_TRIAL">Free Trial</option>
-                <option value="BASIC">Basic</option>
-                <option value="STANDARD">Standard</option>
-                <option value="PREMIUM">Premium</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Status
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="durationType"
+                  checked={planDurationType === "date"}
+                  onChange={() => setPlanDurationType("date")}
+                  className="accent-indigo-600"
+                />
+                Expiry date
               </label>
-              <select
-                value={subStatus}
-                onChange={(e) => setSubStatus(e.target.value)}
-                className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm"
-              >
-                <option value="TRIAL">Trial</option>
-                <option value="ACTIVE">Active</option>
-                <option value="PAST_DUE">Past Due</option>
-                <option value="EXPIRED">Expired</option>
-                <option value="SUSPENDED">Suspended</option>
-              </select>
             </div>
+            {planDurationType === "days" ? (
+              <Input
+                type="number"
+                value={planDays}
+                onChange={(e) => setPlanDays(e.target.value)}
+                min="1"
+                max="3650"
+                required
+              />
+            ) : (
+              <Input
+                type="date"
+                value={planDate}
+                onChange={(e) => setPlanDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+                required
+              />
+            )}
           </div>
-          <Input
-            label="Expires"
-            type="date"
-            value={subExpires}
-            onChange={(e) => setSubExpires(e.target.value)}
-          />
+
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Paid Amount"
               type="number"
-              value={subPaidAmount}
-              onChange={(e) => setSubPaidAmount(e.target.value)}
+              value={planPaidAmount}
+              onChange={(e) => setPlanPaidAmount(e.target.value)}
               min="0"
               step="0.01"
             />
             <Input
               label="Payment Ref"
-              value={subPaymentRef}
-              onChange={(e) => setSubPaymentRef(e.target.value)}
+              value={planPaymentRef}
+              onChange={(e) => setPlanPaymentRef(e.target.value)}
               placeholder="e.g. receipt #"
             />
           </div>
@@ -960,9 +941,9 @@ export default function MerchantDetailClient() {
               Notes
             </label>
             <textarea
-              value={subNotes}
-              onChange={(e) => setSubNotes(e.target.value)}
-              rows={3}
+              value={planNotes}
+              onChange={(e) => setPlanNotes(e.target.value)}
+              rows={2}
               className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </div>
@@ -970,33 +951,17 @@ export default function MerchantDetailClient() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setSubOpen(false)}
+              onClick={() => setPlanOpen(false)}
               className="flex-1"
             >
               Cancel
             </Button>
             <Button type="submit" loading={actionLoading} className="flex-1">
-              Update Subscription
+              Apply Plan
             </Button>
           </div>
         </form>
       </Modal>
-
-      {/* Suspend/Activate Confirm */}
-      <ConfirmModal
-        open={suspendConfirm}
-        onClose={() => setSuspendConfirm(false)}
-        onConfirm={handleToggle}
-        title={merchant.isActive ? "Suspend Merchant" : "Activate Merchant"}
-        message={
-          merchant.isActive
-            ? `This will immediately block "${merchant.name}" from accessing the dashboard. Their staff and POS will stop working.`
-            : `This will re-enable "${merchant.name}". They will regain access with their existing license.`
-        }
-        confirmLabel={merchant.isActive ? "Suspend" : "Activate"}
-        variant={merchant.isActive ? "danger" : "primary"}
-        loading={actionLoading}
-      />
 
       {/* Regenerate Code Confirm */}
       <ConfirmModal
@@ -1029,33 +994,15 @@ export default function MerchantDetailClient() {
         title="New Access Code"
         size="sm"
       >
-        <div className="text-center space-y-4">
-          <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-6">
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">
-              New Access Code
-            </p>
-            <p className="text-3xl font-mono font-bold text-indigo-600 tracking-widest">
-              {newCode}
-            </p>
-          </div>
-          <p className="text-xs text-gray-400">
+        <div className="space-y-4">
+          {newCode && <CopyableCode code={newCode} />}
+          <p className="text-xs text-gray-400 text-center">
             The old access code no longer works. Share this new code with the
             merchant.
           </p>
-          <div className="flex gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                if (newCode) copyToClipboard(newCode);
-              }}
-              className="flex-1"
-            >
-              <IconCopy size={14} /> Copy
-            </Button>
-            <Button onClick={() => setNewCode(null)} className="flex-1">
-              Done
-            </Button>
-          </div>
+          <Button onClick={() => setNewCode(null)} className="w-full">
+            Done
+          </Button>
         </div>
       </Modal>
     </div>

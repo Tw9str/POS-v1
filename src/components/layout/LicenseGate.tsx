@@ -5,20 +5,33 @@ import {
   fetchAndCacheLicense,
   type ClientLicenseStatus,
 } from "@/lib/clientLicense";
+import { signOutMerchant } from "@/lib/staffActions";
+import { SuspendedScreen } from "@/components/layout/SuspendedScreen";
+import { t, type Locale } from "@/lib/i18n";
 
 interface LicenseGateProps {
   merchantId: string;
+  language: Locale;
   children: React.ReactNode;
 }
 
-export function LicenseGate({ merchantId, children }: LicenseGateProps) {
+export function LicenseGate({
+  merchantId,
+  language,
+  children,
+}: LicenseGateProps) {
   const [status, setStatus] = useState<ClientLicenseStatus | null>(null);
   const [checking, setChecking] = useState(true);
+  const i = t(language);
 
   useEffect(() => {
     let mounted = true;
 
-    async function check() {
+    async function check(showLoader = false) {
+      if (showLoader && mounted) {
+        setChecking(true);
+      }
+
       const result = await fetchAndCacheLicense();
 
       if (mounted) {
@@ -27,9 +40,28 @@ export function LicenseGate({ merchantId, children }: LicenseGateProps) {
       }
     }
 
-    check();
+    check(true);
+
+    function handleFocus() {
+      void check();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void check();
+      }
+    }
+
+    // Re-check every 60s to detect deactivation or license changes
+    const interval = setInterval(() => void check(), 60_000);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       mounted = false;
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [merchantId]);
 
@@ -38,21 +70,30 @@ export function LicenseGate({ merchantId, children }: LicenseGateProps) {
       <div className="flex h-dvh items-center justify-center bg-slate-50">
         <div className="text-center">
           <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          <p className="text-sm text-gray-500">Verifying license…</p>
         </div>
       </div>
     );
   }
 
   if (!status?.valid) {
-    return <LicenseExpiredScreen status={status} />;
+    if (status?.reason === "suspended") {
+      return <SuspendedScreen language={language} />;
+    }
+    return <LicenseExpiredScreen status={status} i={i} />;
   }
+
+  const showBanner =
+    status.inGrace || (status.daysLeft > 0 && status.daysLeft <= 7);
 
   return (
     <>
-      {status.inGrace && <GracePeriodBanner />}
-      {status.daysLeft > 0 && status.daysLeft <= 7 && !status.inGrace && (
-        <ExpiringBanner daysLeft={status.daysLeft} />
+      {showBanner && (
+        <NotificationBanner
+          inGrace={status.inGrace}
+          daysLeft={status.daysLeft}
+          graceDaysLeft={status.graceDaysLeft}
+          i={i}
+        />
       )}
       {children}
     </>
@@ -61,8 +102,10 @@ export function LicenseGate({ merchantId, children }: LicenseGateProps) {
 
 function LicenseExpiredScreen({
   status,
+  i,
 }: {
   status: ClientLicenseStatus | null;
+  i: ReturnType<typeof t>;
 }) {
   const reason = status?.reason ?? "expired";
 
@@ -87,52 +130,114 @@ function LicenseExpiredScreen({
 
         <h1 className="mb-2 text-xl font-bold text-gray-900">
           {reason === "no_license"
-            ? "License Required"
+            ? i.license.licenseRequired
             : reason === "no_public_key"
-              ? "Activation Required"
-              : "License Expired"}
+              ? i.license.activationRequired
+              : i.license.licenseExpired}
         </h1>
 
         <p className="mb-6 text-sm text-gray-600">
           {reason === "no_license" || reason === "no_public_key"
-            ? "This store needs to be activated. Please connect to the internet and contact your administrator for a license."
-            : "Your subscription has expired. Please connect to the internet and contact your administrator to renew."}
+            ? i.license.activationMessage
+            : i.license.expiredMessage}
         </p>
 
         {status?.expiresAt && (
           <p className="mb-4 text-xs text-gray-400">
-            Expired on: {new Date(status.expiresAt).toLocaleDateString()}
+            {i.license.expiredOn}{" "}
+            {new Date(status.expiresAt).toLocaleDateString()}
           </p>
         )}
 
-        <button
-          onClick={() => window.location.reload()}
-          className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-        >
-          Retry
-        </button>
+        <div className="flex flex-col gap-3 mt-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors cursor-pointer"
+          >
+            {i.license.retry}
+          </button>
+          <button
+            onClick={() => signOutMerchant()}
+            className="rounded-lg bg-slate-100 px-6 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+          >
+            {i.license.signOut}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function GracePeriodBanner() {
-  return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-sm text-amber-800">
-      <strong>Grace period:</strong> Your license has expired. You have 7 days
-      to renew before access is blocked. Contact your administrator.
-    </div>
-  );
-}
+function NotificationBanner({
+  inGrace,
+  daysLeft,
+  graceDaysLeft,
+  i,
+}: {
+  inGrace: boolean;
+  daysLeft: number;
+  graceDaysLeft: number;
+  i: ReturnType<typeof t>;
+}) {
+  const [dismissed, setDismissed] = useState(false);
 
-function ExpiringBanner({ daysLeft }: { daysLeft: number }) {
+  if (dismissed) return null;
+
+  const isUrgent = inGrace || daysLeft <= 2;
+  const unit = daysLeft !== 1 ? i.license.days : i.license.day;
+  const graceUnit = graceDaysLeft !== 1 ? i.license.days : i.license.day;
+  const message = inGrace
+    ? `${i.license.gracePrefix} ${i.license.graceMessage.replace("{days}", `${graceDaysLeft} ${graceUnit}`)}`
+    : i.license.expiringMessage.replace("{days}", `${daysLeft} ${unit}`);
+
   return (
-    <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 text-center text-sm text-blue-800">
-      Your license expires in{" "}
-      <strong>
-        {daysLeft} day{daysLeft !== 1 ? "s" : ""}
-      </strong>
-      . Contact your administrator to renew.
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center p-3">
+      <div
+        className={`pointer-events-auto flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur-sm animate-in slide-in-from-top-2 duration-300 ${
+          isUrgent ? "bg-red-600/95 text-white" : "bg-amber-500/95 text-white"
+        }`}
+      >
+        <svg
+          className="h-4 w-4 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          {isUrgent ? (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+            />
+          ) : (
+            <>
+              <circle cx="12" cy="12" r="10" />
+              <path strokeLinecap="round" d="M12 6v6l4 2" />
+            </>
+          )}
+        </svg>
+        <span>{message}</span>
+        <button
+          onClick={() => setDismissed(true)}
+          className="ml-1 rounded-lg p-0.5 hover:bg-white/20 transition-colors cursor-pointer"
+          aria-label="Dismiss"
+        >
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }

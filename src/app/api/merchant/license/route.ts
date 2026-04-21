@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma, getGracePeriodDays } from "@/lib/db";
 import {
   verifyLicenseToken,
   isLicenseValid,
@@ -25,6 +25,24 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check if merchant is suspended
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: session.id },
+      select: {
+        isActive: true,
+        subscription: {
+          select: { status: true },
+        },
+      },
+    });
+    if (merchant?.subscription?.status === "SUSPENDED") {
+      return NextResponse.json({
+        valid: false,
+        reason: "suspended",
+        publicKey: getPublicKeyJwk(),
+      });
+    }
+
     let licenseKey = await prisma.licenseKey.findFirst({
       where: { merchantId: session.id, isRevoked: false },
       orderBy: { createdAt: "desc" },
@@ -40,7 +58,7 @@ export async function GET() {
         subscription &&
         subscription.expiresAt &&
         new Date(subscription.expiresAt) > new Date() &&
-        (subscription.status === "TRIAL" || subscription.status === "ACTIVE")
+        subscription.status === "ACTIVE"
       ) {
         const limits = getPlanLimits(subscription.plan);
         const token = await generateLicenseToken({
@@ -77,19 +95,28 @@ export async function GET() {
       });
     }
 
-    const validation = isLicenseValid(payload);
+    const gracePeriodDays = await getGracePeriodDays();
+    const validation = isLicenseValid(payload, gracePeriodDays);
 
-    return NextResponse.json({
+    const response: Record<string, unknown> = {
       valid: validation.valid,
       daysLeft: validation.daysLeft,
       inGrace: validation.inGrace,
+      graceDaysLeft: validation.graceDaysLeft,
       plan: payload.plan,
       expiresAt: payload.expiresAt,
+      gracePeriodDays,
       maxStaff: payload.maxStaff,
       maxProducts: payload.maxProducts,
       token: licenseKey.token,
       publicKey: getPublicKeyJwk(),
-    });
+    };
+
+    if (!validation.valid) {
+      response.reason = "expired";
+    }
+
+    return NextResponse.json(response);
   } catch (err) {
     return apiError(err, "GET /api/merchant/license");
   }

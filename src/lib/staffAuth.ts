@@ -8,6 +8,8 @@ interface StaffPayload {
   staffId: string;
   merchantId: string;
   role: string;
+  allowedPages: string[];
+  isOwner: boolean;
 }
 
 function getSecret(): string {
@@ -18,7 +20,9 @@ function getSecret(): string {
 
 function sign(payload: StaffPayload): string {
   const iat = Math.floor(Date.now() / 1000);
-  const data = `${payload.staffId}:${payload.merchantId}:${payload.role}:${iat}`;
+  const pages = payload.allowedPages.join(",");
+  const owner = payload.isOwner ? "1" : "0";
+  const data = `${payload.staffId}:${payload.merchantId}:${payload.role}:${owner}:${pages}:${iat}`;
   const sig = createHmac("sha256", getSecret()).update(data).digest("hex");
   return `${data}.${sig}`;
 }
@@ -42,18 +46,22 @@ function verify(token: string): StaffPayload | null {
   }
 
   const parts = data.split(":");
-  if (parts.length < 3) return null;
+  // Format: staffId:merchantId:role:isOwner:pages:iat
+  if (parts.length < 4) return null;
 
-  const [staffId, merchantId, role, iatStr] = parts;
+  const [staffId, merchantId, role, ownerFlag, pages, iatStr] = parts;
 
-  // Reject expired tokens (server-side enforcement)
+  // Reject expired tokens
   if (iatStr) {
     const iat = Number(iatStr);
     const age = Math.floor(Date.now() / 1000) - iat;
     if (age > MAX_AGE) return null;
   }
 
-  return { staffId, merchantId, role };
+  const isOwner = ownerFlag === "1";
+  const allowedPages = pages ? pages.split(",").filter(Boolean) : [];
+
+  return { staffId, merchantId, role, allowedPages, isOwner };
 }
 
 export async function setStaffSession(payload: StaffPayload): Promise<void> {

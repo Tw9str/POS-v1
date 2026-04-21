@@ -21,10 +21,3 @@ export function hashAccessCode(plainCode: string): string {
     .update(plainCode.toUpperCase().trim())
     .digest("hex");
 }
-
-/**
- * Verify that a plaintext access code matches a stored SHA-256 digest.
- */
-export function verifyAccessCode(plainCode: string, digest: string): boolean {
-  return hashAccessCode(plainCode) === digest;
-}

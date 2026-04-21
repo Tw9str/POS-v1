@@ -4,6 +4,7 @@ import { SettingsForm } from "./SettingsForm";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { t, type Locale } from "@/lib/i18n";
 import { getMerchantSession } from "@/lib/merchantAuth";
+import { prisma } from "@/lib/db";
 
 export async function generateMetadata() {
   const session = await getMerchantSession();
@@ -16,6 +17,11 @@ export default async function SettingsPage() {
   await requireStaffForPage("/dashboard/settings");
   const language = (merchant.language ?? "en") as Locale;
   const i = t(language);
+
+  const subscription = await prisma.subscription.findUnique({
+    where: { merchantId: merchant.id },
+    select: { plan: true, status: true, expiresAt: true },
+  });
 
   return (
     <div className="space-y-6">
@@ -35,6 +41,15 @@ export default async function SettingsPage() {
           taxRate: merchant.taxRate,
           shamcashId: merchant.shamcashId ?? "",
         }}
+        subscription={
+          subscription
+            ? {
+                plan: subscription.plan,
+                status: subscription.status,
+                expiresAt: subscription.expiresAt.toISOString(),
+              }
+            : null
+        }
       />
     </div>
   );

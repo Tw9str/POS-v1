@@ -1,10 +1,7 @@
 import { requireMerchant } from "@/lib/merchant";
-import {
-  requireStaffForPage,
-  getAllowedPages,
-  type StaffRole,
-} from "@/lib/staff";
+import { requireStaffForPage, getAllowedPaths } from "@/lib/staff";
 import { getStaffSession } from "@/lib/staffAuth";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { dbQuery } from "@/lib/apiError";
 import { DashboardContent } from "./DashboardContent";
@@ -22,8 +19,30 @@ export default async function DashboardPage() {
   await requireStaffForPage("/dashboard");
 
   const staffSession = await getStaffSession();
-  const role = (staffSession?.role ?? "CASHIER") as StaffRole;
-  const allowedPages = getAllowedPages(role);
+  const role = staffSession?.role ?? "CASHIER";
+  const allowedPages = getAllowedPaths(
+    staffSession?.allowedPages ?? [],
+    staffSession?.isOwner ?? false,
+  );
+
+  // If staff has access to exactly 1 page (besides /dashboard), go straight there
+  const nonHomePaths = allowedPages.filter((p) => p !== "/dashboard");
+  if (nonHomePaths.length === 1) {
+    redirect(nonHomePaths[0]);
+  }
+
+  let staffName = "Staff";
+  if (staffSession?.staffId) {
+    try {
+      const s = await prisma.staff.findUnique({
+        where: { id: staffSession.staffId },
+        select: { name: true },
+      });
+      if (s) staffName = s.name;
+    } catch {
+      // fallback
+    }
+  }
 
   const [dbProducts, dbCustomers, dbOrders] = await dbQuery(() =>
     Promise.all([
@@ -123,7 +142,6 @@ export default async function DashboardPage() {
 
   return (
     <DashboardContent
-      merchantId={merchant.id}
       merchantName={merchant.name}
       currency={merchant.currency}
       currencyFormat={
@@ -134,6 +152,7 @@ export default async function DashboardPage() {
       }
       language={merchant.language ?? "en"}
       dateFormat={merchant.dateFormat ?? "long"}
+      staffName={staffName}
       staffRole={role}
       allowedPages={allowedPages}
       products={products}

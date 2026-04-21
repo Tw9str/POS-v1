@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  startTransition,
+  useMemo,
+  useOptimistic,
+  useState,
+  useTransition,
+} from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -8,9 +14,9 @@ import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { BarcodeScanner } from "@/components/features/BarcodeScanner";
 import { IconCamera, IconPrinter } from "@/components/Icons";
-import { QRCodeDisplay } from "@/components/QrCode";
+import { QRCodeDisplay } from "@/components/features/QrCode";
 import { SearchInput } from "@/components/ui/SearchInput";
 import {
   SortableTh,
@@ -25,6 +31,7 @@ import {
   type NumberFormat,
 } from "@/lib/utils";
 import { t, translatePaymentMethod, type Locale } from "@/lib/i18n";
+import { processOrderAction, collectPayment } from "@/app/actions/merchant";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -105,19 +112,7 @@ function matchesDateRange(createdAt: number, range: string) {
   return true;
 }
 
-export function OrdersContent({
-  merchantId,
-  merchantName,
-  merchantAddress,
-  merchantPhone,
-  currency,
-  currencyFormat = "symbol",
-  numberFormat = "western",
-  dateFormat = "long",
-  language = "en",
-  orders,
-}: {
-  merchantId: string;
+export function OrdersContent(props: {
   merchantName: string;
   merchantAddress?: string | null;
   merchantPhone?: string | null;
@@ -128,13 +123,29 @@ export function OrdersContent({
   language?: string;
   orders: OrderData[];
 }) {
+  const {
+    merchantName,
+    merchantAddress,
+    merchantPhone,
+    currency,
+    currencyFormat = "symbol",
+    numberFormat = "western",
+    dateFormat = "long",
+    language = "en",
+  } = props;
   const i = t(language as Locale);
-  const [localOrders, setLocalOrders] = useState(orders);
+  const [orders, setOrders] = useOptimistic(
+    props.orders,
+    (
+      current: OrderData[],
+      updater: OrderData[] | ((prev: OrderData[]) => OrderData[]),
+    ) =>
+      typeof updater === "function"
+        ? (updater as (prev: OrderData[]) => OrderData[])(current)
+        : updater,
+  );
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    setLocalOrders(orders);
-  }, [orders]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
@@ -172,7 +183,7 @@ export function OrdersContent({
 
   // Build dynamic payment method options from actual order data
   const paymentMethodOptions = useMemo(() => {
-    const methods = new Set(localOrders.map((o) => o.paymentMethod));
+    const methods = new Set(orders.map((o) => o.paymentMethod));
     const opts: { value: string; label: string }[] = [
       { value: "all", label: i.orders.allMethods },
     ];
@@ -183,7 +194,7 @@ export function OrdersContent({
       });
     }
     return opts;
-  }, [localOrders, language, i.orders.allMethods]);
+  }, [orders, language, i.orders.allMethods]);
 
   function translateOrderStatus(status: string): string {
     switch (status) {
@@ -203,7 +214,7 @@ export function OrdersContent({
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    const result = localOrders.filter((order) => {
+    const result = orders.filter((order) => {
       const status = displayStatus(order);
       const matchesSearch =
         !query ||
@@ -268,7 +279,7 @@ export function OrdersContent({
       return sortDir === "desc" ? -cmp : cmp;
     });
   }, [
-    localOrders,
+    orders,
     search,
     statusFilter,
     paymentFilter,
@@ -322,23 +333,17 @@ export function OrdersContent({
     setFeedback(null);
 
     try {
-      const res = await fetch("/api/merchant/orders", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: selectedOrder.id,
-          action,
-          amount,
-          reason: actionReason || null,
-        }),
+      const result = await processOrderAction({
+        id: selectedOrder.id,
+        action,
+        amount,
+        reason: actionReason || null,
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+      if (result.error) {
         setFeedback({
           type: "error",
-          text:
-            err.error || i.orders.failedToProcess.replace("{action}", label),
+          text: result.error,
         });
       } else {
         const nextStatus =
@@ -357,22 +362,24 @@ export function OrdersContent({
           .filter(Boolean)
           .join(" • ");
 
-        setSelectedOrder((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: nextStatus,
-                notes: nextNotes,
-              }
-            : prev,
-        );
-        setLocalOrders((prev) =>
-          prev.map((order) =>
-            order.id === selectedOrder.id
-              ? { ...order, status: nextStatus, notes: nextNotes }
-              : order,
-          ),
-        );
+        startTransition(() => {
+          setSelectedOrder((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: nextStatus,
+                  notes: nextNotes,
+                }
+              : prev,
+          );
+          setOrders((prev) =>
+            prev.map((order) =>
+              order.id === selectedOrder.id
+                ? { ...order, status: nextStatus, notes: nextNotes }
+                : order,
+            ),
+          );
+        });
         setFeedback({
           type: "success",
           text:
@@ -419,24 +426,18 @@ export function OrdersContent({
       try {
         const actualAmount = Math.min(amount, selectedOrder.creditAmount);
 
-        // Call server API directly
-        const res = await fetch("/api/merchant/payments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            customerId: selectedOrder.customerId,
-            orderId: selectedOrder.id,
-            amount: actualAmount,
-            method: collectMethod,
-            note: collectNote.trim() || null,
-          }),
+        const result = await collectPayment({
+          customerId: selectedOrder.customerId!,
+          orderId: selectedOrder.id,
+          amount: actualAmount,
+          method: collectMethod,
+          note: collectNote.trim() || null,
         });
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
+        if (result.error) {
           setCollectFeedback({
             type: "error",
-            text: err.error || i.customers.failedToCollect,
+            text: result.error,
           });
           return;
         }
@@ -464,7 +465,7 @@ export function OrdersContent({
               }
             : prev,
         );
-        setLocalOrders((prev) =>
+        setOrders((prev) =>
           prev.map((order) =>
             order.id === selectedOrder.id
               ? {
@@ -488,7 +489,7 @@ export function OrdersContent({
     <div className="space-y-6">
       <PageHeader
         title={i.orders.title}
-        subtitle={`${formatNumber(localOrders.length, numberFormat)} ${i.orders.orders}`}
+        subtitle={`${formatNumber(orders.length, numberFormat)} ${i.orders.orders}`}
       />
 
       <div className="grid gap-3 xl:grid-cols-6">
@@ -502,7 +503,7 @@ export function OrdersContent({
             setPage(1);
           }}
           resultCount={filteredOrders.length}
-          totalCount={localOrders.length}
+          totalCount={orders.length}
           numberFormat={numberFormat}
           onScan={() => setScannerOpen(true)}
           language={language}
@@ -679,7 +680,7 @@ export function OrdersContent({
                   colSpan={10}
                   className="px-5 py-12 text-center text-slate-400"
                 >
-                  {localOrders.length === 0
+                  {orders.length === 0
                     ? i.orders.noOrdersYet
                     : i.orders.noOrdersMatch}
                 </td>

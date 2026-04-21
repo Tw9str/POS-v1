@@ -40,6 +40,13 @@ export function getRefundAmount(
   return Number.isFinite(amount) ? Math.min(amount, order.total) : order.total;
 }
 
+export function getOrderCost(order: Pick<Order, "items">): number {
+  return order.items.reduce(
+    (sum, item) => sum + item.costPrice * item.quantity,
+    0,
+  );
+}
+
 export function buildProductPerformance(
   orders: Order[],
   products: Product[],

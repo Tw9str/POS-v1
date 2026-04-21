@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { SupplierActions } from "./SupplierActions";
 import { Button } from "@/components/ui/Button";
 import { RowActions } from "@/components/ui/RowActions";
@@ -10,15 +10,11 @@ import { SearchInput } from "@/components/ui/SearchInput";
 import { formatNumber, type NumberFormat } from "@/lib/utils";
 import { t, type Locale } from "@/lib/i18n";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { deleteSupplier } from "@/app/actions/merchant";
 
 const PAGE_SIZE = 10;
 
-export function SuppliersContent({
-  merchantId,
-  numberFormat = "western",
-  language = "en",
-  suppliers,
-}: {
+export function SuppliersContent(props: {
   merchantId: string;
   numberFormat?: NumberFormat;
   language?: string;
@@ -32,14 +28,22 @@ export function SuppliersContent({
     _orderCount?: number;
   }[];
 }) {
+  const { merchantId, numberFormat = "western", language = "en" } = props;
   const i = t(language as Locale);
-  const [localSuppliers, setLocalSuppliers] = useState(suppliers);
+  type SupplierRow = (typeof props.suppliers)[number];
+  const [suppliers, setSuppliers] = useOptimistic(
+    props.suppliers,
+    (
+      current: SupplierRow[],
+      updater: SupplierRow[] | ((prev: SupplierRow[]) => SupplierRow[]),
+    ) =>
+      typeof updater === "function"
+        ? (updater as (prev: SupplierRow[]) => SupplierRow[])(current)
+        : updater,
+  );
   const [isDeleting, startDeleteTransition] = useTransition();
   const [isBulkDeleting, startBulkDeleteTransition] = useTransition();
 
-  useEffect(() => {
-    setLocalSuppliers(suppliers);
-  }, [suppliers]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -63,16 +67,16 @@ export function SuppliersContent({
 
   const filteredSuppliers = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return localSuppliers;
+    if (!query) return suppliers;
 
-    return localSuppliers.filter(
+    return suppliers.filter(
       (supplier) =>
         supplier.name.toLowerCase().includes(query) ||
         supplier.phone?.toLowerCase().includes(query) ||
         supplier.email?.toLowerCase().includes(query) ||
         supplier.address?.toLowerCase().includes(query),
     );
-  }, [localSuppliers, search]);
+  }, [suppliers, search]);
 
   const totalPages = Math.max(
     1,
@@ -105,22 +109,15 @@ export function SuppliersContent({
     setFeedback(null);
     startDeleteTransition(async () => {
       try {
-        const res = await fetch("/api/merchant/suppliers", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id }),
-        });
+        const result = await deleteSupplier(id);
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
+        if (result.error) {
           setFeedback({
             type: "error",
-            text: err.error || i.suppliers.failedToDelete,
+            text: result.error || i.suppliers.failedToDelete,
           });
         } else {
-          setLocalSuppliers((prev) =>
-            prev.filter((supplier) => supplier.id !== id),
-          );
+          setSuppliers((prev) => prev.filter((supplier) => supplier.id !== id));
           setSelectedIds((prev) => prev.filter((item) => item !== id));
           setFeedback({
             type: "success",
@@ -142,15 +139,9 @@ export function SuppliersContent({
 
       for (const id of selectedIds) {
         try {
-          const res = await fetch("/api/merchant/suppliers", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id }),
-          });
-
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            failures.push(err.error || i.common.deleteFailed);
+          const result = await deleteSupplier(id);
+          if (result.error) {
+            failures.push(result.error || i.common.deleteFailed);
           }
         } catch {
           failures.push(i.common.deleteFailed);
@@ -167,7 +158,7 @@ export function SuppliersContent({
             String(selectedIds.length),
           ),
         });
-        setLocalSuppliers((prev) =>
+        setSuppliers((prev) =>
           prev.filter((supplier) => !selectedIds.includes(supplier.id)),
         );
         setSelectedIds([]);
@@ -179,13 +170,13 @@ export function SuppliersContent({
     <div className="space-y-6">
       <PageHeader
         title={i.suppliers.title}
-        subtitle={`${formatNumber(localSuppliers.length, numberFormat)} ${i.suppliers.suppliers}`}
+        subtitle={`${formatNumber(suppliers.length, numberFormat)} ${i.suppliers.suppliers}`}
       >
         <SupplierActions
           merchantId={merchantId}
           language={language}
           onSaved={(savedSupplier) => {
-            setLocalSuppliers((prev) => {
+            setSuppliers((prev) => {
               const next = prev.some(
                 (supplier) => supplier.id === savedSupplier.id,
               )
@@ -224,7 +215,7 @@ export function SuppliersContent({
             setPage(1);
           }}
           resultCount={filteredSuppliers.length}
-          totalCount={localSuppliers.length}
+          totalCount={suppliers.length}
           numberFormat={numberFormat}
           language={language}
         />
@@ -281,7 +272,7 @@ export function SuppliersContent({
                   colSpan={8}
                   className="px-5 py-12 text-center text-slate-400"
                 >
-                  {localSuppliers.length === 0
+                  {suppliers.length === 0
                     ? i.suppliers.noSuppliersYet
                     : i.suppliers.noSuppliersMatch}
                 </td>
@@ -397,7 +388,7 @@ export function SuppliersContent({
           externalOpen
           onExternalClose={() => setEditSupplier(null)}
           onSaved={(savedSupplier) => {
-            setLocalSuppliers((prev) =>
+            setSuppliers((prev) =>
               prev
                 .map((supplier) =>
                   supplier.id === savedSupplier.id

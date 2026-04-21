@@ -14,7 +14,7 @@ export async function generateMetadata() {
 
 export default async function StaffPage() {
   const merchant = await requireMerchant();
-  await requireStaffForPage("/dashboard/staff");
+  const currentStaff = await requireStaffForPage("/dashboard/staff");
 
   const dbStaff = await dbQuery(() =>
     prisma.staff.findMany({
@@ -25,7 +25,7 @@ export default async function StaffPage() {
 
   return (
     <StaffContent
-      merchantId={merchant.id}
+      currentStaffId={currentStaff?.staffId ?? null}
       numberFormat={
         (merchant.numberFormat ?? "western") as "western" | "eastern"
       }
@@ -36,6 +36,8 @@ export default async function StaffPage() {
         pin: s.pin,
         role: s.role,
         isActive: s.isActive,
+        isOwner: s.isOwner,
+        allowedPages: s.allowedPages,
         maxDiscountPercent: s.maxDiscountPercent,
       }))}
     />

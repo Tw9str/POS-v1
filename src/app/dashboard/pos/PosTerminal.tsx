@@ -6,6 +6,7 @@ import {
   useRef,
   useEffect,
   useCallback,
+  useOptimistic,
   useTransition,
 } from "react";
 import { Button } from "@/components/ui/Button";
@@ -29,9 +30,9 @@ import {
   IconClock,
 } from "@/components/Icons";
 import { BackButton } from "@/components/layout/PageHeader";
-import { useRouter } from "next/navigation";
-import { BarcodeScanner } from "@/components/BarcodeScanner";
-import { QRCodeDisplay } from "@/components/QrCode";
+import { switchUser } from "@/lib/staffActions";
+import { BarcodeScanner } from "@/components/features/BarcodeScanner";
+import { QRCodeDisplay } from "@/components/features/QrCode";
 import {
   formatCurrency,
   formatDateTime,
@@ -42,7 +43,13 @@ import {
   type SupportedPaymentMethod,
 } from "@/lib/utils";
 import { t, translatePaymentMethod, type Locale } from "@/lib/i18n";
-import type { Promotion } from "@/types/pos";
+import {
+  createCustomer,
+  createOrder,
+  validatePromoCode,
+} from "@/app/actions/merchant";
+import type { ActionResult } from "@/app/actions/merchant";
+import { useOutsideClick } from "@/hooks/useOutsideClick";
 
 // ─────────────────────────────────────────────
 // Types
@@ -96,6 +103,7 @@ interface CartItem {
 interface POSTerminalProps {
   currentStaffId: string | null;
   staffRole: string;
+  posOnly: boolean;
   language: string;
   merchant: {
     id: string;
@@ -113,7 +121,6 @@ interface POSTerminalProps {
   categories: POSCategory[];
   customers: POSCustomer[];
   staff: POSStaff[];
-  promotions: Promotion[];
 }
 
 // ─────────────────────────────────────────────
@@ -182,33 +189,43 @@ const PAYMENT_METHOD_OPTIONS: Array<{
 // POS Terminal Component
 // ─────────────────────────────────────────────
 
-export function POSTerminal({
-  currentStaffId,
-  staffRole,
-  language,
-  merchant,
-  products,
-  categories,
-  customers,
-  staff,
-  promotions: localPromotions,
-}: POSTerminalProps) {
-  const router = useRouter();
+export function POSTerminal(props: POSTerminalProps) {
+  const {
+    currentStaffId,
+    staffRole,
+    posOnly,
+    language,
+    merchant,
+    categories,
+    staff,
+  } = props;
   const searchRef = useRef<HTMLInputElement>(null);
   const i = t(language as Locale);
-  const isCashier = staffRole === "CASHIER";
+  const isCashier = posOnly;
 
-  // Local customers list — keeps server data in sync + allows instant client-side additions
-  const [localCustomers, setLocalCustomers] = useState(customers);
-  useEffect(() => {
-    setLocalCustomers(customers);
-  }, [customers]);
+  // Optimistic customers list — allows instant client-side additions
+  const [customers, setCustomers] = useOptimistic(
+    props.customers,
+    (
+      current: POSCustomer[],
+      updater: POSCustomer[] | ((prev: POSCustomer[]) => POSCustomer[]),
+    ) =>
+      typeof updater === "function"
+        ? (updater as (prev: POSCustomer[]) => POSCustomer[])(current)
+        : updater,
+  );
 
-  // Local products list — allows instant stock updates after checkout
-  const [localProducts, setLocalProducts] = useState(products);
-  useEffect(() => {
-    setLocalProducts(products);
-  }, [products]);
+  // Optimistic products list — instant stock updates after checkout
+  const [products, setProducts] = useOptimistic(
+    props.products,
+    (
+      current: POSProduct[],
+      updater: POSProduct[] | ((prev: POSProduct[]) => POSProduct[]),
+    ) =>
+      typeof updater === "function"
+        ? (updater as (prev: POSProduct[]) => POSProduct[])(current)
+        : updater,
+  );
 
   // State
   const [search, setSearch] = useState("");
@@ -222,6 +239,7 @@ export function POSTerminal({
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [quickAddName, setQuickAddName] = useState("");
   const [quickAddPhone, setQuickAddPhone] = useState("");
+  const [quickAddError, setQuickAddError] = useState<string | null>(null);
   const [isQuickAdding, startQuickAddTransition] = useTransition();
   const customerPickerRef = useRef<HTMLDivElement>(null);
   const selectedStaff = useMemo(
@@ -235,6 +253,7 @@ export function POSTerminal({
   const [paidAmount, setPaidAmount] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
   const [isProcessing, startProcessTransition] = useTransition();
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [lastOrder, setLastOrder] = useState<{
     orderNumber: string;
@@ -279,62 +298,64 @@ export function POSTerminal({
   }, []);
 
   // Close customer dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        customerPickerRef.current &&
-        !customerPickerRef.current.contains(e.target as Node)
-      ) {
-        setCustomerDropdownOpen(false);
-      }
-    }
-    if (customerDropdownOpen)
-      document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [customerDropdownOpen]);
+  useOutsideClick(
+    customerPickerRef,
+    useCallback(() => setCustomerDropdownOpen(false), []),
+    customerDropdownOpen,
+  );
 
   // Filtered customers for picker
   const filteredCustomers = useMemo(() => {
-    if (!customerSearch.trim()) return localCustomers;
+    if (!customerSearch.trim()) return customers;
     const q = customerSearch.toLowerCase();
-    return localCustomers.filter(
+    return customers.filter(
       (c) =>
         c.name.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q),
     );
-  }, [localCustomers, customerSearch]);
+  }, [customers, customerSearch]);
 
   // Quick-add customer inline
   async function handleQuickAddCustomer() {
     const name = quickAddName.trim();
     if (!name) return;
+    setQuickAddError(null);
     startQuickAddTransition(async () => {
       try {
-        const res = await fetch("/api/merchant/customers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name,
-            phone: quickAddPhone.trim() || undefined,
-          }),
-        });
-        if (res.ok) {
-          const created = await res.json();
+        const fd = new FormData();
+        fd.set("name", name);
+        if (quickAddPhone.trim()) fd.set("phone", quickAddPhone.trim());
+        const result = await createCustomer(
+          {
+            error: undefined,
+            success: undefined,
+            data: undefined,
+          } as ActionResult,
+          fd,
+        );
+        if (result.success && result.data) {
+          const created = result.data as {
+            id: string;
+            name: string;
+            phone: string | null;
+          };
           const newCustomer: POSCustomer = {
             id: created.id,
             name: created.name,
             phone: created.phone ?? null,
             balance: 0,
           };
-          setLocalCustomers((prev) => [...prev, newCustomer]);
+          setCustomers((prev) => [...prev, newCustomer]);
           setSelectedCustomer(newCustomer);
           setQuickAddOpen(false);
           setQuickAddName("");
           setQuickAddPhone("");
           setCustomerSearch("");
           setCustomerDropdownOpen(false);
+        } else {
+          setQuickAddError(result.error ?? i.common.somethingWentWrong);
         }
       } catch {
-        // silently fail — customer just won't be added
+        setQuickAddError(i.common.somethingWentWrong);
       }
     });
   }
@@ -357,7 +378,7 @@ export function POSTerminal({
 
   // Filtered products
   const filteredProducts = useMemo(() => {
-    let list = localProducts;
+    let list = products;
     if (activeCategory) {
       list = list.filter((p) => p.categoryId === activeCategory);
     }
@@ -372,7 +393,7 @@ export function POSTerminal({
       );
     }
     return list;
-  }, [localProducts, activeCategory, search]);
+  }, [products, activeCategory, search]);
 
   // Cart calculations
   const subtotal = cart.reduce((sum, item) => {
@@ -467,7 +488,7 @@ export function POSTerminal({
   const handleCameraScan = useCallback(
     (barcode: string) => {
       setScannerOpen(false);
-      const found = localProducts.find(
+      const found = products.find(
         (p) => p.barcode?.toLowerCase() === barcode.toLowerCase(),
       );
       if (found) {
@@ -476,7 +497,7 @@ export function POSTerminal({
         setSearch(barcode);
       }
     },
-    [localProducts, addToCart],
+    [products, addToCart],
   );
 
   // ─────────────────────────────────────────────
@@ -549,22 +570,17 @@ export function POSTerminal({
     const code = promoCode.trim().toUpperCase();
 
     try {
-      const res = await fetch("/api/merchant/promotions/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          subtotal,
-          items: cart.map((item) => ({
-            productId: item.product.id,
-            categoryId: item.product.categoryId,
-            quantity: item.quantity,
-            lineTotal: (item.unitPrice ?? item.product.price) * item.quantity,
-          })),
-        }),
+      const data = await validatePromoCode({
+        code,
+        subtotal,
+        cartItems: cart.map((item) => ({
+          productId: item.product.id,
+          categoryId: item.product.categoryId,
+          quantity: item.quantity,
+          lineTotal: (item.unitPrice ?? item.product.price) * item.quantity,
+        })),
       });
-      const data = await res.json();
-      if (data.valid) {
+      if (data.valid && data.promo) {
         setPromoApplied({
           code: data.promo.code,
           id: data.promo.id,
@@ -597,10 +613,11 @@ export function POSTerminal({
 
     // Credit requires a customer
     if (paymentMethod === "CREDIT" && !selectedCustomer) {
-      alert(i.pos.creditRequiresCustomer);
+      setCheckoutError(i.pos.creditRequiresCustomer);
       return;
     }
 
+    setCheckoutError(null);
     startProcessTransition(async () => {
       const paid =
         paymentMethod === "CREDIT" ? 0 : parseFloat(paidAmount) || total;
@@ -650,33 +667,29 @@ export function POSTerminal({
       };
 
       try {
-        const res = await fetch("/api/merchant/orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            items: orderItems,
-            customerId: selectedCustomer?.id || null,
-            staffId: selectedStaff?.id || null,
-            paymentMethod,
-            paidAmount: paid,
-            creditAmount: creditAmt,
-            notes: orderNotes || null,
-            subtotal,
-            taxAmount,
-            total,
-            promoCode: promoApplied?.code || null,
-            promoId: promoApplied?.id || null,
-            promoDiscount,
-          }),
+        const result = await createOrder({
+          items: orderItems,
+          customerId: selectedCustomer?.id || null,
+          staffId: selectedStaff?.id || null,
+          paymentMethod,
+          paidAmount: paid,
+          creditAmount: creditAmt,
+          notes: orderNotes || null,
+          subtotal,
+          taxAmount,
+          total,
+          promoCode: promoApplied?.code || null,
+          promoId: promoApplied?.id || null,
+          promoDiscount,
         });
 
-        if (res.ok) {
-          const order = (await res.json()) as {
+        if (result.success && result.data) {
+          const order = result.data as {
             id?: string;
             orderNumber: string;
           };
 
-          setLocalProducts((prev) =>
+          setProducts((prev) =>
             prev.map((product) => {
               const purchased = cart.find(
                 (item) => item.product.id === product.id,
@@ -691,7 +704,7 @@ export function POSTerminal({
 
           if (paymentMethod === "CREDIT" && selectedCustomer) {
             const nextBalance = selectedCustomer.balance + creditAmt;
-            setLocalCustomers((prev) =>
+            setCustomers((prev) =>
               prev.map((customer) =>
                 customer.id === selectedCustomer.id
                   ? { ...customer, balance: nextBalance }
@@ -703,11 +716,10 @@ export function POSTerminal({
           finishOrder(order.orderNumber);
           return;
         } else {
-          const err = await res.json().catch(() => ({}));
-          alert(err.error || i.pos.failedToSaveOrder);
+          setCheckoutError(result.error || i.pos.failedToSaveOrder);
         }
       } catch {
-        alert(i.pos.failedToSaveOrder);
+        setCheckoutError(i.pos.failedToSaveOrder);
       }
     });
   };
@@ -743,14 +755,7 @@ export function POSTerminal({
           <div className="flex gap-2">
             {isCashier ? (
               <button
-                onClick={async () => {
-                  try {
-                    await fetch("/api/staff/auth", { method: "DELETE" });
-                  } catch {
-                    // Best-effort
-                  }
-                  router.push("/dashboard");
-                }}
+                onClick={() => switchUser()}
                 className="flex items-center gap-2 px-3 h-11 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 active:scale-95 transition-all shrink-0 text-sm font-semibold cursor-pointer"
               >
                 <IconKey size={18} />
@@ -964,34 +969,37 @@ export function POSTerminal({
             </span>
           </div>
           <div className="flex-1 relative" ref={customerPickerRef}>
-            <div
-              className="flex items-center text-xs rounded-xl border-2 border-slate-200 px-3 py-2 font-medium text-slate-600 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all cursor-text bg-white"
-              onClick={() => setCustomerDropdownOpen(true)}
-            >
+            <div className="flex items-center text-xs rounded-xl border-2 border-slate-200 px-3 py-2 font-medium text-slate-600 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all bg-white">
               {selectedCustomer && !customerDropdownOpen ? (
                 <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                  <span className="truncate capitalize">
-                    {selectedCustomer.name}
-                  </span>
-                  {selectedCustomer.balance > 0 && (
-                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full tabular-nums shrink-0">
-                      {formatMoney(
-                        selectedCustomer.balance,
-                        merchant.currency,
-                        merchant.numberFormat,
-                        merchant.currencyFormat,
-                        language,
-                      )}
-                    </span>
-                  )}
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    onClick={() => setCustomerDropdownOpen(true)}
+                    className="flex items-center gap-1.5 flex-1 min-w-0 text-start cursor-text"
+                  >
+                    <span className="truncate capitalize">
+                      {selectedCustomer.name}
+                    </span>
+                    {selectedCustomer.balance > 0 && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full tabular-nums shrink-0">
+                        {formatMoney(
+                          selectedCustomer.balance,
+                          merchant.currency,
+                          merchant.numberFormat,
+                          merchant.currencyFormat,
+                          language,
+                        )}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       setSelectedCustomer(null);
                       setCustomerSearch("");
                     }}
                     className="shrink-0 p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                    aria-label={i.common.clear}
                   >
                     <IconX size={12} />
                   </button>
@@ -1107,6 +1115,14 @@ export function POSTerminal({
                       <p className="text-xs font-semibold text-slate-700">
                         {i.pos.quickAddCustomer}
                       </p>
+                      {quickAddError && (
+                        <p
+                          role="alert"
+                          className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700"
+                        >
+                          {quickAddError}
+                        </p>
+                      )}
                       <input
                         autoFocus
                         type="text"
@@ -1143,6 +1159,7 @@ export function POSTerminal({
                             setQuickAddOpen(false);
                             setQuickAddName("");
                             setQuickAddPhone("");
+                            setQuickAddError(null);
                           }}
                           className="px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-colors"
                         >
@@ -1549,11 +1566,22 @@ export function POSTerminal({
       {/* ─── Checkout Modal ─── */}
       <Modal
         open={checkoutOpen}
-        onClose={() => setCheckoutOpen(false)}
+        onClose={() => {
+          setCheckoutOpen(false);
+          setCheckoutError(null);
+        }}
         title={i.pos.completeSale}
         size="md"
       >
         <div className="space-y-5">
+          {checkoutError && (
+            <div
+              role="alert"
+              className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+            >
+              {checkoutError}
+            </div>
+          )}
           {/* Order summary */}
           <div className="bg-slate-50 rounded-2xl p-5 space-y-2.5 text-sm">
             <div className="flex justify-between">
